@@ -577,17 +577,24 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
   }
 
   const handleUpload = async () => {
+    console.log('Upload button clicked')
+    console.log('Company data:', companyData)
+    console.log('Files:', files)
+
     if (!companyData.name.trim()) {
       setError('Please enter company name')
+      alert('Please enter company name')
       return
     }
     if (files.length === 0) {
       setError('Please upload at least one file')
+      alert('Please upload at least one file')
       return
     }
 
     setError(null)
     setUploading(true)
+    console.log('Starting upload process...')
 
     try {
       // Step 1: Create client
@@ -596,15 +603,25 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           company_name: companyData.name,
+          website: companyData.website,
+          contactName: companyData.contactName,
+          contactTitle: companyData.contactTitle,
+          contactLinkedIn: companyData.contactLinkedIn,
+          industry: companyData.industry,
           description: companyData.description
         })
       })
 
-      if (!clientResponse.ok) throw new Error('Failed to create client')
+      if (!clientResponse.ok) {
+        const errorData = await clientResponse.json()
+        throw new Error(errorData.error || 'Failed to create client')
+      }
       const { client_id } = await clientResponse.json()
       setClientId(client_id)
+      console.log('Created client:', client_id)
 
       // Step 2: Get presigned URLs
+      console.log('Getting presigned URLs for', files.length, 'files')
       const uploadResponse = await fetch(`${API_BASE}/upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -614,28 +631,44 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
         })
       })
 
-      if (!uploadResponse.ok) throw new Error('Failed to get upload URLs')
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json()
+        throw new Error(errorData.error || 'Failed to get upload URLs')
+      }
       const { upload_urls } = await uploadResponse.json()
+      console.log('Received', upload_urls.length, 'presigned URLs')
 
       // Step 3: Upload files to S3
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         const url = upload_urls[i]
 
-        await fetch(url, {
+        console.log(`Uploading file ${i + 1}/${files.length}: ${file.name}`)
+        const s3Response = await fetch(url, {
           method: 'PUT',
           body: file,
           headers: { 'Content-Type': file.type }
         })
 
+        if (!s3Response.ok) {
+          throw new Error(`Failed to upload ${file.name} to S3`)
+        }
+
         setUploadProgress(prev => ({ ...prev, [file.name]: 100 }))
+        console.log(`Successfully uploaded: ${file.name}`)
       }
 
+      console.log('All files uploaded successfully')
       // Success - move to enrich screen
-      setTimeout(() => onComplete(), 500)
+      setTimeout(() => {
+        console.log('Navigating to enrich screen')
+        onComplete()
+      }, 500)
 
     } catch (err) {
+      console.error('Upload error:', err)
       setError(err.message)
+      alert('Upload failed: ' + err.message)
       setUploading(false)
     }
   }
@@ -876,11 +909,10 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
 
         {/* Step 3: Intelligent Growth */}
         <div style={{
-          background: allStepsComplete ? '#1a1a2e' : 'rgba(26, 26, 46, 0.5)',
+          background: allStepsComplete ? '#1a1a2e' : '#2a2a3e',
           borderRadius: '12px',
           padding: '0.875rem',
-          border: '2px solid transparent',
-          opacity: allStepsComplete ? 1 : 0.6,
+          border: allStepsComplete ? '2px solid transparent' : '2px solid rgba(100, 100, 100, 0.3)',
           transition: 'all 0.3s',
           minHeight: '220px',
           display: 'flex',
@@ -891,18 +923,18 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
             width: 48,
             height: 48,
             borderRadius: '50%',
-            background: allStepsComplete ? 'rgba(220, 38, 38, 0.2)' : 'rgba(100, 100, 100, 0.2)',
+            background: allStepsComplete ? 'rgba(220, 38, 38, 0.2)' : 'rgba(150, 150, 150, 0.3)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             marginBottom: '0.75rem',
-            border: `2px solid ${allStepsComplete ? 'rgba(220, 38, 38, 0.3)' : 'rgba(100, 100, 100, 0.2)'}`,
+            border: `2px solid ${allStepsComplete ? 'rgba(220, 38, 38, 0.3)' : 'rgba(150, 150, 150, 0.4)'}`,
             transition: 'all 0.3s'
           }}>
             <span style={{
               fontSize: '1.25rem',
               fontWeight: 700,
-              color: allStepsComplete ? '#dc2626' : '#666'
+              color: allStepsComplete ? '#dc2626' : '#999'
             }}>3</span>
           </div>
 
@@ -911,15 +943,15 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
             <h3 style={{
               fontSize: '1.125rem',
               fontWeight: 700,
-              color: allStepsComplete ? 'white' : 'rgba(255, 255, 255, 0.4)',
+              color: allStepsComplete ? 'white' : 'rgba(255, 255, 255, 0.7)',
               marginBottom: '0.25rem',
               letterSpacing: '-0.01em'
             }}>
-              INTELLIGENT GROWTH
+              INTELLAGENTIC GROWTH
             </h3>
             <p style={{
               fontSize: '0.75rem',
-              color: allStepsComplete ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.3)',
+              color: allStepsComplete ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.55)',
               fontWeight: 600,
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
@@ -930,7 +962,7 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
 
             <p style={{
               fontSize: '0.85rem',
-              color: allStepsComplete ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.4)',
+              color: allStepsComplete ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.65)',
               lineHeight: 1.5,
               marginBottom: '0.75rem',
               flex: 1
@@ -941,7 +973,7 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
             {!allStepsComplete && (
               <p style={{
                 fontSize: '0.75rem',
-                color: 'rgba(255, 255, 255, 0.4)',
+                color: 'rgba(255, 255, 255, 0.5)',
                 fontStyle: 'italic',
                 textAlign: 'center'
               }}>
@@ -952,12 +984,32 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
         </div>
       </div>
 
+      {/* AI-Powered Tagline */}
+      <div style={{
+        textAlign: 'center',
+        margin: '1.5rem 0 1rem',
+        padding: '0.75rem 1rem',
+        borderTop: '1px solid #e5e5e5',
+        borderBottom: '1px solid #e5e5e5'
+      }}>
+        <p style={{
+          fontSize: '0.8rem',
+          fontWeight: 600,
+          color: '#3b82f6',
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          margin: 0
+        }}>
+          AI-Powered Business Intelligence
+        </p>
+      </div>
+
       {/* Founder Quotes */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
         gap: '1.5rem',
-        margin: '1.25rem 0 1rem',
+        margin: '1rem 0 1rem',
         padding: '0 0.5rem'
       }}>
         {/* Alan's Quote */}
@@ -1026,6 +1078,25 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
           </p>
         </div>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div style={{
+          background: 'rgba(220, 38, 38, 0.1)',
+          border: '1px solid rgba(220, 38, 38, 0.3)',
+          borderRadius: '8px',
+          padding: '1rem',
+          marginBottom: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem'
+        }}>
+          <AlertCircle size={20} style={{ color: '#dc2626', flexShrink: 0 }} />
+          <p style={{ fontSize: '0.875rem', color: '#dc2626', margin: 0 }}>
+            {error}
+          </p>
+        </div>
+      )}
 
       {/* Upload Button - Only show when both steps complete */}
       {allStepsComplete && (
