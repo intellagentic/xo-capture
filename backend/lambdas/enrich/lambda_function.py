@@ -422,6 +422,10 @@ def analyze_with_claude(company_name, website, contact_name, contact_title,
         for skill in skills:
             skills_section += f"=== SKILL: {skill['name']} ===\n{skill['content']}\n\n"
 
+    pain_point_section = ""
+    if pain_point:
+        pain_point_section = f"\n\nPRIORITY: The client has identified this as their immediate pain point: '{pain_point}'. Make this the #1 problem in your analysis. Lead the executive summary with it, ensure it appears first in the problems list with specific evidence and a concrete recommendation, and front-load the 30-day action plan with steps that directly address it."
+
     prompt = f"""You are an MBA-level business analyst conducting a First Party Trick analysis. You have been given access to internal documents from a company. Analyze this business and provide strategic insights.
 
 COMPANY INFORMATION:
@@ -432,9 +436,7 @@ CLIENT DATA (Uploaded Documents):
 {files_summary}
 {skills_section}
 TASK:
-Analyze this business like an MBA analyst presenting on Monday morning.{f"""
-
-PRIORITY: The client has identified this as their immediate pain point: '{pain_point}'. Make this the #1 problem in your analysis. Lead the executive summary with it, ensure it appears first in the problems list with specific evidence and a concrete recommendation, and front-load the 30-day action plan with steps that directly address it.""" if pain_point else ""}
+Analyze this business like an MBA analyst presenting on Monday morning.{pain_point_section}
 
 Provide:
 
