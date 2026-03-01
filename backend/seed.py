@@ -19,7 +19,7 @@ if not DATABASE_URL:
     sys.exit(1)
 
 # Admin user credentials
-ADMIN_EMAIL = "admin@xo.com"
+ADMIN_EMAIL = "ken.scott@intellagentic.io"
 ADMIN_PASSWORD = "XOquickstart2026!"
 ADMIN_NAME = "XO Admin"
 

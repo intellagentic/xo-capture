@@ -1,9 +1,9 @@
 # XO QUICKSTART - PROJECT STATUS
 
-**Date:** March 1, 2026
-**Project:** XO Quickstart - Rapid Prototype
+**Date:** February 28, 2026
+**Project:** XO Quickstart - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1)
+**Status:** Deployed & Operational (v1.5)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -75,11 +75,14 @@
 App (root)
 |
 +-- LoginScreen (if !isLoggedIn)
-|     +-- Intellagentic logo with float animation
+|     +-- Header bar (same as main app: XO logo box, "Rapid Deployment", Intellagentic logo)
+|     +-- "Invitation" heading (uppercase, letter-spaced, subtle gray)
 |     +-- Email field (Mail icon)
 |     +-- Password field (Lock icon + Eye/EyeOff toggle)
-|     +-- Error banner (AlertTriangle)
-|     +-- Sign In button (#dc2626 red)
+|     +-- "Continue" button (#dc2626 red)
+|     +-- Helper text: "Enter your email and password to get started."
+|     +-- Error banner (AlertTriangle, red)
+|     +-- Auto-creates account if email is new; logs in if existing
 |
 +-- [Authenticated App] (if isLoggedIn)
 |
@@ -368,6 +371,7 @@ Request/Response Flow:
 ```
 src/
   App.jsx          -- Main application component
+    - LoginScreen             (Invitation branding, single form, auto-create/login)
     - Hamburger Sidebar       (Navigation: Welcome, Enrich, Results, Skills, Configuration, theme toggle -- all always clickable)
     - CompanyInfoModal        (Partner information form - 8 fields)
     - UploadScreen            (3-step journey with founder quotes)
@@ -426,7 +430,7 @@ src/
      - Inline editing: label, URL, 8-color grid selector with checkmarks, icon grid (30+ icons)
      - "+ Add Button" creates new button and opens inline editor
    - Live Preview: right-side panel renders buttons exactly as they appear on Welcome page
-   - Buttons stored in localStorage (key: xo-buttons-v2), shared with Welcome page
+   - Buttons stored in PostgreSQL via /buttons API, synced on login and save
    - Action buttons on Welcome page are clickable:
      - Internal routes (/enrich, /skills, etc.) navigate to that screen
      - External URLs (https://...) open in new tab
@@ -492,7 +496,9 @@ src/
 **CORS:** Enabled on all methods
 
 **Resources:**
-- /auth/login (POST) -- authenticate user, return JWT
+- /auth/login (POST) -- authenticate or auto-create user, return JWT
+- /auth/register (POST) -- explicit user registration
+- /auth/reset-password (POST) -- reset password (no email verification)
 - /clients (POST)
 - /upload (POST)
 - /enrich (POST)
@@ -566,6 +572,36 @@ src/
 +----------+
 ```
 
+### Auth Flow
+
+```
+Browser                          API Gateway                Lambda (xo-auth)            PostgreSQL
+  |                                  |                            |                        |
+  |  POST /auth/login                |                            |                        |
+  |  {email, password}               |                            |                        |
+  |--------------------------------->|--------------------------->|                        |
+  |                                  |                            |  SELECT WHERE email    |
+  |                                  |                            |----------------------->|
+  |                                  |                            |                        |
+  |                                  |                     +------+------+                 |
+  |                                  |                     | User found? |                 |
+  |                                  |                     +------+------+                 |
+  |                                  |                        YES |  NO                    |
+  |                                  |               +------------+------------+           |
+  |                                  |               |                         |           |
+  |                                  |         bcrypt.checkpw()         INSERT new user    |
+  |                                  |               |                  (name from email)  |
+  |                                  |          pass? |                        |---------->|
+  |                                  |           YES  |  NO                    |           |
+  |                                  |            |   |                        |           |
+  |                                  |    JWT token  401              JWT token (201)      |
+  |                                  |    + user     error           + user                |
+  |<---------------------------------|<----------(200)               |                     |
+  |                                  |                              |                     |
+  |  localStorage.setItem(token)     |                              |                     |
+  |  onLogin(user, token)            |                              |                     |
+```
+
 **5 New DB-Only Columns (no UI yet):**
 - `survival_metric_1`, `survival_metric_2` (TEXT)
 - `ai_persona` (TEXT)
@@ -586,39 +622,85 @@ src/
 
 ## API ENDPOINTS
 
-**Authentication:** All endpoints except POST /auth/login require a JWT Bearer token in the Authorization header.
+**Authentication:** All endpoints except POST /auth/login, /auth/register, /auth/reset-password require a JWT Bearer token in the Authorization header.
 
 ### POST /auth/login
 
-**Purpose:** Authenticate user and return JWT token
+**Purpose:** Authenticate user and return JWT token. **Auto-creates account** if email doesn't exist.
 **Lambda:** xo-auth
+
+**Behavior:**
+- If email exists → verify password with bcrypt → return JWT (200)
+- If email doesn't exist → create account (name derived from email) → return JWT (201)
+- Password must be at least 8 characters for new accounts
 
 **Request:**
 ```json
 {
-  "email": "admin@xo.com",
+  "email": "ken.scott@intellagentic.io",
   "password": "XOquickstart2026!"
 }
 ```
 
-**Response:**
+**Response (200 existing user / 201 new user):**
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": "uuid",
-    "email": "admin@xo.com",
-    "name": "XO Admin"
+    "email": "ken.scott@intellagentic.io",
+    "name": "Ken Scott"
   }
 }
 ```
 
-**Sample curl:**
-```bash
-curl -X POST https://2t9mg17baj.execute-api.us-west-1.amazonaws.com/prod/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@xo.com", "password": "XOquickstart2026!"}'
+---
+
+### POST /auth/register
+
+**Purpose:** Explicit user registration (kept for API compatibility; login auto-creates)
+**Lambda:** xo-auth
+
+**Request:**
+```json
+{
+  "email": "user@company.com",
+  "password": "securepassword",
+  "name": "Jane Smith"
+}
 ```
+
+**Response (201):**
+```json
+{
+  "token": "eyJ...",
+  "user": { "id": "uuid", "email": "user@company.com", "name": "Jane Smith" }
+}
+```
+
+**Errors:** 409 if email already exists, 400 if password < 8 characters
+
+---
+
+### POST /auth/reset-password
+
+**Purpose:** Reset user password (prototype: no email verification)
+**Lambda:** xo-auth
+
+**Request:**
+```json
+{
+  "email": "ken.scott@intellagentic.io",
+  "new_password": "NewSecurePass123"
+}
+```
+
+**Response (200):**
+```json
+{"message": "Password reset successfully"}
+```
+
+**Errors:** 404 if email not found, 400 if password < 8 characters
 
 ---
 
@@ -871,7 +953,7 @@ All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_hel
 - DATABASE_URL: postgresql://xo_admin:PASSWORD@HOST:5432/xo_quickstart
 - JWT_SECRET: (256-bit random secret)
 
-### xo-auth (NEW)
+### xo-auth
 
 **Runtime:** Python 3.11
 **Memory:** 256 MB
@@ -879,10 +961,12 @@ All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_hel
 **Handler:** lambda_function.lambda_handler
 
 **What it does:**
-1. POST /auth/login: Validates email/password against `users` table
-2. Verifies password with bcrypt
-3. Returns JWT (24h expiry) with user_id, email, name
-4. Returns user object for frontend state
+1. Routes by path: /auth/login, /auth/register, /auth/reset-password
+2. POST /auth/login: **Auto-create flow** -- if email exists, verify bcrypt password; if not, create new user
+3. POST /auth/register: Explicit registration with optional name field
+4. POST /auth/reset-password: Updates bcrypt hash directly (prototype, no email verification)
+5. Returns JWT (24h expiry, HS256) with user_id, email, name
+6. Name auto-derived from email prefix for auto-created accounts (e.g., ken.scott → Ken Scott)
 
 **File:** backend/lambdas/auth/lambda_function.py
 
@@ -1178,8 +1262,8 @@ cd backend
 
 ## BUILD HISTORY
 
-**Session Date:** February 28 - March 1, 2026
-**Build Count:** 31 completed builds
+**Session Date:** February 28, 2026
+**Build Count:** 32 completed builds
 
 **Build Order:**
 
@@ -1423,8 +1507,25 @@ cd backend
     - **Buttons migrated to PostgreSQL**: fetchButtons() on login, saveButtons() syncs to API
     - CSS: .error-banner styles, @keyframes slideUp, @keyframes float
     - Deploy: updated deploy.sh (6 Lambdas), deploy-enrich.sh (auth_helper), new set-db-config.sh
-    - Seed script: backend/seed.py (admin@xo.com + default buttons)
+    - Seed script: backend/seed.py (ken.scott@intellagentic.io + default buttons)
     - Files: 16 files created/modified
+
+32. **Login Screen Redesign + Auth Enhancements** (Session 6 - February 28, 2026)
+    - **Login screen redesign**: dark header / light body aesthetic matching main app
+    - Header reuses exact same CSS classes as main app (header, header-inner, logo-box, header-title)
+    - "Invitation" heading above form (uppercase, letter-spaced, elegant)
+    - **Single form** for both new and returning users (no login/register toggle)
+    - Button text: "Continue" (not "Sign In")
+    - Helper text below form: "Enter your email and password to get started."
+    - White form card on #f5f5f5 background, red focus states on inputs
+    - **Auto-create backend**: /auth/login now creates accounts automatically if email doesn't exist
+    - New account names derived from email prefix (ken.scott → Ken Scott)
+    - Existing users: bcrypt password verification as before
+    - **New API endpoints**: POST /auth/register (explicit), POST /auth/reset-password (prototype)
+    - API Gateway routes added for /auth/register and /auth/reset-password
+    - Lambda permissions configured for all new routes
+    - Seed admin email updated to ken.scott@intellagentic.io across all files
+    - Frontend build: ~215 KB JS (reduced from ~220 KB by removing mode switching code)
 
 ---
 
@@ -1491,10 +1592,11 @@ cd backend
 The XO Quickstart prototype is **fully operational** and deployed to production. A domain partner can:
 
 1. Visit https://d36la414u58rw5.cloudfront.net
-2. Fill out company information (8 fields including pain point and enrichment targets)
-3. Upload business documents (15 file types supported)
-4. Click "Start Enrichment" and watch AI process their data
-5. Receive MBA-level business analysis in <60 seconds:
+2. Enter email and password on the Invitation screen (auto-creates account or logs in)
+3. Fill out company information (8 fields including pain point and enrichment targets)
+4. Upload business documents (15 file types supported)
+5. Click "Start Enrichment" and watch AI process their data
+6. Receive MBA-level business analysis in <60 seconds:
    - Executive summary of their business
    - 3-5 critical problems identified with evidence and recommendations
    - Proposed database schema (3-5 tables with columns and relationships)

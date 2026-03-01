@@ -72,188 +72,133 @@ function LoginScreen({ onLogin }) {
     }
   }
 
+  const inputStyle = {
+    width: '100%',
+    padding: '14px 16px 14px 48px',
+    background: '#ffffff',
+    border: '2px solid #e5e7eb',
+    borderRadius: '12px',
+    fontSize: '15px',
+    color: '#1a1a1a',
+    outline: 'none',
+    transition: 'all 0.3s ease',
+    boxSizing: 'border-box'
+  }
+
+  const inputFocus = (e) => {
+    e.target.style.borderColor = '#dc2626'
+    e.target.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.1)'
+  }
+  const inputBlur = (e) => {
+    e.target.style.borderColor = '#e5e7eb'
+    e.target.style.boxShadow = 'none'
+  }
+
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'radial-gradient(ellipse at top left, rgba(220, 38, 38, 0.15), transparent 50%), radial-gradient(ellipse at bottom right, rgba(220, 38, 38, 0.08), transparent 50%), #0a0a0a',
-      padding: '20px',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '440px',
-        animation: 'slideUp 0.6s ease-out'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '0px' }}>
-          <div style={{
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 24px',
-            animation: 'float 3s ease-in-out infinite'
-          }}>
-            <img src={logoLight} alt="Intellagentic" style={{ height: '60px' }} />
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
+      {/* Same header as main app */}
+      <header className="header" style={{ position: 'relative' }}>
+        <div className="header-inner">
+          <div className="header-left">
+            <div className="logo-box">XO</div>
+            <div className="header-title">
+              <h1>
+                <span>Rapid Deployment</span>
+              </h1>
+            </div>
+          </div>
+          <div className="header-right">
+            <img src={logoLight} alt="Intellagentic" style={{ height: '26px' }} />
           </div>
         </div>
+      </header>
 
-        <form onSubmit={handleSubmit} style={{
-          background: 'rgba(255,255,255,0.05)',
-          padding: '40px',
-          borderRadius: '24px',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-        }}>
-          {error && (
-            <div className="error-banner">
-              <AlertTriangle size={16} /> {error}
+      {/* Form area */}
+      <div style={{
+        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '40px 20px',
+      }}>
+        <div style={{ width: '100%', maxWidth: '440px', animation: 'slideUp 0.6s ease-out' }}>
+          {/* Invitation heading */}
+          <p style={{
+            textAlign: 'center', marginBottom: '24px',
+            fontSize: '1.05rem', fontWeight: 400, color: '#9ca3af',
+            letterSpacing: '0.15em', textTransform: 'uppercase',
+          }}>
+            Invitation
+          </p>
+
+          <form onSubmit={handleSubmit} style={{
+            background: '#ffffff', padding: '40px', borderRadius: '20px',
+            border: '1px solid #e5e7eb', boxShadow: '0 4px 24px rgba(0,0,0,0.06)'
+          }}>
+            {error && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '12px 16px', borderRadius: '10px', marginBottom: '20px',
+                background: '#fef2f2', border: '1px solid #fecaca',
+                color: '#dc2626', fontSize: '14px'
+              }}>
+                <AlertTriangle size={16} /> {error}
+              </div>
+            )}
+
+            {/* Email */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                Email Address
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Mail size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+                <input type="email" placeholder="you@company.com" required value={email}
+                  onChange={(e) => { setEmail(e.target.value); setError('') }}
+                  style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
+              </div>
             </div>
-          )}
 
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '10px',
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#ffffff',
-              letterSpacing: '0.01em'
+            {/* Password */}
+            <div style={{ marginBottom: '28px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                Password
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  required value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError('') }}
+                  style={{ ...inputStyle, paddingRight: '48px' }} onFocus={inputFocus} onBlur={inputBlur} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0, display: 'flex', alignItems: 'center' }}>
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Submit */}
+            <button type="submit" disabled={loading}
+              style={{
+                width: '100%', padding: '16px', background: '#dc2626', border: 'none', borderRadius: '12px',
+                color: 'white', fontSize: '16px', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.3s ease', letterSpacing: '0.02em', opacity: loading ? 0.7 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+              }}
+              onMouseEnter={(e) => { if (!loading) { e.target.style.transform = 'translateY(-2px)'; e.target.style.boxShadow = '0 12px 32px rgba(220,38,38,0.3)' } }}
+              onMouseLeave={(e) => { e.target.style.transform = 'translateY(0)'; e.target.style.boxShadow = 'none' }}>
+              {loading && <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />}
+              {loading ? 'Signing in...' : 'Continue'}
+            </button>
+
+            {/* Helper text */}
+            <p style={{
+              textAlign: 'center', marginTop: '20px',
+              fontSize: '13px', color: '#9ca3af', lineHeight: '1.5'
             }}>
-              Email Address
-            </label>
-            <div style={{ position: 'relative' }}>
-              <Mail size={20} style={{
-                position: 'absolute', left: '16px', top: '50%',
-                transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)'
-              }} />
-              <input
-                type="email"
-                placeholder="admin@xo.com"
-                required
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setError('') }}
-                style={{
-                  width: '100%',
-                  padding: '14px 16px 14px 48px',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '2px solid rgba(255,255,255,0.1)',
-                  borderRadius: '12px',
-                  fontSize: '15px',
-                  color: '#ffffff',
-                  outline: 'none',
-                  transition: 'all 0.3s ease',
-                  boxSizing: 'border-box'
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#dc2626'
-                  e.target.style.background = 'rgba(220,38,38,0.05)'
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255,255,255,0.1)'
-                  e.target.style.background = 'rgba(255,255,255,0.05)'
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '32px' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '10px',
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#ffffff',
-              letterSpacing: '0.01em'
-            }}>
-              Password
-            </label>
-            <div style={{ position: 'relative' }}>
-              <Lock size={20} style={{
-                position: 'absolute', left: '16px', top: '50%',
-                transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)'
-              }} />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••"
-                required
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError('') }}
-                style={{
-                  width: '100%',
-                  padding: '14px 48px 14px 48px',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '2px solid rgba(255,255,255,0.1)',
-                  borderRadius: '12px',
-                  fontSize: '15px',
-                  color: '#ffffff',
-                  outline: 'none',
-                  transition: 'all 0.3s ease',
-                  boxSizing: 'border-box'
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#dc2626'
-                  e.target.style.background = 'rgba(220,38,38,0.05)'
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255,255,255,0.1)'
-                  e.target.style.background = 'rgba(255,255,255,0.05)'
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute', right: '16px', top: '50%',
-                  transform: 'translateY(-50%)', background: 'none',
-                  border: 'none', cursor: 'pointer',
-                  color: 'rgba(255,255,255,0.4)', padding: 0,
-                  display: 'flex', alignItems: 'center'
-                }}
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '16px',
-              background: '#dc2626',
-              border: 'none',
-              borderRadius: '12px',
-              color: 'white',
-              fontSize: '16px',
-              fontWeight: '600',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.3s ease',
-              letterSpacing: '0.02em',
-              opacity: loading ? 0.7 : 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem'
-            }}
-            onMouseEnter={(e) => {
-              if (!loading) {
-                e.target.style.transform = 'translateY(-2px)'
-                e.target.style.boxShadow = '0 12px 32px rgba(220,38,38,0.4)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'translateY(0)'
-              e.target.style.boxShadow = 'none'
-            }}
-          >
-            {loading ? <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
+              Enter your email and password to get started.
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   )
