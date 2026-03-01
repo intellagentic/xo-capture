@@ -1,0 +1,71 @@
+# XO Rapid Prototype
+
+## CRITICAL RULES
+1. **DO NOT modify anything in the Surgical Trays repo.** Read only. Copy components you need into this repo.
+2. Surgical Trays reference files are in ./reference/ -- READ ONLY
+3. This repo is a clean, independent project.
+
+## What This Is
+A universal entry point for domain partners. Three screens:
+1. **Upload** -- partner drops in documents (CSV, Excel, PDF), enters company name + description
+2. **Enrich** -- one button, system sends data to Claude + web research, shows progress
+3. **Results** -- AI-generated analysis: problems identified, proposed schema, action plan
+
+Domain-agnostic. Same tool works for waste management, healthcare, hospitality -- anyone.
+
+## Tech Stack
+- React 18 + Vite 5 (same as Surgical Trays)
+- Single-page app, no router needed for prototype
+- AWS: S3 static hosting + CloudFront CDN
+- Backend: API Gateway + Lambda (Node.js 18 / Python 3.11)
+- Storage: S3 bucket with folder-per-partner, DynamoDB for client metadata
+
+## What to Copy from ./reference/
+Copy these patterns/components. Adapt, don't just paste:
+- vite.config.js -- build config
+- package.json -- dependencies (React 18, Vite 5, Lucide React)
+- Modal system from App.jsx -- overlay, header, body, close pattern
+- Badge/status indicator CSS classes (badge-count, color variants)
+- Card grid layout patterns (stat cards, expandable rows)
+- Dark theme CSS token architecture from index.css (color variables, base styles, scrollbar)
+- Loading state patterns
+
+## What NOT to Copy
+- Any NHS/surgical tray/procedure/sterilization domain logic
+- NHS branding, logos, Swansea Bay references
+- Theatre board, date picker, pick list, HSDU status code
+- Procedure card library
+- Any API endpoints pointing to Surgical Trays backend
+
+## AWS Resources
+- S3 frontend bucket: xo-prototype-frontend (us-west-1)
+- S3 data bucket: xo-client-data (private, folder per partner)
+- CloudFront distribution: TBD after creation
+- API Gateway: xo-api
+- Lambdas: xo-upload, xo-enrich, xo-results
+- DynamoDB: xo-clients
+
+## API Endpoints
+POST /clients          -- create partner, make S3 folder, return client_id
+POST /upload           -- return presigned S3 URLs for client folder
+POST /enrich           -- trigger Claude enrichment pipeline
+GET  /results/:id      -- return analysis results (poll for progress)
+
+## S3 Folder Structure Per Partner
+xo-client-data/{client_id}/uploads/
+xo-client-data/{client_id}/extracted/
+xo-client-data/{client_id}/results/
+
+## Workflow Rules
+1. Read reference files BEFORE writing any component -- understand the pattern first
+2. Small diffs. One component at a time.
+3. Test the build after each major addition: npm run build
+4. Do not over-engineer. Three screens. Simple S3 write. Claude API call. Render results.
+
+## Commands
+npm run dev          # local dev server
+npm run build        # production build
+# Deploy (after CloudFront is set up):
+cd dist
+aws s3 sync . s3://xo-prototype-frontend/ --delete --region us-west-1
+aws cloudfront create-invalidation --distribution-id XXXXX --paths "/*"

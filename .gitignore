@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+build/
+*.zip
+
+# Environment variables and secrets
+.env
+.env.local
+.env.production
+*.key
+*.pem
+*_rsa
+*_rsa.pub
+
+# API keys and credentials
+credentials.json
+*api-key*
+*API-KEY*
+
+# Lambda deployment packages
+backend/lambdas/*/package/
+backend/lambdas/*/function.zip
+
+# IDE and OS files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
