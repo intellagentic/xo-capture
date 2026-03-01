@@ -1,9 +1,9 @@
 # XO QUICKSTART - PROJECT STATUS
 
-**Date:** February 28, 2026
+**Date:** March 1, 2026
 **Project:** XO Quickstart - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.6)
+**Status:** Deployed & Operational (v1.7)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -1424,8 +1424,8 @@ cd backend
 
 ## BUILD HISTORY
 
-**Session Date:** February 28, 2026
-**Build Count:** 33 completed builds
+**Session Date:** March 1, 2026
+**Build Count:** 34 completed builds
 
 **Build Order:**
 
@@ -1708,6 +1708,17 @@ cd backend
     - Frontend build: ~224 KB JS
     - Files: 7 files created/modified
 
+34. **Session Persistence Fix** (Session 8 - March 1, 2026)
+    - **Root cause**: `isTokenExpired()` used `atob()` which can fail on JWT URL-safe base64 (`-` and `_` chars)
+    - When `atob()` threw, catch block returned `true` (expired) → session silently cleared on restore
+    - **Fix 1**: `isTokenExpired()` now converts URL-safe base64 to standard (`-`→`+`, `_`→`/`) and adds padding before `atob()`
+    - **Fix 2**: Session restore moved from `useEffect` (async, after first render) to synchronous `useState` initializer
+    - Old behavior: App always rendered LoginScreen first, then useEffect restored session on next tick → flash of login screen
+    - New behavior: `getInitialAuth()` reads localStorage synchronously before first render → no flash, no race condition
+    - `getInitialAuth()` wrapped in try/catch for JSON parse and localStorage errors → graceful fallback to logged-out state
+    - Debug confirmed: backend `/auth/login` returns valid tokens, `getAuthHeaders()` sends Bearer token correctly
+    - Deployed to production via CloudFront invalidation
+
 ---
 
 ## PENDING ITEMS
@@ -1815,7 +1826,7 @@ The XO Quickstart prototype is **fully operational** and deployed to production.
 
 **Repository:** All code is version-controlled at https://github.com/intellagentic/xo-quickstart with proper .gitignore to exclude secrets.
 
-**Next Step:** Scale to production with async jobs, UI for new DB fields, and full enrichment pipeline (audio transcription, web research).
+**Next Step:** Google Cloud Console OAuth client setup (redirect URI), then scale to production with async jobs, UI for new DB fields, and full enrichment pipeline (audio transcription, web research).
 
 ---
 

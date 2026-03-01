@@ -21,7 +21,12 @@ function getAuthHeaders() {
 
 function isTokenExpired(token) {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
+    // JWT uses URL-safe base64: replace - with + and _ with / before decoding
+    let b64 = token.split('.')[1]
+    b64 = b64.replace(/-/g, '+').replace(/_/g, '/')
+    // Add padding if needed
+    while (b64.length % 4) b64 += '='
+    const payload = JSON.parse(atob(b64))
     return payload.exp * 1000 < Date.now()
   } catch {
     return true
@@ -204,26 +209,28 @@ function LoginScreen({ onLogin }) {
   )
 }
 
-export default function App() {
-  // Auth state
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [user, setUser] = useState(null)
-  const [authToken, setAuthToken] = useState(null)
-
-  // Restore session on mount
-  useEffect(() => {
+// Restore session synchronously before first render
+function getInitialAuth() {
+  try {
     const token = localStorage.getItem('xo-token')
     const savedUser = localStorage.getItem('xo-user')
     if (token && savedUser && !isTokenExpired(token)) {
-      setAuthToken(token)
-      setUser(JSON.parse(savedUser))
-      setIsLoggedIn(true)
-    } else {
-      // Clear expired session
-      localStorage.removeItem('xo-token')
-      localStorage.removeItem('xo-user')
+      return { loggedIn: true, user: JSON.parse(savedUser), token }
     }
-  }, [])
+  } catch {
+    // JSON parse or localStorage error -- fall through
+  }
+  localStorage.removeItem('xo-token')
+  localStorage.removeItem('xo-user')
+  return { loggedIn: false, user: null, token: null }
+}
+
+export default function App() {
+  // Auth state -- restored from localStorage synchronously
+  const [initialAuth] = useState(getInitialAuth)
+  const [isLoggedIn, setIsLoggedIn] = useState(initialAuth.loggedIn)
+  const [user, setUser] = useState(initialAuth.user)
+  const [authToken, setAuthToken] = useState(initialAuth.token)
 
   const handleLogin = (userData, token) => {
     setUser(userData)
