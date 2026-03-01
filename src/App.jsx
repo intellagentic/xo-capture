@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Upload, Sparkles, FileText, Building2, FileText as FileIcon, Trash2, CheckCircle2, Music, Loader2, CheckCircle, Clock, AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Calendar, Globe, TrendingUp, Menu, Settings, Moon, Sun, GripVertical, Copy, Edit2, Plus, Home, Zap, Heart, Star, Send, Check, Save, User, Bell, Search, Mail, Phone, MapPin, Play, ExternalLink, Package, LogOut, Lock, Eye, EyeOff } from 'lucide-react'
+import { X, Upload, Sparkles, FileText, Building2, FileText as FileIcon, Trash2, CheckCircle2, Music, Loader2, CheckCircle, Clock, AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Calendar, Globe, TrendingUp, Menu, Settings, Moon, Sun, GripVertical, Copy, Edit2, Plus, Home, Zap, Heart, Star, Send, Check, Save, User, Bell, Search, Mail, Phone, MapPin, Play, ExternalLink, Package, LogOut, Lock, Eye, EyeOff, Cloud, FolderOpen, ChevronLeft, HardDrive } from 'lucide-react'
 import logoLight from './assets/logo-light.png'
 import logoDark from './assets/logo-dark.png'
 
@@ -814,6 +814,16 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
   const [uploadProgress, setUploadProgress] = useState({})
   const [error, setError] = useState(null)
 
+  // Google Drive state
+  const [gdriveConnected, setGdriveConnected] = useState(false)
+  const [gdriveLoading, setGdriveLoading] = useState(false)
+  const [showGdrivePicker, setShowGdrivePicker] = useState(false)
+  const [gdriveFiles, setGdriveFiles] = useState([])
+  const [selectedGdriveFiles, setSelectedGdriveFiles] = useState([])
+  const [gdriveImporting, setGdriveImporting] = useState(false)
+  const [currentGdriveFolder, setCurrentGdriveFolder] = useState('root')
+  const [gdriveFolderStack, setGdriveFolderStack] = useState([])
+
   const handleDragOver = (e) => {
     e.preventDefault()
     setIsDragging(true)
@@ -921,43 +931,54 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
       setClientId(client_id)
       console.log('Created client:', client_id)
 
-      // Step 2: Get presigned URLs
-      console.log('Getting presigned URLs for', files.length, 'files')
-      const uploadResponse = await fetch(`${API_BASE}/upload`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          client_id,
-          files: files.map(f => ({ name: f.name, type: f.type }))
-        })
-      })
+      // Step 2: Separate manual files from imported (Drive) files
+      const manualFiles = files.filter(f => !f._imported)
+      const importedFiles = files.filter(f => f._imported)
 
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json()
-        throw new Error(errorData.error || 'Failed to get upload URLs')
-      }
-      const { upload_urls } = await uploadResponse.json()
-      console.log('Received', upload_urls.length, 'presigned URLs')
-
-      // Step 3: Upload files to S3
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const url = upload_urls[i]
-
-        console.log(`Uploading file ${i + 1}/${files.length}: ${file.name}`)
-        const s3Response = await fetch(url, {
-          method: 'PUT',
-          body: file,
-          headers: { 'Content-Type': file.type }
+      if (manualFiles.length > 0) {
+        // Get presigned URLs for manual files only
+        console.log('Getting presigned URLs for', manualFiles.length, 'manual files')
+        const uploadResponse = await fetch(`${API_BASE}/upload`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            client_id,
+            files: manualFiles.map(f => ({ name: f.name, type: f.type }))
+          })
         })
 
-        if (!s3Response.ok) {
-          throw new Error(`Failed to upload ${file.name} to S3`)
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json()
+          throw new Error(errorData.error || 'Failed to get upload URLs')
         }
+        const { upload_urls } = await uploadResponse.json()
+        console.log('Received', upload_urls.length, 'presigned URLs')
 
-        setUploadProgress(prev => ({ ...prev, [file.name]: 100 }))
-        console.log(`Successfully uploaded: ${file.name}`)
+        // Step 3: Upload manual files to S3
+        for (let i = 0; i < manualFiles.length; i++) {
+          const file = manualFiles[i]
+          const url = upload_urls[i]
+
+          console.log(`Uploading file ${i + 1}/${manualFiles.length}: ${file.name}`)
+          const s3Response = await fetch(url, {
+            method: 'PUT',
+            body: file,
+            headers: { 'Content-Type': file.type }
+          })
+
+          if (!s3Response.ok) {
+            throw new Error(`Failed to upload ${file.name} to S3`)
+          }
+
+          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }))
+          console.log(`Successfully uploaded: ${file.name}`)
+        }
       }
+
+      // Mark imported files as complete too
+      importedFiles.forEach(f => {
+        setUploadProgress(prev => ({ ...prev, [f.name]: 100 }))
+      })
 
       console.log('All files uploaded successfully')
       // Success - move to enrich screen
@@ -973,6 +994,148 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
       setUploading(false)
     }
   }
+
+  // === Google Drive OAuth & File Functions ===
+
+  const connectGoogleDrive = async () => {
+    setGdriveLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/gdrive/auth-url`, {
+        headers: getAuthHeaders()
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to get auth URL')
+
+      // Open popup for Google OAuth
+      const popup = window.open(data.auth_url, 'google-drive-auth', 'width=500,height=600,scrollbars=yes')
+
+      // Poll for redirect back to our origin
+      const pollTimer = setInterval(async () => {
+        try {
+          if (!popup || popup.closed) {
+            clearInterval(pollTimer)
+            setGdriveLoading(false)
+            return
+          }
+          const popupUrl = popup.location.href
+          if (popupUrl.startsWith(window.location.origin)) {
+            clearInterval(pollTimer)
+            const url = new URL(popupUrl)
+            const code = url.searchParams.get('code')
+            popup.close()
+
+            if (code) {
+              await exchangeGdriveCode(code)
+            }
+            setGdriveLoading(false)
+          }
+        } catch {
+          // Cross-origin error while popup is on Google's domain - ignore
+        }
+      }, 500)
+    } catch (err) {
+      console.error('Google Drive connect error:', err)
+      setGdriveLoading(false)
+    }
+  }
+
+  const exchangeGdriveCode = async (code) => {
+    try {
+      const res = await fetch(`${API_BASE}/gdrive/callback`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ code })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to connect')
+      setGdriveConnected(true)
+    } catch (err) {
+      console.error('Exchange code error:', err)
+    }
+  }
+
+  const fetchGdriveFiles = async (folderId = 'root') => {
+    try {
+      const res = await fetch(`${API_BASE}/gdrive/files?folder_id=${folderId}`, {
+        headers: getAuthHeaders()
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to list files')
+      setGdriveFiles(data.files || [])
+      setCurrentGdriveFolder(folderId)
+    } catch (err) {
+      console.error('Fetch Drive files error:', err)
+    }
+  }
+
+  const openGdrivePicker = async () => {
+    setShowGdrivePicker(true)
+    setSelectedGdriveFiles([])
+    setGdriveFolderStack([])
+    setCurrentGdriveFolder('root')
+    await fetchGdriveFiles('root')
+  }
+
+  const navigateToGdriveFolder = async (folderId, folderName) => {
+    setGdriveFolderStack(prev => [...prev, { id: currentGdriveFolder, name: folderName }])
+    await fetchGdriveFiles(folderId)
+  }
+
+  const navigateGdriveBack = async () => {
+    const stack = [...gdriveFolderStack]
+    const parent = stack.pop()
+    setGdriveFolderStack(stack)
+    if (parent) {
+      await fetchGdriveFiles(parent.id)
+    } else {
+      await fetchGdriveFiles('root')
+    }
+  }
+
+  const toggleGdriveFileSelection = (file) => {
+    setSelectedGdriveFiles(prev => {
+      const exists = prev.find(f => f.id === file.id)
+      if (exists) return prev.filter(f => f.id !== file.id)
+      return [...prev, file]
+    })
+  }
+
+  const importGdriveFiles = async () => {
+    if (selectedGdriveFiles.length === 0) return
+    setGdriveImporting(true)
+    try {
+      const res = await fetch(`${API_BASE}/gdrive/import`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          file_ids: selectedGdriveFiles.map(f => f.id),
+          client_id: 'pending' // Will be created on upload
+        })
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        // Add imported files to the file list as pseudo-File objects
+        const importedFileObjects = (data.files || []).map(f => ({
+          name: f.name,
+          type: f.type,
+          size: 0,
+          _imported: true,
+          _source: 'google_drive',
+          _s3Key: f.s3_key
+        }))
+        setFiles(prev => [...prev, ...importedFileObjects])
+      }
+
+      setShowGdrivePicker(false)
+      setSelectedGdriveFiles([])
+    } catch (err) {
+      console.error('Import error:', err)
+    }
+    setGdriveImporting(false)
+  }
+
+  const driveFileCount = files.filter(f => f._source === 'google_drive').length
 
   const step1Complete = !!companyData.name  // Domain Expertise first
   const step2Complete = files.length > 0     // Raw Data second
@@ -1191,7 +1354,9 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
             >
               <Upload size={32} style={{ color: '#dc2626', opacity: 0.7, marginBottom: '0.5rem' }} />
               <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'white', marginBottom: '0.25rem' }}>
-                {files.length > 0 ? `${files.length} file${files.length !== 1 ? 's' : ''} selected` : 'Drop or click'}
+                {files.length > 0
+                  ? `${files.length} file${files.length !== 1 ? 's' : ''} selected${driveFileCount > 0 ? ` (${driveFileCount} from Drive)` : ''}`
+                  : 'Drop or click'}
               </p>
               <p style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.5)' }}>
                 CSV, Excel, Word, PDF, Audio, and more
@@ -1204,6 +1369,101 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
                 onChange={handleFileSelect}
                 style={{ display: 'none' }}
               />
+            </div>
+
+            {/* Sources Strip */}
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '0.375rem',
+              marginTop: '0.625rem'
+            }}>
+              {/* Upload - always active */}
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                background: 'rgba(220, 38, 38, 0.15)',
+                color: '#dc2626',
+                border: '1px solid rgba(220, 38, 38, 0.3)'
+              }}>
+                <Upload size={11} /> Upload
+              </span>
+
+              {/* Google Drive - active connector */}
+              <button
+                onClick={gdriveConnected ? openGdrivePicker : connectGoogleDrive}
+                disabled={gdriveLoading}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
+                  background: gdriveConnected ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+                  color: gdriveConnected ? '#3b82f6' : 'rgba(255, 255, 255, 0.6)',
+                  border: gdriveConnected ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(255, 255, 255, 0.15)',
+                  cursor: gdriveLoading ? 'wait' : 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {gdriveLoading ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <HardDrive size={11} />}
+                {gdriveConnected ? 'Google Drive' : 'Connect Drive'}
+              </button>
+
+              {/* NotebookLM - grayed out */}
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                background: 'rgba(255, 255, 255, 0.04)',
+                color: 'rgba(255, 255, 255, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}>
+                <FileText size={11} /> NotebookLM
+              </span>
+
+              {/* Dropbox - grayed out */}
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                background: 'rgba(255, 255, 255, 0.04)',
+                color: 'rgba(255, 255, 255, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}>
+                <Cloud size={11} /> Dropbox
+              </span>
+
+              {/* OneDrive - grayed out */}
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '4px 10px',
+                borderRadius: '999px',
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                background: 'rgba(255, 255, 255, 0.04)',
+                color: 'rgba(255, 255, 255, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}>
+                <Cloud size={11} /> OneDrive
+              </span>
             </div>
           </div>
         </div>
@@ -1480,6 +1740,160 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
             </>
           )}
         </button>
+      )}
+      {/* Google Drive File Picker Modal */}
+      {showGdrivePicker && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#1a1a2e',
+            borderRadius: '16px',
+            width: '90%',
+            maxWidth: '520px',
+            maxHeight: '70vh',
+            display: 'flex',
+            flexDirection: 'column',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '1rem 1.25rem',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <HardDrive size={20} style={{ color: '#3b82f6' }} />
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'white', margin: 0 }}>Google Drive</h3>
+              </div>
+              <button
+                onClick={() => { setShowGdrivePicker(false); setSelectedGdriveFiles([]) }}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Back Button */}
+            {gdriveFolderStack.length > 0 && (
+              <button
+                onClick={navigateGdriveBack}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '0.5rem 1.25rem',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                  color: '#3b82f6',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <ChevronLeft size={16} /> Back
+              </button>
+            )}
+
+            {/* File List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
+              {gdriveFiles.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: '2rem', fontSize: '0.85rem' }}>
+                  No files found in this folder
+                </p>
+              ) : (
+                gdriveFiles.map(file => {
+                  const isSelected = selectedGdriveFiles.some(f => f.id === file.id)
+                  return (
+                    <div
+                      key={file.id}
+                      onClick={() => {
+                        if (file.isFolder) {
+                          navigateToGdriveFolder(file.id, file.name)
+                        } else {
+                          toggleGdriveFileSelection(file)
+                        }
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.625rem',
+                        padding: '0.625rem 1.25rem',
+                        cursor: 'pointer',
+                        background: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+                      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+                    >
+                      {file.isFolder ? (
+                        <FolderOpen size={18} style={{ color: '#facc15', flexShrink: 0 }} />
+                      ) : isSelected ? (
+                        <CheckCircle2 size={18} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                      ) : (
+                        <FileText size={18} style={{ color: 'rgba(255,255,255,0.4)', flexShrink: 0 }} />
+                      )}
+                      <span style={{
+                        fontSize: '0.85rem',
+                        color: isSelected ? '#3b82f6' : 'white',
+                        fontWeight: isSelected ? 600 : 400,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        flex: 1
+                      }}>
+                        {file.name}
+                      </span>
+                      {file.isFolder && (
+                        <ChevronRight size={16} style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.75rem 1.25rem',
+              borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>
+                {selectedGdriveFiles.length} file{selectedGdriveFiles.length !== 1 ? 's' : ''} selected
+              </span>
+              <button
+                onClick={importGdriveFiles}
+                disabled={selectedGdriveFiles.length === 0 || gdriveImporting}
+                className="action-btn red"
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.8rem',
+                  opacity: selectedGdriveFiles.length === 0 ? 0.4 : 1,
+                  cursor: selectedGdriveFiles.length === 0 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {gdriveImporting ? (
+                  <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Importing...</>
+                ) : (
+                  <><Upload size={14} /> Import Files</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

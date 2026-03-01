@@ -3,7 +3,7 @@
 **Date:** February 28, 2026
 **Project:** XO Quickstart - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.5)
+**Status:** Deployed & Operational (v1.6)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -25,32 +25,32 @@
 |    CloudFront      |         |       API Gateway (REST)         |
 |  EWNDD7ESKAW33     |         |  2t9mg17baj.execute-api          |
 +--------+----------+         |    .us-west-1.amazonaws          |
-         |                     +--+----+----+----+----+-------+--+
-         |                        |    |    |    |    |       |
-         v                        |    |    |    |    |       |
-+------------------+              |    |    |    |    |       |
-| S3: xo-prototype |              |    |    |    |    |       |
-|    -frontend     |              |    |    |    |    |       |
-| (index.html,     |              |    |    |    |    |       |
-|  JS, CSS, logos) |              |    |    |    |    |       |
-+------------------+              |    |    |    |    |       |
-                                  v    v    v    v    v       v
-  +---------+ +--------+ +-------+ +------+ +------+ +--------+
-  |xo-auth  | |xo-     | |xo-    | |xo-   | |xo-   | |xo-     |
-  | Lambda  | |clients | |upload | |enrich| |results| |buttons |
-  |Python   | |Lambda  | |Lambda | |Lambda| |Lambda | |Lambda  |
-  |  3.11   | |        | |       | |      | |       | |        |
-  +----+----+ +---+----+ +---+---+ +--+---+ +--+----+ +---+----+
-       |          |           |        |        |          |
-       |          |           |        v        |          |
-       |          |           | +----------+    |          |
-       |          |           | |Claude    |    |          |
-       |          |           | |Sonnet 4.5|    |          |
-       |          |           | |(Anthropic|    |          |
-       |          |           | |  API)    |    |          |
-       |          |           | +----+-----+    |          |
-       |          |           |      |          |          |
-       v          v           v      v          v          v
+         |                     +--+----+----+----+----+----+--+--+
+         |                        |    |    |    |    |    |  |
+         v                        |    |    |    |    |    |  |
++------------------+              |    |    |    |    |    |  |
+| S3: xo-prototype |              |    |    |    |    |    |  |
+|    -frontend     |              |    |    |    |    |    |  |
+| (index.html,     |              |    |    |    |    |    |  |
+|  JS, CSS, logos) |              |    |    |    |    |    |  |
++------------------+              |    |    |    |    |    |  |
+                                  v    v    v    v    v    v  v
+  +---------+ +--------+ +-------+ +------+ +------+ +------+ +--------+
+  |xo-auth  | |xo-     | |xo-    | |xo-   | |xo-   | |xo-  | |xo-     |
+  | Lambda  | |clients | |upload | |enrich| |results| |btns | |gdrive  |
+  |Python   | |Lambda  | |Lambda | |Lambda| |Lambda | |     | |import  |
+  |  3.11   | |        | |       | |      | |       | |     | |Lambda  |
+  +----+----+ +---+----+ +---+---+ +--+---+ +--+----+ +--+--+ +---+----+
+       |          |           |        |        |         |         |
+       |          |           |        v        |         |         v
+       |          |           | +----------+    |         |  +-----------+
+       |          |           | |Claude    |    |         |  |Google     |
+       |          |           | |Sonnet 4.5|    |         |  |Drive API  |
+       |          |           | |(Anthropic|    |         |  |(OAuth2 +  |
+       |          |           | |  API)    |    |         |  | files)    |
+       |          |           | +----+-----+    |         |  +-----+-----+
+       |          |           |      |          |         |        |
+       v          v           v      v          v         v        v
   +----------------------------------------------------------+
   |              S3: xo-client-data                          |
   |  {client_id}/                                            |
@@ -117,6 +117,17 @@ App (root)
       +-- UploadScreen ("Welcome")
       |     +-- Step Card 1: Domain Expertise  --> opens CompanyInfoModal
       |     +-- Step Card 2: Raw Data          --> drag-and-drop file zone
+      |     |     +-- Sources Strip (5 connector pills)
+      |     |     |     +-- Upload (red, active)
+      |     |     |     +-- Google Drive (blue when connected, triggers OAuth or file picker)
+      |     |     |     +-- NotebookLM (grayed out)
+      |     |     |     +-- Dropbox (grayed out)
+      |     |     |     +-- OneDrive (grayed out)
+      |     |     +-- Google Drive File Picker Modal
+      |     |           +-- Header (HardDrive icon, title, close)
+      |     |           +-- Back button (folder navigation)
+      |     |           +-- File list (folders + files, checkable)
+      |     |           +-- Footer (selection count, Import Files button)
       |     +-- Step Card 3: Intellagentic Growth  --> upload trigger
       |     +-- Action Buttons Row (from configButtons)
       |     +-- Founder Quotes (Alan Moore, Ken Scott)
@@ -324,6 +335,18 @@ STEP 3: ENRICH + RESULTS
 |                                          - return JSON or     |
 |                                            {status:processing}|
 |                                                               |
+|  GET      /gdrive/auth-url xo-gdrive-    Get OAuth consent URL |
+|                            import                              |
+|                                                               |
+|  POST     /gdrive/callback xo-gdrive-   Exchange auth code    |
+|                            import        for tokens            |
+|                                                               |
+|  GET      /gdrive/files   xo-gdrive-    List Drive files      |
+|                            import        (folder navigation)   |
+|                                                               |
+|  POST     /gdrive/import  xo-gdrive-    Download Drive files  |
+|                            import        to S3                 |
+|                                                               |
 |  OPTIONS  (all paths)      (built-in)    CORS preflight       |
 |                                          - Allow-Origin: *    |
 |                                          - Allow-Headers:     |
@@ -394,7 +417,9 @@ src/
 1. **Welcome / Upload Screen** (3-step journey layout with founder testimonials)
    - Header: Hamburger menu (left), XO logo, title, Intellagentic logo (right)
    - Step 1: Domain Expertise -- "New Partner" modal (8 fields: name, website, contact, title, LinkedIn, industry, description, pain point)
-   - Step 2: Raw Data -- Drag-and-drop file upload zone (15 file types)
+   - Step 2: Raw Data -- Drag-and-drop file upload zone (15 file types) + Google Drive connector
+     - Sources strip: Upload (active), Google Drive (OAuth popup), NotebookLM/Dropbox/OneDrive (grayed out)
+     - Google Drive file picker modal: folder navigation, file selection, import to S3
    - Step 3: Intelligent Growth -- Preview of analysis output (grayed until steps 1&2 complete)
    - Action Buttons Row: Configurable buttons between step cards and quotes (Enrich, Skills by default)
      - Clickable: internal routes navigate, external URLs open in new tab
@@ -505,6 +530,10 @@ src/
 - /results/{id} (GET)
 - /buttons (GET) -- fetch user's buttons
 - /buttons/sync (PUT) -- full replace user's buttons
+- /gdrive/auth-url (GET) -- Google OAuth consent URL
+- /gdrive/callback (POST) -- exchange auth code for tokens
+- /gdrive/files (GET) -- list Google Drive files
+- /gdrive/import (POST) -- import Drive files to S3
 
 ### Lambda Functions
 
@@ -536,8 +565,11 @@ src/
 | pass_hash|       | company  |       | filename |
 | name     |       | website  |       | file_type|
 | created  |       | contact* |       | s3_key   |
-+-----+----+       | industry |       | uploaded |
-      |            | descript |       +----------+
+| gdrive_  |       | industry |       | source   |
+|  refresh |       | descript |       | uploaded |
+| gdrive_  |       |          |       +----------+
+|  conn_at |       |          |
++-----+----+       |          |
       |            | pain_pt  |
       |            | s3_folder|       +----------+
       |            | 5 new DB |<------+ enrichmts|
@@ -616,7 +648,7 @@ Browser                          API Gateway                Lambda (xo-auth)    
 
 **Name:** xo-psycopg2
 **Contents:** psycopg2, PyJWT, bcrypt (compiled for Amazon Linux 2023 / Python 3.11)
-**Attached to:** All 6 Lambdas
+**Attached to:** All 7 Lambdas
 
 ---
 
@@ -737,6 +769,84 @@ Browser                          API Gateway                Lambda (xo-auth)    
 **Response:**
 ```json
 {"status": "synced", "count": 1}
+```
+
+---
+
+### GET /gdrive/auth-url
+
+**Purpose:** Get Google OAuth2 consent URL for popup-based authorization
+**Lambda:** xo-gdrive-import
+
+**Response (200):**
+```json
+{
+  "auth_url": "https://accounts.google.com/o/oauth2/auth?client_id=...&redirect_uri=...&scope=drive.readonly&access_type=offline&prompt=consent"
+}
+```
+
+---
+
+### POST /gdrive/callback
+
+**Purpose:** Exchange Google auth code for tokens, store refresh token in DB
+**Lambda:** xo-gdrive-import
+
+**Request:**
+```json
+{
+  "code": "4/0AY0e-g7..."
+}
+```
+
+**Response (200):**
+```json
+{"connected": true}
+```
+
+---
+
+### GET /gdrive/files
+
+**Purpose:** List files in user's Google Drive with folder navigation
+**Lambda:** xo-gdrive-import
+
+**Query Params:** `folder_id` (default: `root`)
+
+**Response (200):**
+```json
+{
+  "files": [
+    {"id": "abc123", "name": "Reports", "mimeType": "application/vnd.google-apps.folder", "isFolder": true, "isGoogleDoc": false},
+    {"id": "def456", "name": "Q4 Analysis.pdf", "mimeType": "application/pdf", "size": 245000, "modifiedTime": "2026-02-28T10:00:00Z", "isFolder": false, "isGoogleDoc": false}
+  ],
+  "folder_id": "root"
+}
+```
+
+---
+
+### POST /gdrive/import
+
+**Purpose:** Download selected files from Google Drive and upload to S3
+**Lambda:** xo-gdrive-import
+
+**Request:**
+```json
+{
+  "file_ids": ["def456", "ghi789"],
+  "client_id": "uuid-of-client"
+}
+```
+
+**Response (200):**
+```json
+{
+  "imported": 2,
+  "files": [
+    {"id": "uuid", "name": "Q4 Analysis.pdf", "type": "application/pdf", "s3_key": "s3_folder/uploads/Q4 Analysis.pdf", "source": "google_drive"}
+  ]
+}
 ```
 
 ---
@@ -946,7 +1056,7 @@ curl https://2t9mg17baj.execute-api.us-west-1.amazonaws.com/prod/results/client_
 
 ## LAMBDA FUNCTIONS
 
-All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_helper.py` (shared module copied into each deploy package). All Lambdas use the `xo-psycopg2` Lambda layer for PostgreSQL, JWT, and bcrypt support.
+All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_helper.py` (shared module copied into each deploy package). All Lambdas use the `xo-psycopg2` Lambda layer for PostgreSQL, JWT, and bcrypt support. 7 Lambdas total.
 
 **Common Environment Variables (all Lambdas):**
 - BUCKET_NAME: xo-client-data
@@ -1080,6 +1190,48 @@ All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_hel
 
 ---
 
+### xo-gdrive-import (NEW)
+
+**Runtime:** Python 3.11
+**Memory:** 512 MB
+**Timeout:** 120 seconds
+**Handler:** lambda_function.lambda_handler
+
+**Additional Environment Variables:**
+- GOOGLE_CLIENT_ID: OAuth 2.0 client ID
+- GOOGLE_CLIENT_SECRET: OAuth 2.0 client secret
+- GOOGLE_REDIRECT_URI: https://d36la414u58rw5.cloudfront.net
+
+**Dependencies:**
+- google-auth==2.27.0
+- google-auth-oauthlib==1.2.0
+- google-api-python-client==2.114.0
+
+**What it does:**
+1. **Auth check** (JWT required on all routes)
+2. GET /gdrive/auth-url: Generates Google OAuth2 consent URL (offline access, drive.readonly scope)
+3. POST /gdrive/callback: Exchanges authorization code for tokens, stores refresh_token in users table
+4. GET /gdrive/files: Lists files in user's Google Drive (supports folder_id query param for navigation)
+   - Returns folders and files with metadata (name, mimeType, size, modifiedTime)
+   - Identifies Google Docs types for export (Docs→PDF, Sheets→CSV, Slides→PDF)
+5. POST /gdrive/import: Downloads selected files from Drive, uploads to S3, records in uploads table
+   - Google Docs exported automatically (Docs/Slides→PDF, Sheets→CSV)
+   - Verifies client ownership before importing (WHERE s3_folder + user_id match)
+   - Records each file with `source = 'google_drive'` in uploads table
+
+**OAuth Flow:**
+- Frontend opens Google consent URL in popup window
+- User authorizes drive.readonly access
+- Popup redirects back to CloudFront origin with auth code
+- Parent window reads code from popup URL, closes popup
+- Frontend sends code to POST /gdrive/callback
+- Lambda exchanges code for refresh token, stores in users.google_drive_refresh_token
+
+**File:** backend/lambdas/gdrive/lambda_function.py
+**Deploy:** backend/lambdas/gdrive/deploy-gdrive.sh
+
+---
+
 ## CLAUDE API INTEGRATION
 
 **Model:** claude-sonnet-4-20250514
@@ -1201,6 +1353,16 @@ aws lambda update-function-code \
   --region us-west-1
 ```
 
+**xo-gdrive-import Lambda (with dependencies):**
+```bash
+cd backend/lambdas/gdrive
+./deploy-gdrive.sh
+aws lambda update-function-code \
+  --function-name xo-gdrive-import \
+  --zip-file fileb://function.zip \
+  --region us-west-1
+```
+
 **xo-enrich Lambda (with dependencies):**
 ```bash
 cd backend/lambdas/enrich
@@ -1263,7 +1425,7 @@ cd backend
 ## BUILD HISTORY
 
 **Session Date:** February 28, 2026
-**Build Count:** 32 completed builds
+**Build Count:** 33 completed builds
 
 **Build Order:**
 
@@ -1527,6 +1689,25 @@ cd backend
     - Seed admin email updated to ken.scott@intellagentic.io across all files
     - Frontend build: ~215 KB JS (reduced from ~220 KB by removing mode switching code)
 
+33. **Google Drive Connector** (Session 7 - February 28, 2026)
+    - **New Lambda: xo-gdrive-import** (Python 3.11, 512 MB, 120s timeout)
+    - 4 routes: GET /gdrive/auth-url, POST /gdrive/callback, GET /gdrive/files, POST /gdrive/import
+    - **Google OAuth2 popup flow**: consent URL → popup → redirect → code exchange → refresh token stored in DB
+    - Dependencies: google-auth, google-auth-oauthlib, google-api-python-client
+    - Google Docs auto-export: Docs/Slides→PDF, Sheets→CSV
+    - **DB migration**: 3 new columns (users.google_drive_refresh_token, users.google_drive_connected_at, uploads.source)
+    - uploads.source defaults to 'manual', Google Drive imports recorded as 'google_drive'
+    - **Frontend Sources strip**: 5 connector pills below drop zone (Upload, Google Drive, NotebookLM, Dropbox, OneDrive)
+    - Upload and Google Drive are active connectors; NotebookLM, Dropbox, OneDrive grayed out (future)
+    - **Google Drive file picker modal**: dark modal with folder navigation, file selection, import button
+    - Folder navigation with back button and breadcrumb stack
+    - File count display updated: "3 files selected (1 from Drive)"
+    - Upload logic updated: manual files get presigned URLs, imported files skip S3 PUT (already in S3)
+    - API Gateway: 4 new routes with OPTIONS, AWS_PROXY integration, Lambda invoke permission
+    - Deploy scripts updated: set-db-config.sh (7 Lambdas), deploy.sh notes
+    - Frontend build: ~224 KB JS
+    - Files: 7 files created/modified
+
 ---
 
 ## PENDING ITEMS
@@ -1594,7 +1775,7 @@ The XO Quickstart prototype is **fully operational** and deployed to production.
 1. Visit https://d36la414u58rw5.cloudfront.net
 2. Enter email and password on the Invitation screen (auto-creates account or logs in)
 3. Fill out company information (8 fields including pain point and enrichment targets)
-4. Upload business documents (15 file types supported)
+4. Upload business documents (15 file types supported) or import from Google Drive
 5. Click "Start Enrichment" and watch AI process their data
 6. Receive MBA-level business analysis in <60 seconds:
    - Executive summary of their business
@@ -1605,11 +1786,12 @@ The XO Quickstart prototype is **fully operational** and deployed to production.
 
 **Technology Stack:**
 - Frontend: React 18 + Vite, deployed to S3/CloudFront
-- Backend: 6 Python Lambdas behind API Gateway (+ xo-psycopg2 layer)
+- Backend: 7 Python Lambdas behind API Gateway (+ xo-psycopg2 layer)
 - Database: PostgreSQL 15 on RDS (db.t3.micro) -- 6 tables
 - Auth: bcrypt password hashing + JWT tokens (24h expiry)
 - AI: Claude Sonnet 4.5 via Anthropic API
 - Storage: S3 with folder-per-client structure (files + analysis.json)
+- Integrations: Google Drive (OAuth2 connector with file picker)
 - Region: us-west-1 (AWS)
 
 **What's Not Built Yet:**

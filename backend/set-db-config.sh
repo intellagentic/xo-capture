@@ -22,7 +22,7 @@ if [ -z "$DATABASE_URL" ] || [ -z "$JWT_SECRET" ]; then
     exit 1
 fi
 
-LAMBDAS=("xo-clients" "xo-upload" "xo-enrich" "xo-results" "xo-auth" "xo-buttons")
+LAMBDAS=("xo-clients" "xo-upload" "xo-enrich" "xo-results" "xo-auth" "xo-buttons" "xo-gdrive-import")
 
 echo "🔧 Setting DATABASE_URL and JWT_SECRET on all Lambdas..."
 echo "   Region: $REGION"

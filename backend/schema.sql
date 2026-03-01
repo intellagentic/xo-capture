@@ -110,3 +110,10 @@ CREATE TABLE IF NOT EXISTS buttons (
 );
 
 CREATE INDEX IF NOT EXISTS idx_buttons_user_id ON buttons(user_id);
+
+-- ============================================================
+-- GOOGLE DRIVE INTEGRATION (migration)
+-- ============================================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_drive_refresh_token TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_drive_connected_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE uploads ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'manual';
