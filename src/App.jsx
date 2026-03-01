@@ -79,7 +79,8 @@ export default function App() {
             <div className="logo-box">XO</div>
             <div className="header-title">
               <h1>
-                XO Quickstart
+                <span className="header-title-desktop">XO Quickstart</span>
+                <span className="header-title-mobile">Rapid Prototype</span>
                 <span className="version-badge">Rapid Prototype</span>
               </h1>
               <p>{companyData.name || 'Domain Partner Onboarding'}</p>
@@ -147,96 +148,35 @@ export default function App() {
 
             {/* Menu Items */}
             <nav style={{ flex: 1, padding: '1rem 0' }}>
-              <button
-                onClick={() => navigateTo('upload')}
-                style={{
-                  width: '100%',
-                  background: currentScreen === 'upload' ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
-                  border: 'none',
-                  borderLeft: currentScreen === 'upload' ? '3px solid #dc2626' : '3px solid transparent',
-                  color: currentScreen === 'upload' ? '#dc2626' : 'rgba(255, 255, 255, 0.7)',
-                  padding: '0.875rem 1.25rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem',
-                  fontWeight: 500,
-                  transition: 'all 0.2s'
-                }}
-              >
-                <Home size={20} />
-                Welcome
-              </button>
-              <button
-                onClick={() => navigateTo('enrich')}
-                disabled={!clientId}
-                style={{
-                  width: '100%',
-                  background: currentScreen === 'enrich' ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
-                  border: 'none',
-                  borderLeft: currentScreen === 'enrich' ? '3px solid #dc2626' : '3px solid transparent',
-                  color: currentScreen === 'enrich' ? '#dc2626' : 'rgba(255, 255, 255, 0.7)',
-                  padding: '0.875rem 1.25rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  cursor: clientId ? 'pointer' : 'not-allowed',
-                  fontSize: '0.9rem',
-                  fontWeight: 500,
-                  opacity: clientId ? 1 : 0.5,
-                  transition: 'all 0.2s'
-                }}
-              >
-                <Sparkles size={20} />
-                Enrich
-              </button>
-              <button
-                onClick={() => navigateTo('results')}
-                disabled={!clientId}
-                style={{
-                  width: '100%',
-                  background: currentScreen === 'results' ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
-                  border: 'none',
-                  borderLeft: currentScreen === 'results' ? '3px solid #dc2626' : '3px solid transparent',
-                  color: currentScreen === 'results' ? '#dc2626' : 'rgba(255, 255, 255, 0.7)',
-                  padding: '0.875rem 1.25rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  cursor: clientId ? 'pointer' : 'not-allowed',
-                  fontSize: '0.9rem',
-                  fontWeight: 500,
-                  opacity: clientId ? 1 : 0.5,
-                  transition: 'all 0.2s'
-                }}
-              >
-                <FileText size={20} />
-                Results
-              </button>
-              <button
-                onClick={() => navigateTo('skills')}
-                disabled={!clientId}
-                style={{
-                  width: '100%',
-                  background: currentScreen === 'skills' ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
-                  border: 'none',
-                  borderLeft: currentScreen === 'skills' ? '3px solid #dc2626' : '3px solid transparent',
-                  color: currentScreen === 'skills' ? '#dc2626' : 'rgba(255, 255, 255, 0.7)',
-                  padding: '0.875rem 1.25rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  cursor: clientId ? 'pointer' : 'not-allowed',
-                  fontSize: '0.9rem',
-                  fontWeight: 500,
-                  opacity: clientId ? 1 : 0.5,
-                  transition: 'all 0.2s'
-                }}
-              >
-                <Database size={20} />
-                Skills
-              </button>
+              {[
+                { screen: 'upload', icon: Home, label: 'Welcome' },
+                { screen: 'enrich', icon: Sparkles, label: 'Enrich' },
+                { screen: 'results', icon: FileText, label: 'Results' },
+                { screen: 'skills', icon: Database, label: 'Skills' },
+              ].map(({ screen, icon: Icon, label }) => (
+                <button
+                  key={screen}
+                  onClick={() => navigateTo(screen)}
+                  style={{
+                    width: '100%',
+                    background: currentScreen === screen ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
+                    border: 'none',
+                    borderLeft: currentScreen === screen ? '3px solid #dc2626' : '3px solid transparent',
+                    color: currentScreen === screen ? '#dc2626' : '#ffffff',
+                    padding: '0.875rem 1.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Icon size={20} />
+                  {label}
+                </button>
+              ))}
               <div style={{
                 height: '1px',
                 background: 'rgba(255, 255, 255, 0.1)',
@@ -249,7 +189,7 @@ export default function App() {
                   background: currentScreen === 'configuration' ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
                   border: 'none',
                   borderLeft: currentScreen === 'configuration' ? '3px solid #dc2626' : '3px solid transparent',
-                  color: currentScreen === 'configuration' ? '#dc2626' : 'rgba(255, 255, 255, 0.7)',
+                  color: currentScreen === 'configuration' ? '#dc2626' : '#ffffff',
                   padding: '0.875rem 1.25rem',
                   display: 'flex',
                   alignItems: 'center',

@@ -398,11 +398,19 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 
 /* ============================================================
+   HEADER TITLE RESPONSIVE
+   ============================================================ */
+.header-title-mobile { display: none; }
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 768px) {
   .header-inner { flex-wrap: wrap; }
   .header-title h1 { font-size: 0.875rem; }
+  .header-title-desktop { display: none; }
+  .header-title-mobile { display: inline; }
+  .version-badge { display: none; }
 
   /* Mobile modal */
   .modal-content {

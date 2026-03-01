@@ -71,7 +71,7 @@
 ```
 src/
   App.jsx          -- Main application component
-    - Hamburger Sidebar       (Navigation: Welcome, Upload, Enrich, Results, Skills, Configuration, theme toggle)
+    - Hamburger Sidebar       (Navigation: Welcome, Enrich, Results, Skills, Configuration, theme toggle -- all always clickable)
     - CompanyInfoModal        (Partner information form - 7 fields)
     - UploadScreen            (3-step journey with founder quotes)
     - EnrichScreen            (AI processing with progress tracking)
@@ -152,6 +152,7 @@ src/
 - Hamburger sidebar: 280px width, slide-out from left with dark background
 - All content fits on screen without scrolling (standard laptop viewport)
 - Mobile responsive: cards and quotes stack vertically at <768px
+- Mobile header: "XO Quickstart" swaps to "Rapid Prototype" at ≤768px, version badge hidden
 - Touch-friendly buttons: min 44px height
 - Modal: full-width on mobile with scrollable body
 - Button config cards: slideIn/fadeIn animations, card-hover/btn-hover transitions
@@ -698,7 +699,7 @@ cd backend
 ## BUILD HISTORY
 
 **Session Date:** February 28 - March 1, 2026
-**Build Count:** 27 completed builds
+**Build Count:** 29 completed builds
 
 **Build Order:**
 
@@ -891,6 +892,21 @@ cd backend
     - Default action buttons: Enrich (/enrich), Skills (/skills)
     - Bumped localStorage key to `xo-buttons-v2` to reset stale data for all users
     - Button state lifted from ConfigurationScreen to App root (shared between Config and Welcome)
+
+28. **Sidebar Navigation Fix**
+    - Removed `disabled={!clientId}` restrictions from Enrich, Results, Skills menu items
+    - Removed `opacity: 0.5` and `cursor: 'not-allowed'` on inactive items
+    - Changed inactive item color from `rgba(255, 255, 255, 0.7)` to `#ffffff` (full white)
+    - All sidebar items always clickable and navigate to their screen
+    - Refactored sidebar nav from individual buttons to `.map()` loop over items array
+    - Active item highlighted with red text (#dc2626) and red background tint
+
+29. **Mobile Responsive Header**
+    - Added `.header-title-desktop` and `.header-title-mobile` spans in header
+    - Desktop shows "XO Quickstart", mobile (≤768px) shows "Rapid Prototype"
+    - CSS media query swaps visibility: `.header-title-desktop` hidden, `.header-title-mobile` shown
+    - Version badge hidden on mobile to save horizontal space
+    - Deployed to production via CloudFront
 
 ---
 
