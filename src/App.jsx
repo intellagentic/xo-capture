@@ -1418,6 +1418,29 @@ function UploadScreen({ setClientId, clientId, companyData, onComplete, onOpenCo
             {allStepsComplete ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <button
+                  onClick={() => onNavigate('skills')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    padding: '0.6rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    width: '100%',
+                    background: '#3B82F6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Database size={16} />
+                  Skills
+                </button>
+                <button
                   onClick={onComplete}
                   style={{
                     display: 'flex',
@@ -1439,28 +1462,6 @@ function UploadScreen({ setClientId, clientId, companyData, onComplete, onOpenCo
                 >
                   <Sparkles size={18} />
                   Enrich
-                </button>
-                <button
-                  onClick={() => onNavigate('skills')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    padding: '0.6rem',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    width: '100%',
-                    background: 'rgba(51, 65, 85, 0.6)',
-                    color: 'rgba(255, 255, 255, 0.8)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <Database size={16} />
-                  Skills
                 </button>
               </div>
             ) : (
