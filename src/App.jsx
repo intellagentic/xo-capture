@@ -1416,19 +1416,53 @@ function UploadScreen({ setClientId, clientId, companyData, onComplete, onOpenCo
             </p>
 
             {allStepsComplete ? (
-              <button
-                onClick={onComplete}
-                className="action-btn red"
-                style={{
-                  justifyContent: 'center',
-                  padding: '0.75rem',
-                  fontSize: '0.9rem',
-                  width: '100%'
-                }}
-              >
-                <Sparkles size={18} />
-                Enrich
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <button
+                  onClick={onComplete}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    padding: '0.75rem',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    width: '100%',
+                    background: '#22c55e',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(34, 197, 94, 0.25)',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Sparkles size={18} />
+                  Enrich
+                </button>
+                <button
+                  onClick={() => onNavigate('skills')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    padding: '0.6rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    width: '100%',
+                    background: 'rgba(51, 65, 85, 0.6)',
+                    color: 'rgba(255, 255, 255, 0.8)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Database size={16} />
+                  Skills
+                </button>
+              </div>
             ) : (
               <p style={{
                 fontSize: '0.75rem',
@@ -1442,80 +1476,6 @@ function UploadScreen({ setClientId, clientId, companyData, onComplete, onOpenCo
           </div>
         </div>
       </div>
-
-      {/* AI-Powered Tagline */}
-      <div style={{
-        textAlign: 'center',
-        margin: '1.5rem 0 1rem',
-        padding: '0.75rem 1rem',
-        borderTop: '1px solid #e5e5e5',
-        borderBottom: '1px solid #e5e5e5'
-      }}>
-        <p style={{
-          fontSize: '0.8rem',
-          fontWeight: 600,
-          color: '#3b82f6',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          margin: 0
-        }}>
-          AI-Powered Business Intelligence
-        </p>
-      </div>
-
-      {/* Custom Buttons from Configuration */}
-      {configButtons && configButtons.length > 0 && (
-        <div style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 12,
-          margin: '1rem 0',
-          padding: '0 0.5rem'
-        }}>
-          {configButtons.map((btn) => {
-            const IconComp = ICON_MAP[btn.icon] || Zap
-            const handleClick = () => {
-              const url = btn.url || ''
-              // Internal route (starts with /)
-              if (url.startsWith('/') && ROUTE_MAP[url]) {
-                onNavigate(ROUTE_MAP[url])
-              // External URL
-              } else if (url.startsWith('http://') || url.startsWith('https://')) {
-                window.open(url, '_blank', 'noopener,noreferrer')
-              // "New Partner" button opens company modal
-              } else if (btn.label === 'New Partner') {
-                onOpenCompanyModal()
-              }
-            }
-            return (
-              <button
-                key={btn.id}
-                type="button"
-                onClick={handleClick}
-                className="btn-hover"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '12px 24px',
-                  background: btn.color,
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 10,
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: 500,
-                  boxShadow: `0 4px 12px ${btn.color}40`,
-                  transition: 'all .2s',
-                }}
-              >
-                <IconComp size={18} />
-                {btn.label}
-              </button>
-            )
-          })}
-        </div>
-      )}
 
       {/* Founder Quotes */}
       <div style={{
