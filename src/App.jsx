@@ -2501,106 +2501,96 @@ function SkillsScreen({ clientId }) {
   }
 
   return (
-    <div>
-      {/* Skills Header */}
-      <div className="panel">
-        <div className="panel-header">
-          <div className="panel-header-left">
-            <Database size={20} className="icon-red" />
-            <h2>Skills</h2>
-            <span className="badge-count blue">{skills.length}</span>
-          </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="action-btn red"
-            style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-          >
-            <Plus size={18} />
-            Add Skill
-          </button>
+    <div className="panel">
+      <div className="panel-header">
+        <div className="panel-header-left">
+          <Database size={20} className="icon-red" />
+          <h2>Skills</h2>
+          <span className="badge-count blue">{skills.length}</span>
         </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="action-btn red"
+          style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+        >
+          <Plus size={18} />
+          Add Skill
+        </button>
       </div>
 
-      {/* Context Text */}
-      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.75rem 0 0 0', lineHeight: 1.5 }}>
-        Skills teach the AI what to focus on, what to ignore, and what success looks like for your business. Think of them as instructions for your analyst.
-      </p>
-
-      {/* Skills List */}
-      <div style={{ marginTop: '1rem' }}>
+      <div style={{ padding: '1.25rem' }}>
         {loading ? (
-          <div className="panel">
-            <div className="empty-state">
-              <Loader2 size={48} style={{ color: '#dc2626', animation: 'spin 1s linear infinite' }} />
-              <p>Loading skills...</p>
-            </div>
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <Loader2 size={64} style={{ color: '#dc2626', opacity: 0.5, margin: '0 auto 1.5rem', animation: 'spin 1s linear infinite' }} />
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+              Loading Skills
+            </h3>
           </div>
         ) : skills.length === 0 ? (
-          <div className="panel">
-            <div className="empty-state">
-              <Database size={48} style={{ color: '#ccc' }} />
-              <p>No skills yet. Skills guide how the AI analyzes your business. Add your first skill to get started.</p>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="action-btn red"
-                style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', marginTop: '0.5rem' }}
-              >
-                <Plus size={18} />
-                Add Skill
-              </button>
-            </div>
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <Database size={64} style={{ color: '#dc2626', opacity: 0.5, margin: '0 auto 1.5rem' }} />
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+              No Skills Yet
+            </h3>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: 1.6 }}>
+              Skills teach the AI what to focus on, what to ignore, and what success looks like<br />
+              for your business. Think of them as instructions for your analyst.
+            </p>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Click <strong>+ Add Skill</strong> above to get started.
+            </p>
           </div>
         ) : (
           <div style={{ display: 'grid', gap: '0.75rem' }}>
             {skills.map((skill, index) => (
-              <div key={index} className="panel">
-                <div style={{
-                  padding: '1rem 1.25rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-                      {skill.name}
-                    </h3>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
-                      {skill.preview || 'Markdown skill content'}
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button
-                      onClick={() => {
-                        setEditingSkill(skill)
-                        setShowAddModal(true)
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#3b82f6',
-                        cursor: 'pointer',
-                        padding: '0.5rem',
-                        fontSize: '0.85rem',
-                        fontWeight: 500
-                      }}
-                    >
-                      <Edit3 size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(skill.name)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#dc2626',
-                        cursor: 'pointer',
-                        padding: '0.5rem',
-                        fontSize: '0.85rem',
-                        fontWeight: 500
-                      }}
-                    >
-                      <Trash size={16} />
-                    </button>
-                  </div>
+              <div key={index} style={{
+                padding: '1rem 1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px'
+              }}>
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                    {skill.name}
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    {skill.preview || 'Markdown skill content'}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    onClick={() => {
+                      setEditingSkill(skill)
+                      setShowAddModal(true)
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#3b82f6',
+                      cursor: 'pointer',
+                      padding: '0.5rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 500
+                    }}
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(skill.name)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#dc2626',
+                      cursor: 'pointer',
+                      padding: '0.5rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 500
+                    }}
+                  >
+                    <Trash size={16} />
+                  </button>
                 </div>
               </div>
             ))}

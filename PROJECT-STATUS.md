@@ -3,7 +3,7 @@
 **Date:** March 1, 2026
 **Project:** XO Quickstart - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.14)
+**Status:** Deployed & Operational (v1.15)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -1881,6 +1881,24 @@ cd backend
     - **Fixed infinite spinner bug**: When `clientId` is falsy, `fetchSkills` never ran so `loading` stayed `true` forever — added `else { setLoading(false) }` fallback
     - **Improved empty state**: Updated message to "No skills yet. Skills guide how the AI analyzes your business. Add your first skill to get started." with an inline + Add Skill button
     - **Added context text** below Skills header: "Skills teach the AI what to focus on, what to ignore, and what success looks like for your business. Think of them as instructions for your analyst."
+    - Frontend build: ~238 KB JS
+    - Deployed: frontend to S3, CloudFront invalidation
+    - Files: 1 file modified (App.jsx)
+
+41. **Design Consistency + Duplicate Button Fix** (Session 10 - March 1, 2026)
+    - **Removed duplicate "+ Add Skill" button** from empty state body — only one in header bar
+    - **Restructured Skills screen** to match Enrich screen layout pattern:
+      - Single `<div className="panel">` wrapping entire screen (was separate header + list panels)
+      - `panel-header` with icon + title + badge + action button on right
+      - Inner body `<div style={{ padding: '1.25rem' }}>` matching Enrich padding
+    - **Empty state now matches Enrich "Ready to Enrich" design**:
+      - Centered icon at `size={64}`, red color, `opacity: 0.5` (same as Sparkles icon on Enrich)
+      - Bold heading "No Skills Yet" at `1.125rem` / `fontWeight: 600` (same as "Ready to Enrich Your Data")
+      - Description text at `0.875rem`, `color: var(--text-secondary)`, `lineHeight: 1.6` (matches Enrich description)
+      - Subtle hint: 'Click **+ Add Skill** above to get started.' in muted text
+    - **Context text moved** from standalone paragraph into the centered empty state body
+    - **Loading state** also redesigned to match: centered spinner icon at 64px, heading "Loading Skills"
+    - **Skill cards** use bordered rows within the single panel body (no nested panels)
     - Frontend build: ~238 KB JS
     - Deployed: frontend to S3, CloudFront invalidation
     - Files: 1 file modified (App.jsx)
