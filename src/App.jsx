@@ -2471,6 +2471,8 @@ function SkillsScreen({ clientId }) {
   useEffect(() => {
     if (clientId) {
       fetchSkills()
+    } else {
+      setLoading(false)
     }
   }, [clientId])
 
@@ -2519,6 +2521,11 @@ function SkillsScreen({ clientId }) {
         </div>
       </div>
 
+      {/* Context Text */}
+      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.75rem 0 0 0', lineHeight: 1.5 }}>
+        Skills teach the AI what to focus on, what to ignore, and what success looks like for your business. Think of them as instructions for your analyst.
+      </p>
+
       {/* Skills List */}
       <div style={{ marginTop: '1rem' }}>
         {loading ? (
@@ -2532,7 +2539,15 @@ function SkillsScreen({ clientId }) {
           <div className="panel">
             <div className="empty-state">
               <Database size={48} style={{ color: '#ccc' }} />
-              <p>No skills yet. Add your first skill to enhance AI analysis.</p>
+              <p>No skills yet. Skills guide how the AI analyzes your business. Add your first skill to get started.</p>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="action-btn red"
+                style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', marginTop: '0.5rem' }}
+              >
+                <Plus size={18} />
+                Add Skill
+              </button>
             </div>
           </div>
         ) : (
