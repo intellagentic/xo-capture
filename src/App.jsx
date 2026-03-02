@@ -42,6 +42,13 @@ function LoginScreen({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showForgot, setShowForgot] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotPassword, setForgotPassword] = useState('')
+  const [forgotConfirm, setForgotConfirm] = useState('')
+  const [forgotError, setForgotError] = useState('')
+  const [forgotSuccess, setForgotSuccess] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -74,6 +81,32 @@ function LoginScreen({ onLogin }) {
     } catch (err) {
       setError('Connection failed. Please try again.')
       setLoading(false)
+    }
+  }
+
+  const handleForgotSubmit = async (e) => {
+    e.preventDefault()
+    setForgotError('')
+    setForgotSuccess('')
+
+    if (!forgotEmail) { setForgotError('Email is required'); return }
+    if (!forgotPassword || forgotPassword.length < 8) { setForgotError('Password must be at least 8 characters'); return }
+    if (forgotPassword !== forgotConfirm) { setForgotError('Passwords do not match'); return }
+
+    setForgotLoading(true)
+    try {
+      const response = await fetch(`${API_BASE}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail, new_password: forgotPassword })
+      })
+      const data = await response.json()
+      if (!response.ok) { setForgotError(data.error || 'Reset failed'); setForgotLoading(false); return }
+      setForgotSuccess('Password reset successfully. You can now sign in.')
+      setForgotLoading(false)
+    } catch {
+      setForgotError('Connection failed. Please try again.')
+      setForgotLoading(false)
     }
   }
 
@@ -195,14 +228,121 @@ function LoginScreen({ onLogin }) {
               {loading ? 'Signing in...' : 'Continue'}
             </button>
 
+            {/* Forgot Password link */}
+            <p style={{ textAlign: 'center', marginTop: '16px' }}>
+              <button
+                type="button"
+                onClick={() => { setShowForgot(true); setForgotEmail(email); setForgotError(''); setForgotSuccess('') }}
+                style={{
+                  background: 'none', border: 'none', color: '#9ca3af', fontSize: '13px',
+                  cursor: 'pointer', textDecoration: 'underline', padding: 0
+                }}
+              >
+                Forgot Password?
+              </button>
+            </p>
+
             {/* Helper text */}
             <p style={{
-              textAlign: 'center', marginTop: '20px',
+              textAlign: 'center', marginTop: '12px',
               fontSize: '13px', color: '#9ca3af', lineHeight: '1.5'
             }}>
               Enter your email and password to get started.
             </p>
           </form>
+
+          {/* Forgot Password Form */}
+          {showForgot && (
+            <div style={{
+              marginTop: '16px', background: '#ffffff', padding: '32px', borderRadius: '20px',
+              border: '1px solid #e5e7eb', boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+              animation: 'slideUp 0.3s ease-out'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Reset Password</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowForgot(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0 }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {forgotError && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '10px 14px', borderRadius: '10px', marginBottom: '16px',
+                  background: '#fef2f2', border: '1px solid #fecaca',
+                  color: '#dc2626', fontSize: '13px'
+                }}>
+                  <AlertTriangle size={14} /> {forgotError}
+                </div>
+              )}
+
+              {forgotSuccess && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '10px 14px', borderRadius: '10px', marginBottom: '16px',
+                  background: '#f0fdf4', border: '1px solid #bbf7d0',
+                  color: '#16a34a', fontSize: '13px'
+                }}>
+                  <CheckCircle size={14} /> {forgotSuccess}
+                </div>
+              )}
+
+              <form onSubmit={handleForgotSubmit}>
+                {/* Email */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Email</label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+                    <input type="email" required value={forgotEmail}
+                      onChange={(e) => { setForgotEmail(e.target.value); setForgotError('') }}
+                      placeholder="you@company.com"
+                      style={{ ...inputStyle, padding: '12px 14px 12px 42px', fontSize: '14px' }}
+                      onFocus={inputFocus} onBlur={inputBlur} />
+                  </div>
+                </div>
+
+                {/* New Password */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>New Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+                    <input type="password" required value={forgotPassword}
+                      onChange={(e) => { setForgotPassword(e.target.value); setForgotError('') }}
+                      placeholder="Min. 8 characters"
+                      style={{ ...inputStyle, padding: '12px 14px 12px 42px', fontSize: '14px' }}
+                      onFocus={inputFocus} onBlur={inputBlur} />
+                  </div>
+                </div>
+
+                {/* Confirm Password */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Confirm Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+                    <input type="password" required value={forgotConfirm}
+                      onChange={(e) => { setForgotConfirm(e.target.value); setForgotError('') }}
+                      placeholder="Re-enter password"
+                      style={{ ...inputStyle, padding: '12px 14px 12px 42px', fontSize: '14px' }}
+                      onFocus={inputFocus} onBlur={inputBlur} />
+                  </div>
+                </div>
+
+                <button type="submit" disabled={forgotLoading}
+                  style={{
+                    width: '100%', padding: '14px', background: '#dc2626', border: 'none', borderRadius: '12px',
+                    color: 'white', fontSize: '15px', fontWeight: '600', cursor: forgotLoading ? 'not-allowed' : 'pointer',
+                    opacity: forgotLoading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+                  }}>
+                  {forgotLoading && <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />}
+                  {forgotLoading ? 'Resetting...' : 'Reset Password'}
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
     </div>
