@@ -28,6 +28,7 @@ BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 FUNCTION_NAME = os.environ.get('AWS_LAMBDA_FUNCTION_NAME', 'xo-enrich')
 AUDIO_EXTENSIONS = {'mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'wma'}
+SYSTEM_SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'system-skills')
 
 anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -202,9 +203,13 @@ def _run_enrichment_pipeline(event):
         description = row[6] or ''
         pain_point = row[7] or ''
 
-        # Read skills
+        # Load system skills (bundled with Lambda, always injected first)
+        system_skills = load_system_skills()
+        print(f"Loaded {len(system_skills)} system skills")
+
+        # Read domain/client skills
         skills = read_skills_from_db(cur, db_client_id, client_id)
-        print(f"Loaded {len(skills)} skills for client: {client_id}")
+        print(f"Loaded {len(skills)} client skills for: {client_id}")
         cur.close()
 
         # Read client-config.md if it exists
@@ -247,7 +252,7 @@ def _run_enrichment_pipeline(event):
         analysis = analyze_with_claude(
             company_name, website, contact_name, contact_title,
             contact_linkedin, industry, description, pain_point, extracted_text, skills,
-            model=model, client_config=client_config
+            model=model, client_config=client_config, system_skills=system_skills
         )
 
         # Write results to S3
@@ -449,6 +454,28 @@ def read_transcribe_output(output_key):
     except Exception as e:
         print(f"Error reading transcribe output ({output_key}): {e}")
         return None
+
+
+def load_system_skills():
+    """Load system skills from the bundled system-skills/ directory."""
+    skills = []
+    try:
+        if not os.path.isdir(SYSTEM_SKILLS_DIR):
+            print(f"System skills directory not found: {SYSTEM_SKILLS_DIR}")
+            return skills
+        for filename in sorted(os.listdir(SYSTEM_SKILLS_DIR)):
+            if not filename.endswith('.md'):
+                continue
+            filepath = os.path.join(SYSTEM_SKILLS_DIR, filename)
+            with open(filepath, 'r') as f:
+                content = f.read()
+            skills.append({
+                'name': filename.replace('.md', ''),
+                'content': content
+            })
+    except Exception as e:
+        print(f"Error loading system skills: {e}")
+    return skills
 
 
 def read_client_config(client_id):
@@ -666,7 +693,7 @@ def extract_pdf(file_content):
 
 def analyze_with_claude(company_name, website, contact_name, contact_title,
                         contact_linkedin, industry, description, pain_point, extracted_text, skills=None,
-                        model='claude-opus-4-5-20250529', client_config=None):
+                        model='claude-opus-4-5-20250529', client_config=None, system_skills=None):
     """
     Call Claude API with First Party Trick prompt.
     Returns structured analysis JSON.
@@ -693,15 +720,23 @@ def analyze_with_claude(company_name, website, contact_name, contact_title,
 
     enrichment_section = "\n".join(enrichment_info) if enrichment_info else "Not provided"
 
+    # System skills (always injected first -- analysis framework, output format, authority, enrichment process)
+    system_skills_section = ""
+    if system_skills and len(system_skills) > 0:
+        system_skills_section = "\n\nSYSTEM INSTRUCTIONS (follow these rules for every analysis):\n"
+        for skill in system_skills:
+            system_skills_section += f"=== {skill['name'].upper().replace('-', ' ')} ===\n{skill['content']}\n\n"
+
     # Client config section (persistent context, like a CLAUDE.md for this client)
     config_section = ""
     if client_config:
         config_section = f"\n\nCLIENT CONFIGURATION (persistent context for this engagement):\n{client_config}\n"
 
+    # Domain/client skills (editable per client, override defaults)
     skills_section = ""
     if skills and len(skills) > 0:
-        skills_section = "\n\nDOMAIN-SPECIFIC SKILLS & INSTRUCTIONS:\n"
-        skills_section += "The following skills provide domain-specific knowledge and analysis instructions. Follow these instructions carefully -- they override default behavior:\n\n"
+        skills_section = "\n\nCLIENT-SPECIFIC SKILLS & INSTRUCTIONS:\n"
+        skills_section += "The following skills provide domain-specific knowledge and analysis instructions. Follow these instructions carefully -- they refine the system instructions above:\n\n"
         for skill in skills:
             skills_section += f"=== SKILL: {skill['name']} ===\n{skill['content']}\n\n"
 
@@ -710,7 +745,7 @@ def analyze_with_claude(company_name, website, contact_name, contact_title,
         pain_point_section = f"\n\nPRIORITY: The client has identified this as their immediate pain point: '{pain_point}'. Make this the #1 problem in your analysis. Lead the executive summary with it, ensure it appears first in the problems list with specific evidence and a concrete recommendation, and front-load the 30-day action plan with steps that directly address it."
 
     prompt = f"""You are an MBA-level business analyst conducting a First Party Trick analysis. You have been given access to internal documents from a company. Analyze this business and provide strategic insights.
-
+{system_skills_section}
 COMPANY INFORMATION:
 Company Name: {company_name}
 {enrichment_section}

@@ -2074,6 +2074,7 @@ function EnrichScreen({ clientId, onComplete, preferredModel }) {
   const [jobId, setJobId] = useState(null)
   const [currentStage, setCurrentStage] = useState(null)
   const [error, setError] = useState(null)
+  const [showInfoPopover, setShowInfoPopover] = useState(false)
   const [stages, setStages] = useState([
     { id: 'extracting', label: 'Extracting Text', status: 'pending', icon: FileText },
     { id: 'transcribing', label: 'Transcribing Audio', status: 'pending', icon: Music },
@@ -2203,14 +2204,117 @@ function EnrichScreen({ clientId, onComplete, preferredModel }) {
               Our AI will extract text from documents, transcribe audio files,<br />
               research your company online, and generate a comprehensive analysis.
             </p>
-            <button
-              onClick={startEnrichment}
-              className="action-btn red"
-              style={{ padding: '0.875rem 2rem', fontSize: '1rem' }}
-            >
-              <Sparkles size={20} />
-              Start Enrichment
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', position: 'relative' }}>
+              <button
+                onClick={startEnrichment}
+                className="action-btn red"
+                style={{ padding: '0.875rem 2rem', fontSize: '1rem' }}
+              >
+                <Sparkles size={20} />
+                Start Enrichment
+              </button>
+              <button
+                onClick={() => setShowInfoPopover(!showInfoPopover)}
+                style={{
+                  background: 'none',
+                  border: '2px solid var(--border-color)',
+                  borderRadius: '50%',
+                  width: 36,
+                  height: 36,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  transition: 'all 0.2s',
+                  flexShrink: 0
+                }}
+                title="What happens when you click Enrich?"
+              >
+                <AlertCircle size={18} />
+              </button>
+
+              {/* Enrichment Info Popover */}
+              {showInfoPopover && (
+                <>
+                  <div
+                    onClick={() => setShowInfoPopover(false)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 12px)',
+                    right: 0,
+                    width: 340,
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '12px',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+                    zIndex: 100,
+                    padding: '1.25rem',
+                    textAlign: 'left'
+                  }}>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.875rem' }}>
+                      What happens when you click Enrich?
+                    </h4>
+                    {[
+                      { num: '1', label: 'Extract', desc: 'Read all uploaded documents, transcribe audio files', icon: FileText },
+                      { num: '2', label: 'Context', desc: 'Company info, pain points, and survival metrics guide the analysis', icon: Building2 },
+                      { num: '3', label: 'Skills', desc: 'System + domain + client skills shape how AI thinks', icon: Database },
+                      { num: '4', label: 'Web Research', desc: 'Company, competitors, and market research', icon: Globe },
+                      { num: '5', label: 'AI Analysis', desc: `${MODEL_LABELS[preferredModel] || 'Claude'} produces MBA-level analysis`, icon: Sparkles },
+                      { num: '6', label: 'Output', desc: 'Problems, architecture, schema, 30/60/90 day plan', icon: CheckCircle }
+                    ].map(step => (
+                      <div key={step.num} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem', marginBottom: '0.625rem' }}>
+                        <div style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: '50%',
+                          background: 'rgba(220, 38, 38, 0.1)',
+                          color: '#dc2626',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          flexShrink: 0,
+                          marginTop: 1
+                        }}>
+                          {step.num}
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>{step.label}</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '0.375rem' }}>{step.desc}</span>
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{
+                      marginTop: '0.75rem',
+                      paddingTop: '0.625rem',
+                      borderTop: '1px solid var(--border-color)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}>
+                      <span style={{
+                        fontSize: '0.65rem',
+                        fontWeight: 600,
+                        color: preferredModel.includes('opus') ? '#a855f7' : '#3b82f6',
+                        background: preferredModel.includes('opus') ? 'rgba(168, 85, 247, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                        padding: '2px 8px',
+                        borderRadius: '999px',
+                        border: `1px solid ${preferredModel.includes('opus') ? 'rgba(168, 85, 247, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`
+                      }}>
+                        {MODEL_LABELS[preferredModel] || preferredModel}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        Change model in Configuration
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -2912,6 +3016,54 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
               </button>
             )
           })}
+        </div>
+      </div>
+
+      {/* System Skills (Admin View) */}
+      <div className="panel" style={{ marginTop: '1rem' }}>
+        <div className="panel-header">
+          <div className="panel-header-left">
+            <Lock size={20} className="icon-red" />
+            <h2>System Skills</h2>
+            <span className="badge-count">4</span>
+          </div>
+        </div>
+        <div style={{ padding: '1.25rem' }}>
+          <p style={{ fontSize: '0.75rem', color: C.muted, marginBottom: '0.875rem', lineHeight: 1.5 }}>
+            System skills are injected into every enrichment call before client skills. They define how the AI analyzes, formats output, and handles authority boundaries.
+          </p>
+          <div style={{ display: 'grid', gap: '0.5rem' }}>
+            {[
+              { name: 'Analysis Framework', desc: 'Revenue drivers, cost structure, bottlenecks, competitive position, risk factors' },
+              { name: 'Output Format', desc: 'Numbered sections, table schemas, severity ratings, confidence scores, source citations' },
+              { name: 'Authority Boundaries', desc: 'What to recommend directly vs. flag for human review' },
+              { name: 'Enrichment Process', desc: 'Data source hierarchy: client data > context > audio > web > inferred' }
+            ].map((skill, i) => (
+              <div key={i} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.625rem 0.875rem',
+                background: C.surface,
+                borderRadius: '8px',
+                border: `1px solid ${C.border}`
+              }}>
+                <Lock size={14} style={{ color: C.muted, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: C.text }}>{skill.name}</div>
+                  <div style={{
+                    fontSize: '0.7rem', color: C.muted, marginTop: 1,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                  }}>{skill.desc}</div>
+                </div>
+                <span style={{
+                  fontSize: '0.6rem', fontWeight: 600, color: C.muted,
+                  background: `${C.muted}15`, padding: '2px 6px', borderRadius: 999,
+                  flexShrink: 0
+                }}>System</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -3,7 +3,7 @@
 **Date:** March 1, 2026
 **Project:** XO Quickstart - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.10)
+**Status:** Deployed & Operational (v1.12)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -1838,6 +1838,28 @@ cd backend
     - Deployed: xo-clients Lambda, xo-enrich Lambda, frontend, CloudFront invalidation
     - Files: 5 files created/modified (default-skill.md, clients/lambda_function.py, enrich/lambda_function.py, App.jsx, CLAUDE.md)
 
+38. **System Skills Layer + Enrichment Info Popover** (Session 9 - March 1, 2026)
+    - **System skills** (`backend/system-skills/`): 4 markdown files always injected into every enrichment call
+      - `analysis-framework.md` -- Revenue drivers, cost structure, operational bottlenecks, competitive position, risk factors; quantification rules
+      - `output-format.md` -- Numbered sections, table schemas, severity ratings, confidence scores, source citations, bottom line format
+      - `authority-boundaries.md` -- What to recommend directly vs flag for human review; hard rules (never recommend firing, never give legal advice, caveat financials)
+      - `enrichment-process.md` -- Data source hierarchy: client data (ground truth) > context > audio transcripts > web research > inferred patterns
+    - **Three-tier skill injection order** in Claude prompt:
+      1. System skills (always, bundled with Lambda, not client-visible)
+      2. Client config (client-config.md, generated from partner form)
+      3. Client/domain skills (editable in Skills screen, customizable per client)
+    - `load_system_skills()` reads from `system-skills/` directory bundled in Lambda package
+    - `deploy-enrich.sh` updated to copy `system-skills/*.md` into Lambda package
+    - **System Skills section in Configuration screen**: read-only admin view showing all 4 system skills with lock icon and descriptions
+    - **Enrichment info popover** on Enrich screen:
+      - Info icon (circle) next to Start Enrichment button
+      - Click shows popover with 6 numbered steps: Extract, Context, Skills, Web Research, AI Analysis, Output
+      - Shows current model badge (Opus/Sonnet) with "Change model in Configuration" hint
+      - Dismisses on click outside
+    - Frontend build: ~235 KB JS
+    - Deployed: xo-enrich Lambda (with system-skills), frontend, CloudFront invalidation
+    - Files: 8 files created/modified (4 system-skills .md files, deploy-enrich.sh, enrich/lambda_function.py, App.jsx)
+
 ---
 
 ## PENDING ITEMS
@@ -1941,7 +1963,7 @@ The XO Quickstart prototype is **fully operational** and deployed to production.
 
 **Repository:** All code is version-controlled at https://github.com/intellagentic/xo-quickstart with proper .gitignore to exclude secrets.
 
-**Next Step:** Web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode). Skills API endpoints (currently TODO stubs in frontend). Audio transcription, async processing, structured output, and client config are all live.
+**Next Step:** Web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode), Skills API endpoints (currently TODO stubs in frontend). System skills, audio transcription, async processing, structured output, and client config are all live.
 
 ---
 

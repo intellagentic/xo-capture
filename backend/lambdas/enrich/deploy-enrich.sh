@@ -16,6 +16,10 @@ pip3 install -r requirements.txt -t package/ --quiet
 cp lambda_function.py package/
 cp ../shared/auth_helper.py package/
 
+# Copy system skills
+mkdir -p package/system-skills
+cp ../../system-skills/*.md package/system-skills/
+
 # Create zip
 cd package
 zip -r ../function.zip . -q
