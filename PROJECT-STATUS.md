@@ -3,7 +3,7 @@
 **Date:** March 1, 2026
 **Project:** XO Quickstart - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.17)
+**Status:** Deployed & Operational (v1.18)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -1149,13 +1149,23 @@ All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_hel
 **Timeout:** 30 seconds
 **Handler:** lambda_function.lambda_handler
 
-**What it does:**
-1. **Auth check** (JWT required)
-2. Validates company_name is provided
-3. Generates unique client_id: `client_{timestamp}_{md5hash}`
-4. Creates S3 folder structure: uploads/, extracted/, results/
-5. **INSERT INTO clients** table (PostgreSQL) with user_id from JWT
-6. Returns client_id (S3 folder) + id (DB UUID)
+**What it does (method router with 3 handlers):**
+
+1. **GET /clients?client_id=X** — Fetch existing client data
+   - If client_id provided, fetch by s3_folder; otherwise fetch most recent for user
+   - Returns all fields: company_name, website, contactName, contactTitle, contactLinkedIn, industry, description, painPoint, client_id, timestamps
+
+2. **POST /clients** — Create new client
+   - Validates company_name, generates unique client_id: `client_{timestamp}_{md5hash}`
+   - Creates S3 folder structure: uploads/, extracted/, results/
+   - Generates client-config.md in S3, copies default skill template
+   - INSERT INTO clients + skills tables
+   - Returns client_id (S3 folder) + id (DB UUID)
+
+3. **PUT /clients** — Update existing client
+   - Requires client_id in body
+   - Updates all fields + updated_at timestamp
+   - Regenerates client-config.md in S3
 
 **File:** backend/lambdas/clients/lambda_function.py
 
@@ -1505,7 +1515,7 @@ cd backend
 ## BUILD HISTORY
 
 **Session Date:** March 1, 2026
-**Build Count:** 35 completed builds
+**Build Count:** 44 completed builds
 
 **Build Order:**
 
@@ -1963,6 +1973,26 @@ cd backend
     - Frontend build: ~248 KB JS
     - Branch: feature/source-library
     - Files: 4 files modified (App.jsx, schema.sql, upload/lambda_function.py, enrich/lambda_function.py)
+
+44. **UI Polish, Domain Persistence, Source Library Fixes** (Session 12 - March 1, 2026)
+    - **Forgot Password**: Added "Forgot Password?" link + reset form on login screen (email, new password, confirm). Uses POST /auth/reset-password.
+    - **clientId persistence**: Fixed Source Library "Complete Domain Expertise First" bug -- clientId now persisted to localStorage, cleared on logout.
+    - **Domain Expertise persistence**: Clients Lambda rewritten as method router (GET/PUT/POST). Frontend fetches existing client data on login, pre-populates CompanyInfoModal. Save does upsert (PUT if exists, POST if new). API Gateway routes added for GET/PUT /clients.
+    - **Welcome screen cleanup**:
+      - Removed redundant "Continue to Enrichment" bar from bottom of page
+      - Removed duplicate Enrich/Skills buttons from "AI-Powered Business Intelligence" section
+      - Moved Enrich (green #22c55e) and Skills (blue #3B82F6) buttons into Intellagentic Growth card (card 3)
+      - Skills button above Enrich button
+    - **Source Library kebab menu fixes**:
+      - Fixed dropdown overflow: overrode `.panel` `overflow:hidden` with inline `overflow:visible`
+      - Wrapper uses `position:relative`, dropdown uses `right:0, top:100%`
+      - Restyled: white background, dark text (#1a1a1a), subtle border (#e5e7eb), soft box-shadow
+      - Added View menu item (opens S3 URL), divider before Delete (red text)
+      - Hover states: #f3f4f6 for View/Replace, #fef2f2 for Delete
+    - **Connector pills visibility**: Google Drive + coming-soon pills now use CSS variables for theme compatibility
+    - **Upload status default**: Upload Lambda explicitly sets `status='active'` on INSERT (both upload and replace handlers). DB column enforced as NOT NULL DEFAULT 'active'. Fixed existing inactive rows.
+    - Branch: feature/source-library
+    - Files: App.jsx, clients/lambda_function.py, upload/lambda_function.py
 
 ---
 
