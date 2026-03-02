@@ -2049,24 +2049,39 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
                       {isMenuOpen && (
                         <div style={{
                           position: 'absolute', right: 0, top: '100%', zIndex: 50,
-                          background: 'var(--surface-primary, #1a1a2e)',
-                          border: '1px solid var(--border-color, rgba(255,255,255,0.12))',
-                          borderRadius: '8px', padding: '0.25rem 0', minWidth: '140px',
-                          boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+                          background: '#ffffff',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px', padding: '0.25rem 0', minWidth: '150px',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08)',
+                          marginTop: '4px'
                         }}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); window.open(`https://xo-client-data.s3.us-west-1.amazonaws.com/${upload.s3_key}`, '_blank'); setOpenMenuId(null) }}
+                            style={{
+                              width: '100%', textAlign: 'left', padding: '0.5rem 0.875rem',
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: '#1a1a1a', fontSize: '0.8rem',
+                              display: 'flex', alignItems: 'center', gap: '0.5rem'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                          >
+                            <Eye size={14} /> View
+                          </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setReplacingId(upload.id); setOpenMenuId(null) }}
                             style={{
                               width: '100%', textAlign: 'left', padding: '0.5rem 0.875rem',
                               background: 'none', border: 'none', cursor: 'pointer',
-                              color: 'var(--text-primary)', fontSize: '0.8rem',
+                              color: '#1a1a1a', fontSize: '0.8rem',
                               display: 'flex', alignItems: 'center', gap: '0.5rem'
                             }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                            onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
                             onMouseLeave={e => e.currentTarget.style.background = 'none'}
                           >
                             <RefreshCw size={14} /> Replace
                           </button>
+                          <div style={{ height: '1px', background: '#e5e7eb', margin: '0.25rem 0' }} />
                           <button
                             onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(upload.id); setOpenMenuId(null) }}
                             style={{
@@ -2075,7 +2090,7 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
                               color: '#ef4444', fontSize: '0.8rem',
                               display: 'flex', alignItems: 'center', gap: '0.5rem'
                             }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                            onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
                             onMouseLeave={e => e.currentTarget.style.background = 'none'}
                           >
                             <Trash2 size={14} /> Delete

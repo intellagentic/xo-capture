@@ -393,8 +393,8 @@ def handle_replace_upload(event, user):
     new_version = parent_version + 1
 
     cur.execute("""
-        INSERT INTO uploads (client_id, filename, file_type, s3_key, file_size, version, parent_upload_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO uploads (client_id, filename, file_type, s3_key, file_size, version, parent_upload_id, status)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, 'active')
         RETURNING id
     """, (parent_client_id, file_name, file_type, new_s3_key, file_size, new_version, upload_id))
 
