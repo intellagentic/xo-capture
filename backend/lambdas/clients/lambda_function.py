@@ -17,26 +17,10 @@ BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data')
 
 def lambda_handler(event, context):
     """
-    Create a new client entry with S3 folder structure + DB row.
-
-    Expected input:
-    {
-        "company_name": "Company Name",
-        "website": "https://example.com",
-        "contactName": "John Doe",
-        "contactTitle": "CEO",
-        "contactLinkedIn": "https://linkedin.com/in/...",
-        "industry": "Waste Management",
-        "description": "Optional description",
-        "painPoint": "Route optimization"
-    }
-
-    Returns:
-    {
-        "client_id": "client_1234567890_abcd",
-        "id": "uuid",
-        "status": "created"
-    }
+    Method router for /clients:
+      GET  /clients?client_id=X  -> fetch existing client data
+      POST /clients              -> create new client
+      PUT  /clients              -> update existing client
     """
 
     # Handle OPTIONS preflight
@@ -48,6 +32,186 @@ def lambda_handler(event, context):
     if err:
         return err
 
+    method = event.get('httpMethod', '')
+
+    if method == 'GET':
+        return handle_get_client(event, user)
+    elif method == 'PUT':
+        return handle_update_client(event, user)
+    elif method == 'POST':
+        return handle_create_client(event, user)
+    else:
+        return {
+            'statusCode': 405,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': f'Method not allowed: {method}'})
+        }
+
+
+def handle_get_client(event, user):
+    """GET /clients?client_id=X — Fetch existing client data."""
+    params = event.get('queryStringParameters') or {}
+    client_id = params.get('client_id', '').strip()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        if client_id:
+            # Fetch specific client by s3_folder
+            cur.execute("""
+                SELECT id, company_name, website_url, contact_name, contact_title,
+                       contact_linkedin, industry, description, pain_point,
+                       s3_folder, created_at, updated_at
+                FROM clients WHERE s3_folder = %s AND user_id = %s
+            """, (client_id, user['user_id']))
+        else:
+            # Fetch most recent client for this user
+            cur.execute("""
+                SELECT id, company_name, website_url, contact_name, contact_title,
+                       contact_linkedin, industry, description, pain_point,
+                       s3_folder, created_at, updated_at
+                FROM clients WHERE user_id = %s
+                ORDER BY created_at DESC LIMIT 1
+            """, (user['user_id'],))
+
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not row:
+            return {
+                'statusCode': 404,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'No client found'})
+            }
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'id': str(row[0]),
+                'company_name': row[1] or '',
+                'website': row[2] or '',
+                'contactName': row[3] or '',
+                'contactTitle': row[4] or '',
+                'contactLinkedIn': row[5] or '',
+                'industry': row[6] or '',
+                'description': row[7] or '',
+                'painPoint': row[8] or '',
+                'client_id': row[9] or '',
+                'created_at': row[10].isoformat() if row[10] else None,
+                'updated_at': row[11].isoformat() if row[11] else None
+            })
+        }
+    except Exception as e:
+        print(f"Error fetching client: {str(e)}")
+        cur.close()
+        conn.close()
+        return {
+            'statusCode': 500,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Internal server error', 'message': str(e)})
+        }
+
+
+def handle_update_client(event, user):
+    """PUT /clients — Update existing client."""
+    try:
+        body = json.loads(event.get('body', '{}'))
+        client_id = body.get('client_id', '').strip()
+
+        if not client_id:
+            return {
+                'statusCode': 400,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'client_id is required'})
+            }
+
+        company_name = body.get('company_name', '').strip()
+        if not company_name:
+            return {
+                'statusCode': 400,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'company_name is required'})
+            }
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            UPDATE clients SET
+                company_name = %s, website_url = %s, contact_name = %s,
+                contact_title = %s, contact_linkedin = %s, industry = %s,
+                description = %s, pain_point = %s, updated_at = NOW()
+            WHERE s3_folder = %s AND user_id = %s
+            RETURNING id
+        """, (
+            company_name,
+            body.get('website', '').strip(),
+            body.get('contactName', '').strip(),
+            body.get('contactTitle', '').strip(),
+            body.get('contactLinkedIn', '').strip(),
+            body.get('industry', '').strip(),
+            body.get('description', '').strip(),
+            body.get('painPoint', '').strip(),
+            client_id,
+            user['user_id']
+        ))
+
+        row = cur.fetchone()
+        conn.commit()
+
+        # Regenerate client-config.md in S3
+        config_md = generate_client_config(
+            company_name,
+            body.get('website', '').strip(),
+            body.get('contactName', '').strip(),
+            body.get('contactTitle', '').strip(),
+            body.get('contactLinkedIn', '').strip(),
+            body.get('industry', '').strip(),
+            body.get('description', '').strip(),
+            body.get('painPoint', '').strip()
+        )
+        s3_client.put_object(
+            Bucket=BUCKET_NAME,
+            Key=f"{client_id}/client-config.md",
+            Body=config_md,
+            ContentType='text/markdown'
+        )
+
+        cur.close()
+        conn.close()
+
+        if not row:
+            return {
+                'statusCode': 404,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'Client not found'})
+            }
+
+        print(f"Updated client: {client_id}")
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'client_id': client_id,
+                'id': str(row[0]),
+                'status': 'updated'
+            })
+        }
+
+    except Exception as e:
+        print(f"Error updating client: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Internal server error', 'message': str(e)})
+        }
+
+
+def handle_create_client(event, user):
+    """POST /clients — Create new client (original logic)."""
     try:
         # Parse request body
         body = json.loads(event.get('body', '{}'))

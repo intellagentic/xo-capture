@@ -447,10 +447,13 @@ export default function App() {
   const [configButtons, setConfigButtons] = useState(DEFAULT_BUTTONS)
   const [buttonsLoaded, setButtonsLoaded] = useState(false)
 
-  // Fetch buttons from API after login
+  // Fetch buttons and client data from API after login
   useEffect(() => {
     if (isLoggedIn && !buttonsLoaded) {
       fetchButtons()
+    }
+    if (isLoggedIn) {
+      fetchExistingClient()
     }
   }, [isLoggedIn])
 
@@ -471,6 +474,33 @@ export default function App() {
     setButtonsLoaded(true)
   }
 
+  const fetchExistingClient = async () => {
+    try {
+      const url = clientId
+        ? `${API_BASE}/clients?client_id=${clientId}`
+        : `${API_BASE}/clients`
+      const response = await fetch(url, { headers: getAuthHeaders() })
+      if (response.ok) {
+        const data = await response.json()
+        setCompanyData({
+          name: data.company_name || '',
+          website: data.website || '',
+          contactName: data.contactName || '',
+          contactTitle: data.contactTitle || '',
+          contactLinkedIn: data.contactLinkedIn || '',
+          industry: data.industry || '',
+          description: data.description || '',
+          painPoint: data.painPoint || ''
+        })
+        if (data.client_id && !clientId) {
+          setClientId(data.client_id)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch existing client:', err)
+    }
+  }
+
   const saveButtons = async (newButtons) => {
     setConfigButtons(newButtons)
     try {
@@ -489,31 +519,53 @@ export default function App() {
     setShowSidebar(false)
   }
 
-  // Create client when company info is saved (so Sources screen has a clientId)
+  // Create or update client when company info is saved
   const handleClientCreate = async (data) => {
-    if (clientId) return // already created
     try {
-      const response = await fetch(`${API_BASE}/clients`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          company_name: data.name,
-          website: data.website,
-          contactName: data.contactName,
-          contactTitle: data.contactTitle,
-          contactLinkedIn: data.contactLinkedIn,
-          industry: data.industry,
-          description: data.description,
-          painPoint: data.painPoint
+      if (clientId) {
+        // Update existing client
+        const response = await fetch(`${API_BASE}/clients`, {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            client_id: clientId,
+            company_name: data.name,
+            website: data.website,
+            contactName: data.contactName,
+            contactTitle: data.contactTitle,
+            contactLinkedIn: data.contactLinkedIn,
+            industry: data.industry,
+            description: data.description,
+            painPoint: data.painPoint
+          })
         })
-      })
-      if (response.ok) {
-        const { client_id } = await response.json()
-        setClientId(client_id)
-        console.log('Client created on company save:', client_id)
+        if (response.ok) {
+          console.log('Client updated:', clientId)
+        }
+      } else {
+        // Create new client
+        const response = await fetch(`${API_BASE}/clients`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            company_name: data.name,
+            website: data.website,
+            contactName: data.contactName,
+            contactTitle: data.contactTitle,
+            contactLinkedIn: data.contactLinkedIn,
+            industry: data.industry,
+            description: data.description,
+            painPoint: data.painPoint
+          })
+        })
+        if (response.ok) {
+          const { client_id } = await response.json()
+          setClientId(client_id)
+          console.log('Client created on company save:', client_id)
+        }
       }
     } catch (err) {
-      console.error('Failed to create client:', err)
+      console.error('Failed to save client:', err)
     }
   }
 
