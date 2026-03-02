@@ -2111,17 +2111,18 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
                         <div
                           onClick={e => e.stopPropagation()}
                           style={{
-                            background: 'var(--surface-primary, #1a1a2e)',
-                            border: '1px solid var(--border-color, rgba(255,255,255,0.12))',
+                            background: '#ffffff',
+                            border: '1px solid #e5e7eb',
                             borderRadius: '12px', padding: '1.5rem', maxWidth: '360px', width: '90%',
-                            textAlign: 'center'
+                            textAlign: 'center',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)'
                           }}
                         >
                           <Trash2 size={32} style={{ color: '#ef4444', margin: '0 auto 0.75rem' }} />
-                          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1a1a1a', marginBottom: '0.5rem' }}>
                             Delete Source?
                           </h3>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+                          <p style={{ fontSize: '0.85rem', color: '#444444', marginBottom: '1.25rem' }}>
                             <strong>{upload.filename}</strong> will be permanently removed.
                           </p>
                           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
@@ -2129,8 +2130,8 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
                               onClick={() => setDeleteConfirmId(null)}
                               style={{
                                 padding: '0.5rem 1.25rem', borderRadius: '8px', fontSize: '0.85rem',
-                                background: 'var(--surface-secondary, rgba(255,255,255,0.08))',
-                                border: '1px solid var(--border-color)', color: 'var(--text-primary)',
+                                background: '#f3f4f6',
+                                border: '1px solid #d1d5db', color: '#333333',
                                 cursor: 'pointer', fontWeight: 500
                               }}
                             >
@@ -2140,7 +2141,7 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
                               onClick={() => deleteUpload(upload.id)}
                               style={{
                                 padding: '0.5rem 1.25rem', borderRadius: '8px', fontSize: '0.85rem',
-                                background: '#ef4444', border: 'none', color: 'white',
+                                background: '#ef4444', border: 'none', color: '#ffffff',
                                 cursor: 'pointer', fontWeight: 600
                               }}
                             >

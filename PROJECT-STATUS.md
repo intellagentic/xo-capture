@@ -3,7 +3,7 @@
 **Date:** March 1, 2026
 **Project:** XO Quickstart - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.19)
+**Status:** Deployed & Operational (v1.20)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -1515,7 +1515,7 @@ cd backend
 ## BUILD HISTORY
 
 **Session Date:** March 1, 2026
-**Build Count:** 45 completed builds
+**Build Count:** 47 completed builds
 
 **Build Order:**
 
@@ -2002,6 +2002,25 @@ cd backend
     - **Also fixed**: `deploy-gdrive.sh` with same platform flags to prevent future issues
     - Deployed xo-enrich Lambda, verified clean INIT and 200 response
     - Files: deploy-enrich.sh, deploy-gdrive.sh
+
+46. **Delete Modal Contrast Fix** (Session 13 - March 2, 2026)
+    - **Delete confirmation modal** on Source Library had low-contrast text (CSS variables blending into dark overlay)
+    - Fixed with hardcoded light colors (same pattern as kebab menu fix, build #43):
+      - Card background: `#ffffff` with `#e5e7eb` border and depth shadow
+      - Heading "Delete Source?": `#1a1a1a` (dark black)
+      - Description text: `#444444` (dark gray, was `#6b7280`)
+      - Cancel button: `#f3f4f6` background, `#333333` text, `#d1d5db` border
+      - Delete button: `#ef4444` background, `#ffffff` text
+    - Files: App.jsx
+
+47. **Fix xo-enrich Lambda Self-Invoke Permission** (Session 13 - March 2, 2026)
+    - **Root cause**: `xo-lambda-role` IAM role missing `lambda:InvokeFunction` permission
+    - xo-enrich uses async self-invoke pattern (Phase 1 calls itself for Phase 2) but the IAM policy was never attached
+    - Error: `AccessDeniedException: User xo-lambda-role/xo-enrich is not authorized to perform lambda:InvokeFunction`
+    - **Fix**: Added inline IAM policy `xo-lambda-invoke` to `xo-lambda-role`:
+      - `lambda:InvokeFunction` on `arn:aws:lambda:us-west-1:941377154043:function:xo-enrich`
+      - `transcribe:StartTranscriptionJob` + `transcribe:GetTranscriptionJob` on `*`
+    - Verified clean execution with no AccessDeniedException
 
 ---
 
