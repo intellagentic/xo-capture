@@ -3,7 +3,7 @@
 **Date:** March 1, 2026
 **Project:** XO Quickstart - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.7)
+**Status:** Deployed & Operational (v1.8)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -45,9 +45,9 @@
        |          |           |        v        |         |         v
        |          |           | +----------+    |         |  +-----------+
        |          |           | |Claude    |    |         |  |Google     |
-       |          |           | |Sonnet 4.5|    |         |  |Drive API  |
-       |          |           | |(Anthropic|    |         |  |(OAuth2 +  |
-       |          |           | |  API)    |    |         |  | files)    |
+       |          |           | |Opus 4.5  |    |         |  |Drive API  |
+       |          |           | |or Sonnet |    |         |  |(OAuth2 +  |
+       |          |           | |(user sel)|    |         |  | files)    |
        |          |           | +----+-----+    |         |  +-----+-----+
        |          |           |      |          |         |        |
        v          v           v      v          v         v        v
@@ -133,6 +133,7 @@ App (root)
       |     +-- Founder Quotes (Alan Moore, Ken Scott)
       |
       +-- EnrichScreen
+      |     +-- Model Badge (purple Opus / blue Sonnet)
       |     +-- Start Enrichment Button
       |     +-- Progress Tracker (5 stages)
       |
@@ -148,6 +149,9 @@ App (root)
       |     +-- AddSkillModal (name, content, upload .md)
       |
       +-- ConfigurationScreen
+            +-- AI Model Selector (radio cards)
+            |     +-- Claude Opus 4.5 (default, best analysis)
+            |     +-- Claude Sonnet 4.5 (faster, cheaper)
             +-- Theme Toggle (light/dark)
             +-- Configure Buttons (drag-and-drop, inline edit)
             |     +-- Button Card (grip, icon, label, URL, actions)
@@ -264,7 +268,8 @@ STEP 3: ENRICH + RESULTS
                                       |
                                       v
                              +------------------+
-                             | Claude Sonnet 4.5|
+                             | Claude Opus 4.5  |
+                             | (or Sonnet 4.5)  |
                              | - exec summary   |
                              | - problems (3-5) |
                              | - data schema    |
@@ -326,6 +331,8 @@ STEP 3: ENRICH + RESULTS
 |                                          - read metadata      |
 |                                          - extract file text  |
 |                                          - load skills (.md)  |
+|                                          - select model (Opus |
+|                                            or Sonnet per user)|
 |                                          - call Claude API    |
 |                                          - prioritize pain pt |
 |                                          - write results JSON |
@@ -334,6 +341,9 @@ STEP 3: ENRICH + RESULTS
 |                                          - read analysis.json |
 |                                          - return JSON or     |
 |                                            {status:processing}|
+|                                                               |
+|  PUT      /auth/preferences xo-auth      Update user prefs     |
+|                                          (model selection)     |
 |                                                               |
 |  GET      /gdrive/auth-url xo-gdrive-    Get OAuth consent URL |
 |                            import                              |
@@ -387,7 +397,7 @@ Request/Response Flow:
 
 **Framework:** React 18.2.0 + Vite 5.4.14
 **Deployment:** S3 static hosting + CloudFront CDN
-**Build:** Production optimized bundle (209 KB JS, 6.8 KB CSS, 37 KB logos)
+**Build:** Production optimized bundle (~226 KB JS, 6.8 KB CSS, 37 KB logos)
 
 ### Components Structure
 
@@ -428,7 +438,8 @@ src/
    - Compact layout: All steps + quotes fit on screen without scrolling (220px card height)
 
 2. **Enrich Screen**
-   - "Start Enrichment" button triggers /enrich Lambda
+   - Model badge shows current AI model (purple for Opus, blue for Sonnet)
+   - "Start Enrichment" button triggers /enrich Lambda with selected model
    - Real-time progress tracking (5 stages: extract, transcribe, research, analyze, complete)
    - Lambda reads skills from S3 and injects into Claude prompt
    - Auto-navigates to results when complete
@@ -449,6 +460,10 @@ src/
    - Empty state: "No skills yet. Add your first skill to enhance AI analysis."
 
 5. **Configuration Screen** (fully functional)
+   - **AI Model selector**: Radio-button cards for Claude Opus 4.5 (default) and Sonnet 4.5
+     - Selection saved per-user to PostgreSQL via PUT /auth/preferences
+     - Opus card: purple accent, "Best analysis quality" description
+     - Sonnet card: blue accent, "Faster responses, lower cost" description
    - Theme toggle: working light/dark mode with localStorage persistence
    - Configure Buttons: Surgical Trays reference pattern with drag-and-drop reorder
      - Each button card: grip handle, colored icon circle, name, color/icon label, URL, edit/copy/delete icons
@@ -521,9 +536,10 @@ src/
 **CORS:** Enabled on all methods
 
 **Resources:**
-- /auth/login (POST) -- authenticate or auto-create user, return JWT
+- /auth/login (POST) -- authenticate or auto-create user, return JWT + preferred_model
 - /auth/register (POST) -- explicit user registration
 - /auth/reset-password (POST) -- reset password (no email verification)
+- /auth/preferences (PUT) -- update user preferences (model selection)
 - /clients (POST)
 - /upload (POST)
 - /enrich (POST)
@@ -569,6 +585,8 @@ src/
 |  refresh |       | descript |       | uploaded |
 | gdrive_  |       |          |       +----------+
 |  conn_at |       |          |
+| preferred|       |          |
+|  _model  |       |          |
 +-----+----+       |          |
       |            | pain_pt  |
       |            | s3_folder|       +----------+
@@ -681,7 +699,8 @@ Browser                          API Gateway                Lambda (xo-auth)    
   "user": {
     "id": "uuid",
     "email": "ken.scott@intellagentic.io",
-    "name": "Ken Scott"
+    "name": "Ken Scott",
+    "preferred_model": "claude-opus-4-5-20250529"
   }
 }
 ```
@@ -733,6 +752,29 @@ Browser                          API Gateway                Lambda (xo-auth)    
 ```
 
 **Errors:** 404 if email not found, 400 if password < 8 characters
+
+---
+
+### PUT /auth/preferences
+
+**Purpose:** Update user preferences (model selection). Requires JWT auth.
+**Lambda:** xo-auth
+
+**Request:**
+```json
+{
+  "preferred_model": "claude-opus-4-5-20250529"
+}
+```
+
+**Allowed models:** `claude-opus-4-5-20250529`, `claude-sonnet-4-20250514`
+
+**Response (200):**
+```json
+{"preferred_model": "claude-opus-4-5-20250529"}
+```
+
+**Errors:** 401 if unauthorized, 400 if invalid model
 
 ---
 
@@ -937,7 +979,8 @@ curl -X POST https://2t9mg17baj.execute-api.us-west-1.amazonaws.com/prod/upload 
 **Request:**
 ```json
 {
-  "client_id": "client_1709251234_a1b2c3d4"
+  "client_id": "client_1709251234_a1b2c3d4",
+  "model": "claude-opus-4-5-20250529"
 }
 ```
 
@@ -1071,12 +1114,14 @@ All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_hel
 **Handler:** lambda_function.lambda_handler
 
 **What it does:**
-1. Routes by path: /auth/login, /auth/register, /auth/reset-password
+1. Routes by path: /auth/login, /auth/register, /auth/reset-password, /auth/preferences
 2. POST /auth/login: **Auto-create flow** -- if email exists, verify bcrypt password; if not, create new user
 3. POST /auth/register: Explicit registration with optional name field
 4. POST /auth/reset-password: Updates bcrypt hash directly (prototype, no email verification)
-5. Returns JWT (24h expiry, HS256) with user_id, email, name
-6. Name auto-derived from email prefix for auto-created accounts (e.g., ken.scott → Ken Scott)
+5. PUT /auth/preferences: Update user preferences (preferred_model) -- requires JWT auth
+6. Returns JWT (24h expiry, HS256) with user_id, email, name
+7. Login response includes preferred_model (default: claude-opus-4-5-20250529)
+8. Name auto-derived from email prefix for auto-created accounts (e.g., ken.scott → Ken Scott)
 
 **File:** backend/lambdas/auth/lambda_function.py
 
@@ -1144,12 +1189,14 @@ All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_hel
    - PDF: Extract text with pypdf (first 10 pages)
    - Excel: Extract with openpyxl (all sheets, first 10 rows each)
    - TXT: Read directly
-6. Sends extracted text + company info + pain point to Claude API
-7. Uses "First Party Trick" prompt for MBA-level analysis
-8. If pain_point present: injects PRIORITY instruction
-9. Writes analysis.json to {client_id}/results/ in S3
-10. **UPDATE enrichments** (status='complete', results_s3_key)
-11. On error: UPDATE enrichments (status='error')
+6. **Model selection**: reads model from request body, falls back to user's DB preference, defaults to Opus 4.5
+   - Allowed models: claude-opus-4-5-20250529 (default), claude-sonnet-4-20250514
+7. Sends extracted text + company info + pain point to Claude API (using selected model)
+8. Uses "First Party Trick" prompt for MBA-level analysis
+9. If pain_point present: injects PRIORITY instruction
+10. Writes analysis.json to {client_id}/results/ in S3
+11. **UPDATE enrichments** (status='complete', results_s3_key)
+12. On error: UPDATE enrichments (status='error')
 
 **File:** backend/lambdas/enrich/lambda_function.py
 **Deploy:** backend/lambdas/enrich/deploy-enrich.sh
@@ -1234,9 +1281,11 @@ All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_hel
 
 ## CLAUDE API INTEGRATION
 
-**Model:** claude-sonnet-4-20250514
+**Default Model:** claude-opus-4-5-20250529 (user-selectable)
+**Alternative Model:** claude-sonnet-4-20250514 (faster, cheaper)
 **Max Tokens:** 8000
 **Temperature:** 0.7
+**Model Selection:** Per-user preference stored in PostgreSQL, sent in /enrich request body
 
 ### Prompt Structure
 
@@ -1425,7 +1474,7 @@ cd backend
 ## BUILD HISTORY
 
 **Session Date:** March 1, 2026
-**Build Count:** 34 completed builds
+**Build Count:** 35 completed builds
 
 **Build Order:**
 
@@ -1719,6 +1768,23 @@ cd backend
     - Debug confirmed: backend `/auth/login` returns valid tokens, `getAuthHeaders()` sends Bearer token correctly
     - Deployed to production via CloudFront invalidation
 
+35. **Model Selector + Opus Default** (Session 8 - March 1, 2026)
+    - **AI Model selector** in Configuration screen: radio-button cards for Opus 4.5 and Sonnet 4.5
+    - Opus 4.5 is default (best analysis quality); Sonnet 4.5 available (faster, cheaper)
+    - Per-user preference stored in PostgreSQL (`users.preferred_model` column)
+    - **DB migration**: `ALTER TABLE users ADD COLUMN preferred_model VARCHAR(100) DEFAULT 'claude-opus-4-5-20250529'`
+    - **New API route**: PUT /auth/preferences (validates model against allowed list, updates DB)
+    - **xo-auth Lambda updated**: login response includes `preferred_model`, new `handle_preferences` endpoint
+    - **xo-enrich Lambda updated**: reads model from request body → user DB preference → default Opus
+      - `analyze_with_claude()` now accepts `model` parameter
+      - Lambda timeout increased from 120s to 300s (5 minutes) for Opus response times
+    - **Frontend**: model selector with purple (Opus) and blue (Sonnet) accent cards
+    - **Enrich screen**: model badge in header (purple "Opus 4.5" / blue "Sonnet 4.5")
+    - **EnrichScreen** sends `model: preferredModel` in /enrich request body
+    - API Gateway: /auth/preferences resource with PUT + OPTIONS, Lambda invoke permissions
+    - Frontend build: ~226 KB JS
+    - Deployed: xo-auth Lambda, xo-enrich Lambda, frontend, CloudFront invalidation
+
 ---
 
 ## PENDING ITEMS
@@ -1787,8 +1853,9 @@ The XO Quickstart prototype is **fully operational** and deployed to production.
 2. Enter email and password on the Invitation screen (auto-creates account or logs in)
 3. Fill out company information (8 fields including pain point and enrichment targets)
 4. Upload business documents (15 file types supported) or import from Google Drive
-5. Click "Start Enrichment" and watch AI process their data
-6. Receive MBA-level business analysis in <60 seconds:
+5. Choose AI model in Configuration (Opus 4.5 default or Sonnet 4.5)
+6. Click "Start Enrichment" and watch AI process their data
+7. Receive MBA-level business analysis:
    - Executive summary of their business
    - 3-5 critical problems identified with evidence and recommendations
    - Proposed database schema (3-5 tables with columns and relationships)
@@ -1800,7 +1867,7 @@ The XO Quickstart prototype is **fully operational** and deployed to production.
 - Backend: 7 Python Lambdas behind API Gateway (+ xo-psycopg2 layer)
 - Database: PostgreSQL 15 on RDS (db.t3.micro) -- 6 tables
 - Auth: bcrypt password hashing + JWT tokens (24h expiry)
-- AI: Claude Sonnet 4.5 via Anthropic API
+- AI: Claude Opus 4.5 (default) or Sonnet 4.5 (user-selectable) via Anthropic API
 - Storage: S3 with folder-per-client structure (files + analysis.json)
 - Integrations: Google Drive (OAuth2 connector with file picker)
 - Region: us-west-1 (AWS)
@@ -1826,7 +1893,7 @@ The XO Quickstart prototype is **fully operational** and deployed to production.
 
 **Repository:** All code is version-controlled at https://github.com/intellagentic/xo-quickstart with proper .gitignore to exclude secrets.
 
-**Next Step:** Google Cloud Console OAuth client setup (redirect URI), then scale to production with async jobs, UI for new DB fields, and full enrichment pipeline (audio transcription, web research).
+**Next Step:** Google Cloud Console OAuth client setup (redirect URI), then scale to production with async jobs, UI for new DB fields, and full enrichment pipeline (audio transcription, web research). Model selector is live -- Opus 4.5 default for best quality, Sonnet 4.5 available for speed.
 
 ---
 

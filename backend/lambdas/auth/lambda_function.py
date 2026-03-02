@@ -28,7 +28,9 @@ def lambda_handler(event, context):
 
     path = event.get('path', '')
 
-    if path.endswith('/auth/reset-password'):
+    if path.endswith('/auth/preferences'):
+        return handle_preferences(event)
+    elif path.endswith('/auth/reset-password'):
         return handle_reset_password(event)
     elif path.endswith('/auth/register'):
         return handle_register(event)
@@ -46,14 +48,14 @@ def _make_token(user_id, email, name):
     return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
 
 
-def _success_response(user_id, email, name, status=200):
+def _success_response(user_id, email, name, preferred_model='claude-opus-4-5-20250529', status=200):
     token = _make_token(user_id, email, name)
     return {
         'statusCode': status,
         'headers': CORS_HEADERS,
         'body': json.dumps({
             'token': token,
-            'user': {'id': str(user_id), 'email': email, 'name': name}
+            'user': {'id': str(user_id), 'email': email, 'name': name, 'preferred_model': preferred_model}
         })
     }
 
@@ -76,7 +78,7 @@ def handle_login(event):
         cur = conn.cursor()
 
         cur.execute(
-            "SELECT id, email, password_hash, name FROM users WHERE email = %s",
+            "SELECT id, email, password_hash, name, COALESCE(preferred_model, 'claude-opus-4-5-20250529') FROM users WHERE email = %s",
             (email,)
         )
         row = cur.fetchone()
@@ -85,7 +87,7 @@ def handle_login(event):
             # Existing user — verify password
             cur.close()
             conn.close()
-            user_id, user_email, password_hash, user_name = row
+            user_id, user_email, password_hash, user_name, preferred_model = row
 
             if not bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
                 return {
@@ -95,7 +97,7 @@ def handle_login(event):
                 }
 
             print(f"Login successful: {user_email}")
-            return _success_response(user_id, user_email, user_name)
+            return _success_response(user_id, user_email, user_name, preferred_model)
 
         else:
             # New user — create account
@@ -242,6 +244,55 @@ def handle_reset_password(event):
 
     except Exception as e:
         print(f"Reset password error: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Internal server error'})
+        }
+
+
+def handle_preferences(event):
+    """PUT /auth/preferences - Update user preferences (requires auth)."""
+    # Verify JWT
+    headers = event.get('headers', {}) or {}
+    auth_header = headers.get('Authorization') or headers.get('authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return {'statusCode': 401, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Unauthorized'})}
+
+    token = auth_header[7:]
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        user_id = payload['user_id']
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return {'statusCode': 401, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Unauthorized'})}
+
+    try:
+        body = json.loads(event.get('body', '{}'))
+        preferred_model = body.get('preferred_model', '')
+
+        allowed_models = ['claude-opus-4-5-20250529', 'claude-sonnet-4-20250514']
+        if preferred_model not in allowed_models:
+            return {
+                'statusCode': 400,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': f'Invalid model. Allowed: {", ".join(allowed_models)}'})
+            }
+
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET preferred_model = %s WHERE id = %s", (preferred_model, user_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'preferred_model': preferred_model})
+        }
+
+    except Exception as e:
+        print(f"Preferences error: {str(e)}")
         return {
             'statusCode': 500,
             'headers': CORS_HEADERS,

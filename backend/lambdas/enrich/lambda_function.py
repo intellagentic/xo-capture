@@ -51,6 +51,7 @@ def lambda_handler(event, context):
     try:
         body = json.loads(event.get('body', '{}'))
         client_id = body.get('client_id', '').strip()
+        requested_model = body.get('model', '')
 
         if not client_id:
             return {
@@ -62,6 +63,19 @@ def lambda_handler(event, context):
         # Read client metadata from DB
         conn = get_db_connection()
         cur = conn.cursor()
+
+        # Also read user's preferred_model as fallback
+        cur.execute(
+            "SELECT COALESCE(preferred_model, 'claude-opus-4-5-20250529') FROM users WHERE id = %s",
+            (user['user_id'],)
+        )
+        user_row = cur.fetchone()
+        db_model = user_row[0] if user_row else 'claude-opus-4-5-20250529'
+
+        # Priority: request body > user preference > default
+        allowed_models = ['claude-opus-4-5-20250529', 'claude-sonnet-4-20250514']
+        model_to_use = requested_model if requested_model in allowed_models else db_model
+        print(f"Using model: {model_to_use}")
 
         cur.execute("""
             SELECT company_name, website_url, contact_name, contact_title,
@@ -128,7 +142,8 @@ def lambda_handler(event, context):
         print(f"Analyzing {len(extracted_text)} files for client: {client_id}")
         analysis = analyze_with_claude(
             company_name, website, contact_name, contact_title,
-            contact_linkedin, industry, description, pain_point, extracted_text, skills
+            contact_linkedin, industry, description, pain_point, extracted_text, skills,
+            model=model_to_use
         )
 
         # Write results to S3
@@ -388,7 +403,8 @@ def extract_pdf(file_content):
 
 
 def analyze_with_claude(company_name, website, contact_name, contact_title,
-                        contact_linkedin, industry, description, pain_point, extracted_text, skills=None):
+                        contact_linkedin, industry, description, pain_point, extracted_text, skills=None,
+                        model='claude-opus-4-5-20250529'):
     """
     Call Claude API with First Party Trick prompt.
     Returns structured analysis JSON.
@@ -505,7 +521,7 @@ Be specific. Use actual data from the documents. Think like a management consult
 
     try:
         message = anthropic_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=model,
             max_tokens=8000,
             temperature=0.7,
             messages=[

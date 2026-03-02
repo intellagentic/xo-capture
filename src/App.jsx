@@ -232,10 +232,29 @@ export default function App() {
   const [user, setUser] = useState(initialAuth.user)
   const [authToken, setAuthToken] = useState(initialAuth.token)
 
+  // Model preference state
+  const [preferredModel, setPreferredModel] = useState(
+    initialAuth.user?.preferred_model || 'claude-opus-4-5-20250529'
+  )
+
   const handleLogin = (userData, token) => {
     setUser(userData)
     setAuthToken(token)
     setIsLoggedIn(true)
+    if (userData.preferred_model) setPreferredModel(userData.preferred_model)
+  }
+
+  const saveModelPreference = async (model) => {
+    setPreferredModel(model)
+    try {
+      await fetch(`${API_BASE}/auth/preferences`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ preferred_model: model })
+      })
+    } catch (err) {
+      console.error('Failed to save model preference:', err)
+    }
   }
 
   const handleLogout = () => {
@@ -574,11 +593,12 @@ export default function App() {
           <EnrichScreen
             clientId={clientId}
             onComplete={() => setCurrentScreen('results')}
+            preferredModel={preferredModel}
           />
         )}
         {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} />}
         {currentScreen === 'skills' && <SkillsScreen clientId={clientId} />}
-        {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} />}
+        {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} />}
       </main>
 
       {/* Company Information Modal */}
@@ -1909,7 +1929,12 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
 // ============================================================
 // ENRICH SCREEN
 // ============================================================
-function EnrichScreen({ clientId, onComplete }) {
+const MODEL_LABELS = {
+  'claude-opus-4-5-20250529': 'Claude Opus 4.5',
+  'claude-sonnet-4-20250514': 'Claude Sonnet 4.5'
+}
+
+function EnrichScreen({ clientId, onComplete, preferredModel }) {
   const [jobStatus, setJobStatus] = useState(null) // null | 'processing' | 'complete' | 'error'
   const [jobId, setJobId] = useState(null)
   const [currentStage, setCurrentStage] = useState(null)
@@ -1932,7 +1957,7 @@ function EnrichScreen({ clientId, onComplete }) {
       const response = await fetch(`${API_BASE}/enrich`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ client_id: clientId })
+        body: JSON.stringify({ client_id: clientId, model: preferredModel })
       })
 
       if (!response.ok) throw new Error('Failed to start enrichment')
@@ -2016,6 +2041,18 @@ function EnrichScreen({ clientId, onComplete }) {
           {jobStatus === 'complete' && (
             <span className="badge-count green">Complete</span>
           )}
+          <span style={{
+            marginLeft: 'auto',
+            fontSize: '0.7rem',
+            fontWeight: 600,
+            color: preferredModel.includes('opus') ? '#a855f7' : '#3b82f6',
+            background: preferredModel.includes('opus') ? 'rgba(168, 85, 247, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+            padding: '3px 10px',
+            borderRadius: '999px',
+            border: `1px solid ${preferredModel.includes('opus') ? 'rgba(168, 85, 247, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`
+          }}>
+            {MODEL_LABELS[preferredModel] || preferredModel}
+          </span>
         </div>
       </div>
 
@@ -2558,7 +2595,7 @@ const ROUTE_MAP = {
   '/configuration': 'configuration'
 }
 
-function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons }) {
+function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferredModel, setPreferredModel }) {
   const isDark = theme === 'dark'
   const [editingId, setEditingId] = useState(null)
   const [draggedId, setDraggedId] = useState(null)
@@ -2687,6 +2724,59 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons }) {
               }} />
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* AI Model Selector */}
+      <div className="panel" style={{ marginTop: '1rem' }}>
+        <div className="panel-header">
+          <h2>AI Model</h2>
+        </div>
+        <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+          {[
+            { id: 'claude-opus-4-5-20250529', label: 'Claude Opus 4.5', desc: 'Best analysis, deeper reasoning', color: '#a855f7' },
+            { id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4.5', desc: 'Faster responses, lower cost', color: '#3b82f6' }
+          ].map(m => {
+            const isSelected = preferredModel === m.id
+            return (
+              <button
+                key={m.id}
+                onClick={() => setPreferredModel(m.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.875rem 1rem',
+                  background: isSelected ? `${m.color}12` : C.surface,
+                  borderRadius: 10,
+                  border: `2px solid ${isSelected ? m.color : C.border}`,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  textAlign: 'left',
+                  width: '100%'
+                }}
+              >
+                <div style={{
+                  width: 20, height: 20, borderRadius: '50%',
+                  border: `2px solid ${isSelected ? m.color : C.muted}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  {isSelected && <div style={{ width: 10, height: 10, borderRadius: '50%', background: m.color }} />}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 600, color: C.text }}>{m.label}</div>
+                  <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 2 }}>{m.desc}</div>
+                </div>
+                {isSelected && (
+                  <span style={{
+                    fontSize: '0.65rem', fontWeight: 700, color: m.color,
+                    background: `${m.color}18`, padding: '2px 8px', borderRadius: 999
+                  }}>Active</span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 
