@@ -3,7 +3,7 @@
 **Date:** March 1, 2026
 **Project:** XO Quickstart - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.21)
+**Status:** Deployed & Operational (v1.22)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -1515,7 +1515,7 @@ cd backend
 ## BUILD HISTORY
 
 **Session Date:** March 1, 2026
-**Build Count:** 48 completed builds
+**Build Count:** 51 completed builds
 
 **Build Order:**
 
@@ -2037,6 +2037,31 @@ cd backend
     - Deployed: xo-enrich Lambda, xo-auth Lambda, frontend to S3/CloudFront
     - Files: App.jsx, auth/lambda_function.py, enrich/lambda_function.py, schema.sql
 
+49. **Add .docx Extraction to Enrich Lambda** (Session 13 - March 2, 2026)
+    - Enrichment failed when only .docx files uploaded — `extract_text()` returned "Unsupported file type: docx"
+    - Added `extract_docx()` function using `python-docx` library: extracts paragraph text + table content (rows with pipe-delimited cells)
+    - Added `python-docx==1.1.2` to requirements.txt (package size 7.5MB → 13MB)
+    - Updated `extract_text()` routing: `docx`/`doc` extensions → `extract_docx()`
+    - Deployed and verified: .docx files now extracted successfully
+    - Files: enrich/lambda_function.py, enrich/requirements.txt
+
+50. **Frontend Polling Resilience** (Session 13 - March 2, 2026)
+    - Frontend showed "Enrichment Failed" because a single failed poll request killed all polling (zero error tolerance)
+    - **Fix 1 — Retry tolerance**: Allows up to 5 consecutive failed poll requests before giving up (resets on success)
+    - **Fix 2 — 5-minute max timeout**: Polling stops after 5 minutes with helpful message ("Check Results tab — it may have completed")
+    - **Fix 3 — Poll interval**: Changed from 2s to 3s (reduces transient failure chance)
+    - **Fix 4 — Results Lambda**: Always sets `results['status'] = 'complete'` on response instead of relying on Claude JSON output
+    - Deployed: xo-results Lambda + frontend to S3/CloudFront
+    - Files: App.jsx, results/lambda_function.py
+
+51. **Fix Claude JSON Truncation — max_tokens + JSON Repair** (Session 13 - March 2, 2026)
+    - **Root cause**: `max_tokens=8000` too small for analysis response. Claude's ~28K char response hit the token limit mid-JSON-string, producing `Unterminated string starting at: line 179 column 18 (char 28618)`. Error handler wrote empty results to S3.
+    - **Fix 1 — Increased `max_tokens`**: 8000 → 16000 (primary fix — 16K tokens ≈ 64K chars, well above typical responses)
+    - **Fix 2 — JSON repair function** (`_repair_truncated_json`): Safety net that closes unclosed strings, strips trailing commas, closes unclosed `[]`/`{}` brackets in correct order. Recovers partial analysis instead of returning empty results.
+    - **Fix 3 — Better logging**: Logs `Claude response: {len} chars, stop_reason={stop_reason}` to CloudWatch for debugging truncation vs completion
+    - Deployed xo-enrich Lambda
+    - Files: enrich/lambda_function.py
+
 ---
 
 ## PENDING ITEMS
@@ -2052,7 +2077,7 @@ cd backend
    - Incorporate findings into Claude prompt
 
 3. **Additional File Type Extraction**
-   - Word (.doc, .docx) -> python-docx library
+   - ~~Word (.doc, .docx) -> python-docx library~~ **DONE (v1.22)** -- extract_docx() with paragraph + table extraction
    - PowerPoint (.ppt, .pptx) -> python-pptx library
    - JSON (.json) -> parse and summarize structure
    - XML (.xml) -> parse and extract key data
@@ -2099,7 +2124,7 @@ The XO Quickstart prototype is **fully operational** and deployed to production.
 3. Fill out company information (8 fields including pain point and enrichment targets)
 4. Upload business documents (15 file types supported) or import from Google Drive
 5. Add context metadata for audio files (date, participants, topic)
-6. Choose AI model in Configuration (Opus 4.5 default or Sonnet 4.5)
+6. Choose AI model in Configuration (Sonnet 4.5 default, Opus 4.6, or Haiku 4.5)
 7. Click "Start Enrichment" and watch AI process their data (async with live stage tracking)
 8. Receive structured MBA-level business analysis:
    - Executive summary of their business

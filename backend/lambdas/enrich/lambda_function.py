@@ -628,6 +628,8 @@ def extract_text(filename, file_content):
             return extract_excel(file_content)
         elif ext == 'pdf':
             return extract_pdf(file_content)
+        elif ext in ['docx', 'doc']:
+            return extract_docx(file_content)
         else:
             print(f"Unsupported file type: {ext}")
             return None
@@ -705,6 +707,35 @@ def extract_pdf(file_content):
     except Exception as e:
         print(f"Error parsing PDF: {str(e)}")
         return f"PDF file with {len(file_content)} bytes"
+
+
+def extract_docx(file_content):
+    """Extract text from Word .docx file"""
+    try:
+        from docx import Document
+        from io import BytesIO
+
+        doc = Document(BytesIO(file_content))
+        text = f"Word Document ({len(doc.paragraphs)} paragraphs):\n\n"
+
+        for para in doc.paragraphs:
+            if para.text.strip():
+                text += para.text + "\n"
+
+        # Also extract text from tables
+        if doc.tables:
+            text += f"\n--- Tables ({len(doc.tables)}) ---\n"
+            for i, table in enumerate(doc.tables):
+                text += f"\nTable {i+1}:\n"
+                for row in table.rows:
+                    cells = [cell.text.strip() for cell in row.cells]
+                    text += " | ".join(cells) + "\n"
+
+        return text
+
+    except Exception as e:
+        print(f"Error parsing DOCX: {str(e)}")
+        return f"Word document with {len(file_content)} bytes"
 
 
 def analyze_with_claude(company_name, website, contact_name, contact_title,
@@ -864,7 +895,7 @@ Be specific. Use actual data from the documents. Think like a management consult
     try:
         message = anthropic_client.messages.create(
             model=model,
-            max_tokens=8000,
+            max_tokens=16000,
             temperature=0.7,
             messages=[
                 {"role": "user", "content": prompt}
@@ -872,6 +903,8 @@ Be specific. Use actual data from the documents. Think like a management consult
         )
 
         response_text = message.content[0].text
+        stop_reason = message.stop_reason
+        print(f"Claude response: {len(response_text)} chars, stop_reason={stop_reason}, model={model}")
 
         if '```json' in response_text:
             start = response_text.find('```json') + 7
@@ -882,7 +915,12 @@ Be specific. Use actual data from the documents. Think like a management consult
             end = response_text.find('```', start)
             response_text = response_text[start:end].strip()
 
-        analysis = json.loads(response_text)
+        # Try parsing JSON, with repair for truncated responses
+        try:
+            analysis = json.loads(response_text)
+        except json.JSONDecodeError as je:
+            print(f"JSON parse failed at char {je.pos}, attempting repair...")
+            analysis = _repair_truncated_json(response_text)
 
         analysis['analyzed_at'] = datetime.now(timezone.utc).isoformat()
         analysis['analyzed_files'] = list(extracted_text.keys())
@@ -891,6 +929,8 @@ Be specific. Use actual data from the documents. Think like a management consult
 
     except Exception as e:
         print(f"Error calling Claude API: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {
             "status": "error",
             "error": str(e),
@@ -900,3 +940,72 @@ Be specific. Use actual data from the documents. Think like a management consult
             "plan": [],
             "sources": []
         }
+
+
+def _repair_truncated_json(text):
+    """
+    Attempt to repair truncated JSON from Claude (e.g. when max_tokens was hit).
+    Closes unclosed strings, arrays, and objects to produce valid JSON.
+    """
+    # Strip trailing whitespace/incomplete tokens
+    text = text.rstrip()
+
+    # If we're inside an unclosed string, close it
+    # Count unescaped quotes to see if we're mid-string
+    in_string = False
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c == '\\' and in_string:
+            i += 2  # skip escaped char
+            continue
+        if c == '"':
+            in_string = not in_string
+        i += 1
+
+    if in_string:
+        # Truncate back to the last complete line before the unclosed string,
+        # or just close the string
+        text += '"'
+
+    # Now close any unclosed brackets/braces
+    # Count open vs close for [ ] and { }
+    stack = []
+    in_str = False
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c == '\\' and in_str:
+            i += 2
+            continue
+        if c == '"':
+            in_str = not in_str
+        elif not in_str:
+            if c in ('{', '['):
+                stack.append(c)
+            elif c == '}' and stack and stack[-1] == '{':
+                stack.pop()
+            elif c == ']' and stack and stack[-1] == '[':
+                stack.pop()
+        i += 1
+
+    # Remove any trailing comma before we close brackets
+    text = text.rstrip()
+    if text.endswith(','):
+        text = text[:-1]
+
+    # Close unclosed brackets in reverse order
+    for bracket in reversed(stack):
+        if bracket == '{':
+            text += '}'
+        elif bracket == '[':
+            text += ']'
+
+    try:
+        result = json.loads(text)
+        print(f"JSON repair succeeded — recovered {len(str(result))} chars of analysis")
+        return result
+    except json.JSONDecodeError as e2:
+        print(f"JSON repair failed: {str(e2)}")
+        # Last resort: try to extract whatever we can
+        raise Exception(f"Could not parse Claude response even after repair: {str(e2)}")

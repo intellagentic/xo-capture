@@ -2437,13 +2437,38 @@ function EnrichScreen({ clientId, onComplete, preferredModel }) {
   }
 
   const pollJobStatus = async (id) => {
+    let errorCount = 0
+    const maxErrors = 5
+    const startTime = Date.now()
+    const maxPollTime = 5 * 60 * 1000 // 5 minutes
+
     const pollInterval = setInterval(async () => {
+      // Timeout after 5 minutes of polling
+      if (Date.now() - startTime > maxPollTime) {
+        clearInterval(pollInterval)
+        setError('Enrichment is taking longer than expected. Check the Results tab — it may have completed.')
+        setJobStatus('error')
+        return
+      }
+
       try {
         const response = await fetch(`${API_BASE}/results/${id}`, {
           headers: getAuthHeaders()
         })
-        if (!response.ok) throw new Error('Failed to fetch status')
 
+        if (!response.ok) {
+          errorCount++
+          console.warn(`Poll error (${errorCount}/${maxErrors}): HTTP ${response.status}`)
+          if (errorCount >= maxErrors) {
+            clearInterval(pollInterval)
+            setError('Lost connection to enrichment service')
+            setJobStatus('error')
+          }
+          return
+        }
+
+        // Reset error count on successful response
+        errorCount = 0
         const data = await response.json()
 
         // Update current stage based on backend response
@@ -2465,15 +2490,19 @@ function EnrichScreen({ clientId, onComplete, preferredModel }) {
         if (data.status === 'error') {
           clearInterval(pollInterval)
           setJobStatus('error')
-          setError(data.error || 'Enrichment failed')
+          setError(data.error || data.message || 'Enrichment failed')
         }
 
       } catch (err) {
-        clearInterval(pollInterval)
-        setError(err.message)
-        setJobStatus('error')
+        errorCount++
+        console.warn(`Poll exception (${errorCount}/${maxErrors}):`, err.message)
+        if (errorCount >= maxErrors) {
+          clearInterval(pollInterval)
+          setError('Lost connection to enrichment service')
+          setJobStatus('error')
+        }
       }
-    }, 2000) // Poll every 2 seconds
+    }, 3000) // Poll every 3 seconds
   }
 
   const updateStageStatus = (stageId, status) => {

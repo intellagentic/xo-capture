@@ -96,6 +96,9 @@ def lambda_handler(event, context):
             )
             results = json.loads(response['Body'].read().decode('utf-8'))
 
+            # Guarantee status field exists for frontend polling
+            results['status'] = 'complete'
+
             return {
                 'statusCode': 200,
                 'headers': CORS_HEADERS,
