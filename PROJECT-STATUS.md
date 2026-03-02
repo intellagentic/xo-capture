@@ -3,7 +3,7 @@
 **Date:** March 1, 2026
 **Project:** XO Quickstart - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.16)
+**Status:** Deployed & Operational (v1.17)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -405,9 +405,10 @@ Request/Response Flow:
 src/
   App.jsx          -- Main application component
     - LoginScreen             (Invitation branding, single form, auto-create/login)
-    - Hamburger Sidebar       (Navigation: Welcome, Enrich, Results, Skills, Configuration, theme toggle -- all always clickable)
-    - CompanyInfoModal        (Partner information form - 8 fields)
-    - UploadScreen            (3-step journey with founder quotes)
+    - Hamburger Sidebar       (Navigation: Welcome, Sources, Enrich, Results, Skills, Configuration, theme toggle -- all always clickable)
+    - CompanyInfoModal        (Partner information form - 8 fields, creates client on save)
+    - UploadScreen            (3-step journey with founder quotes, Step 2 links to Sources)
+    - SourcesScreen           (Source Library + Add Sources — file CRUD, toggle, replace, delete)
     - EnrichScreen            (AI processing with progress tracking)
     - ResultsScreen           (Analysis display with expandable sections)
     - SkillsScreen            (Skills management - list, add, edit, delete)
@@ -427,10 +428,24 @@ src/
 1. **Welcome / Upload Screen** (3-step journey layout with founder testimonials)
    - Header: Hamburger menu (left), XO logo, title, Intellagentic logo (right)
    - Step 1: Domain Expertise -- "New Partner" modal (8 fields: name, website, contact, title, LinkedIn, industry, description, pain point)
-   - Step 2: Raw Data -- Drag-and-drop file upload zone (15 file types) + Google Drive connector
-     - Sources strip: Upload (active), Google Drive (OAuth popup), NotebookLM/Dropbox/OneDrive (grayed out)
-     - Google Drive file picker modal: folder navigation, file selection, import to S3
+   - Step 2: Raw Data -- Compact source count summary with "Manage Sources" link (or "Add Sources" if empty)
+     - Sources managed on dedicated Sources screen (see below)
    - Step 3: Intelligent Growth -- Preview of analysis output (grayed until steps 1&2 complete)
+   - "Continue to Enrichment" button (replaces "Upload & Continue" — files already uploaded via Sources)
+
+2. **Sources Screen** (NotebookLM-style Source Library)
+   - **Top panel — Source Library**: File list with card rows, summary bar (X active · Y total · Z MB)
+     - Each card: file type icon, filename, version badge (v2/v3), source pill (Local red / Google Drive blue), file size, date
+     - Active/inactive toggle (ToggleLeft/ToggleRight) — dims inactive cards
+     - Kebab menu (MoreVertical): Replace, Delete
+     - Delete confirmation modal overlay
+     - Replace triggers file picker, creates new version with parent_upload_id link
+     - Empty state matching Skills screen pattern
+   - **Bottom panel — Add Sources**: Drag-and-drop zone with immediate upload on drop
+     - Sources strip: Upload (active), Google Drive (OAuth popup), NotebookLM/Dropbox/OneDrive (grayed out)
+     - Google Drive file picker modal (moved from UploadScreen)
+     - Pending files list with progress indicators
+   - Requires clientId (shows "Complete Domain Expertise first" message if missing)
    - Action Buttons Row: Configurable buttons between step cards and quotes (Enrich, Skills by default)
      - Clickable: internal routes navigate, external URLs open in new tab
      - Managed via Configuration screen, rendered with hex colors and glow shadows
@@ -1153,12 +1168,28 @@ All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_hel
 **Timeout:** 30 seconds
 **Handler:** lambda_function.lambda_handler
 
-**What it does:**
-1. **Auth check** (JWT required)
-2. Validates client exists in DB (SELECT where s3_folder + user_id match)
-3. Generates presigned PUT URLs for each file (1 hour expiry)
-4. **INSERT INTO uploads** for each file
-5. Returns array of presigned URLs to frontend
+**What it does (method router with 5 handlers):**
+
+1. **POST /upload** — Original presigned URL flow (auth + client validation)
+   - Generates presigned PUT URLs for each file (1 hour expiry)
+   - INSERT INTO uploads with file_size column
+   - Returns upload_urls + upload_ids
+
+2. **GET /uploads?client_id=X** — List all sources for a client
+   - Returns non-deleted uploads ordered by uploaded_at DESC
+   - Includes: id, filename, file_type, s3_key, uploaded_at, source, status, file_size, version, parent_upload_id, replaced_at
+
+3. **DELETE /uploads/{id}** — Soft-delete upload
+   - Sets status='deleted' in DB
+   - Deletes object from S3
+
+4. **PUT /uploads/{id}/toggle** — Toggle active/inactive
+   - Flips status between 'active' and 'inactive'
+
+5. **POST /uploads/{id}/replace** — Upload new version
+   - Marks parent as status='replaced', replaced_at=NOW()
+   - Creates new record with version+1 and parent_upload_id
+   - Returns presigned URL for new file
 
 **File:** backend/lambdas/upload/lambda_function.py
 
@@ -1914,6 +1945,24 @@ cd backend
     - Frontend build: ~239 KB JS
     - Deployed: frontend to S3, CloudFront invalidation
     - Files: 1 file modified (App.jsx)
+
+43. **Source Library** (Session 11 - March 1, 2026)
+    - **New SourcesScreen component** (~400 lines): NotebookLM-style source management
+      - **Source Library panel**: card list with file type icon, filename, version badge (v2/v3), source pill (Local/Google Drive), file size, date, active/inactive toggle, kebab menu (Replace, Delete)
+      - **Add Sources panel**: drag-and-drop zone with immediate upload, sources strip (Upload, Google Drive, NotebookLM, Dropbox, OneDrive), Google Drive picker modal
+      - Summary bar: "X active · Y total · Z MB"
+      - Delete confirmation modal, replace with version linking
+      - Empty state + no-clientId state
+    - **Sidebar**: "Sources" added between Welcome and Enrich (FolderOpen icon)
+    - **UploadScreen Step 2 refactored**: Full drag-drop zone replaced with compact summary (source count + "Manage Sources" button). Google Drive code moved to SourcesScreen.
+    - **CompanyInfoModal**: Now creates client on save (so Sources screen has clientId for uploads)
+    - **Upload button renamed** to "Continue to Enrichment" (files already uploaded via Sources)
+    - **DB migration**: 5 new columns on uploads table (status, file_size, version, parent_upload_id, replaced_at) + 2 indexes
+    - **Upload Lambda rewritten** as method router: POST /upload + GET /uploads + DELETE /uploads/{id} + PUT /uploads/{id}/toggle + POST /uploads/{id}/replace
+    - **Enrich Lambda updated**: Queries active S3 keys from DB, passes to extract_all_files, skips inactive/deleted files
+    - Frontend build: ~248 KB JS
+    - Branch: feature/source-library
+    - Files: 4 files modified (App.jsx, schema.sql, upload/lambda_function.py, enrich/lambda_function.py)
 
 ---
 

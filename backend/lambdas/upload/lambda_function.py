@@ -1,11 +1,19 @@
 """
-XO Platform - POST /upload Lambda
-Generates presigned URLs for direct S3 uploads and records in DB.
+XO Platform - Upload Lambda (Method Router)
+Handles file upload presigned URLs + Source Library CRUD operations.
+
+Routes:
+  POST /upload              -> handle_upload        (presigned URLs + DB record)
+  GET  /uploads             -> handle_list_uploads  (list all sources for a client)
+  DELETE /uploads/{id}      -> handle_delete_upload (soft-delete + S3 delete)
+  PUT  /uploads/{id}/toggle -> handle_toggle_upload (active <-> inactive)
+  POST /uploads/{id}/replace -> handle_replace_upload (version replacement)
 """
 
 import json
 import os
 import boto3
+from datetime import datetime, timezone
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS
 
 s3_client = boto3.client('s3')
@@ -14,23 +22,7 @@ URL_EXPIRATION = 3600  # 1 hour
 
 
 def lambda_handler(event, context):
-    """
-    Generate presigned URLs for file uploads.
-
-    Expected input:
-    {
-        "client_id": "client_1234567890_abcd",
-        "files": [
-            {"name": "data.csv", "type": "text/csv"},
-            {"name": "report.pdf", "type": "application/pdf"}
-        ]
-    }
-
-    Returns:
-    {
-        "upload_urls": ["https://...", "https://..."]
-    }
-    """
+    """Method router - dispatches to handler based on HTTP method + path."""
 
     # Handle OPTIONS preflight
     if event.get('httpMethod') == 'OPTIONS':
@@ -41,95 +33,397 @@ def lambda_handler(event, context):
     if err:
         return err
 
+    method = event.get('httpMethod', '')
+    path = event.get('resource', '') or event.get('path', '')
+
     try:
-        # Parse request body
-        body = json.loads(event.get('body', '{}'))
-        client_id = body.get('client_id', '').strip()
-        files = body.get('files', [])
+        # POST /upload (original endpoint)
+        if method == 'POST' and '/upload' in path and '/uploads' not in path:
+            return handle_upload(event, user)
 
-        if not client_id:
-            return {
-                'statusCode': 400,
-                'headers': CORS_HEADERS,
-                'body': json.dumps({'error': 'client_id is required'})
-            }
+        # GET /uploads?client_id=X
+        if method == 'GET' and '/uploads' in path and '{id}' not in path:
+            return handle_list_uploads(event, user)
 
-        if not files or not isinstance(files, list):
-            return {
-                'statusCode': 400,
-                'headers': CORS_HEADERS,
-                'body': json.dumps({'error': 'files array is required'})
-            }
+        # DELETE /uploads/{id}
+        if method == 'DELETE' and '/uploads' in path:
+            return handle_delete_upload(event, user)
 
-        # Verify client exists in DB and belongs to this user
-        conn = get_db_connection()
-        cur = conn.cursor()
+        # PUT /uploads/{id}/toggle
+        if method == 'PUT' and '/toggle' in path:
+            return handle_toggle_upload(event, user)
 
-        cur.execute(
-            "SELECT id FROM clients WHERE s3_folder = %s AND user_id = %s",
-            (client_id, user['user_id'])
-        )
-        row = cur.fetchone()
-
-        if not row:
-            cur.close()
-            conn.close()
-            return {
-                'statusCode': 404,
-                'headers': CORS_HEADERS,
-                'body': json.dumps({'error': 'Client not found'})
-            }
-
-        db_client_id = row[0]
-
-        # Generate presigned URLs and record uploads
-        upload_urls = []
-        for file_info in files:
-            file_name = file_info.get('name', '')
-            file_type = file_info.get('type', 'application/octet-stream')
-
-            if not file_name:
-                continue
-
-            s3_key = f"{client_id}/uploads/{file_name}"
-
-            presigned_url = s3_client.generate_presigned_url(
-                'put_object',
-                Params={
-                    'Bucket': BUCKET_NAME,
-                    'Key': s3_key,
-                    'ContentType': file_type
-                },
-                ExpiresIn=URL_EXPIRATION
-            )
-
-            upload_urls.append(presigned_url)
-
-            # Record upload in DB
-            cur.execute("""
-                INSERT INTO uploads (client_id, filename, file_type, s3_key)
-                VALUES (%s, %s, %s, %s)
-            """, (str(db_client_id), file_name, file_type, s3_key))
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        print(f"Generated {len(upload_urls)} presigned URLs for client: {client_id}")
+        # POST /uploads/{id}/replace
+        if method == 'POST' and '/replace' in path:
+            return handle_replace_upload(event, user)
 
         return {
-            'statusCode': 200,
+            'statusCode': 404,
             'headers': CORS_HEADERS,
-            'body': json.dumps({'upload_urls': upload_urls})
+            'body': json.dumps({'error': f'Unknown route: {method} {path}'})
         }
 
     except Exception as e:
-        print(f"Error generating presigned URLs: {str(e)}")
+        print(f"Error in upload lambda: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {
             'statusCode': 500,
             'headers': CORS_HEADERS,
-            'body': json.dumps({
-                'error': 'Internal server error',
-                'message': str(e)
-            })
+            'body': json.dumps({'error': 'Internal server error', 'message': str(e)})
         }
+
+
+def _verify_client(cur, client_id, user_id):
+    """Verify client exists and belongs to user. Returns (db_client_id, s3_folder) or None."""
+    cur.execute(
+        "SELECT id, s3_folder FROM clients WHERE s3_folder = %s AND user_id = %s",
+        (client_id, user_id)
+    )
+    row = cur.fetchone()
+    if row:
+        return str(row[0]), row[1]
+    return None, None
+
+
+def _verify_upload_ownership(cur, upload_id, user_id):
+    """Verify upload belongs to user via client join. Returns upload row or None."""
+    cur.execute("""
+        SELECT u.id, u.client_id, u.filename, u.file_type, u.s3_key, u.status,
+               u.file_size, u.version, u.source, c.s3_folder
+        FROM uploads u
+        JOIN clients c ON u.client_id = c.id
+        WHERE u.id = %s AND c.user_id = %s
+    """, (upload_id, user_id))
+    return cur.fetchone()
+
+
+# ============================================================
+# POST /upload — Generate presigned URLs (original endpoint)
+# ============================================================
+def handle_upload(event, user):
+    body = json.loads(event.get('body', '{}'))
+    client_id = body.get('client_id', '').strip()
+    files = body.get('files', [])
+
+    if not client_id:
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'client_id is required'})
+        }
+
+    if not files or not isinstance(files, list):
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'files array is required'})
+        }
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    db_client_id, _ = _verify_client(cur, client_id, user['user_id'])
+    if not db_client_id:
+        cur.close()
+        conn.close()
+        return {
+            'statusCode': 404,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Client not found'})
+        }
+
+    upload_urls = []
+    upload_ids = []
+
+    for file_info in files:
+        file_name = file_info.get('name', '')
+        file_type = file_info.get('type', 'application/octet-stream')
+        file_size = file_info.get('size', None)
+
+        if not file_name:
+            continue
+
+        s3_key = f"{client_id}/uploads/{file_name}"
+
+        presigned_url = s3_client.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': BUCKET_NAME,
+                'Key': s3_key,
+                'ContentType': file_type
+            },
+            ExpiresIn=URL_EXPIRATION
+        )
+
+        upload_urls.append(presigned_url)
+
+        # Record upload in DB with file_size
+        cur.execute("""
+            INSERT INTO uploads (client_id, filename, file_type, s3_key, file_size)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
+        """, (db_client_id, file_name, file_type, s3_key, file_size))
+        upload_id = str(cur.fetchone()[0])
+        upload_ids.append(upload_id)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    print(f"Generated {len(upload_urls)} presigned URLs for client: {client_id}")
+
+    return {
+        'statusCode': 200,
+        'headers': CORS_HEADERS,
+        'body': json.dumps({
+            'upload_urls': upload_urls,
+            'upload_ids': upload_ids
+        })
+    }
+
+
+# ============================================================
+# GET /uploads?client_id=X — List all sources for a client
+# ============================================================
+def handle_list_uploads(event, user):
+    params = event.get('queryStringParameters') or {}
+    client_id = params.get('client_id', '').strip()
+
+    if not client_id:
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'client_id query parameter is required'})
+        }
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    db_client_id, _ = _verify_client(cur, client_id, user['user_id'])
+    if not db_client_id:
+        cur.close()
+        conn.close()
+        return {
+            'statusCode': 404,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Client not found'})
+        }
+
+    cur.execute("""
+        SELECT id, filename, file_type, s3_key, uploaded_at, source, status,
+               file_size, version, parent_upload_id, replaced_at
+        FROM uploads
+        WHERE client_id = %s AND (status IS NULL OR status != 'deleted')
+        ORDER BY uploaded_at DESC
+    """, (db_client_id,))
+
+    rows = cur.fetchall()
+    uploads = []
+    for row in rows:
+        uploads.append({
+            'id': str(row[0]),
+            'filename': row[1],
+            'file_type': row[2],
+            's3_key': row[3],
+            'uploaded_at': row[4].isoformat() if row[4] else None,
+            'source': row[5] or 'manual',
+            'status': row[6] or 'active',
+            'file_size': row[7],
+            'version': row[8] or 1,
+            'parent_upload_id': str(row[9]) if row[9] else None,
+            'replaced_at': row[10].isoformat() if row[10] else None
+        })
+
+    cur.close()
+    conn.close()
+
+    return {
+        'statusCode': 200,
+        'headers': CORS_HEADERS,
+        'body': json.dumps({'uploads': uploads})
+    }
+
+
+# ============================================================
+# DELETE /uploads/{id} — Soft-delete upload + remove from S3
+# ============================================================
+def handle_delete_upload(event, user):
+    path_params = event.get('pathParameters') or {}
+    upload_id = path_params.get('id', '').strip()
+
+    if not upload_id:
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'upload id is required'})
+        }
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    row = _verify_upload_ownership(cur, upload_id, user['user_id'])
+    if not row:
+        cur.close()
+        conn.close()
+        return {
+            'statusCode': 404,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Upload not found'})
+        }
+
+    s3_key = row[4]
+
+    # Soft-delete in DB
+    cur.execute("UPDATE uploads SET status = 'deleted' WHERE id = %s", (upload_id,))
+    conn.commit()
+
+    # Delete from S3
+    try:
+        s3_client.delete_object(Bucket=BUCKET_NAME, Key=s3_key)
+        print(f"Deleted S3 object: {s3_key}")
+    except Exception as e:
+        print(f"Warning: failed to delete S3 object {s3_key}: {e}")
+
+    cur.close()
+    conn.close()
+
+    return {
+        'statusCode': 200,
+        'headers': CORS_HEADERS,
+        'body': json.dumps({'deleted': True, 'id': upload_id})
+    }
+
+
+# ============================================================
+# PUT /uploads/{id}/toggle — Flip active <-> inactive
+# ============================================================
+def handle_toggle_upload(event, user):
+    path_params = event.get('pathParameters') or {}
+    upload_id = path_params.get('id', '').strip()
+
+    if not upload_id:
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'upload id is required'})
+        }
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    row = _verify_upload_ownership(cur, upload_id, user['user_id'])
+    if not row:
+        cur.close()
+        conn.close()
+        return {
+            'statusCode': 404,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Upload not found'})
+        }
+
+    current_status = row[5] or 'active'
+    new_status = 'inactive' if current_status == 'active' else 'active'
+
+    cur.execute("UPDATE uploads SET status = %s WHERE id = %s", (new_status, upload_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    print(f"Toggled upload {upload_id}: {current_status} -> {new_status}")
+
+    return {
+        'statusCode': 200,
+        'headers': CORS_HEADERS,
+        'body': json.dumps({'id': upload_id, 'status': new_status})
+    }
+
+
+# ============================================================
+# POST /uploads/{id}/replace — Upload new version of a file
+# ============================================================
+def handle_replace_upload(event, user):
+    path_params = event.get('pathParameters') or {}
+    upload_id = path_params.get('id', '').strip()
+
+    if not upload_id:
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'upload id is required'})
+        }
+
+    body = json.loads(event.get('body', '{}'))
+    file_name = body.get('name', '').strip()
+    file_type = body.get('type', 'application/octet-stream')
+    file_size = body.get('size', None)
+
+    if not file_name:
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'file name is required'})
+        }
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    row = _verify_upload_ownership(cur, upload_id, user['user_id'])
+    if not row:
+        cur.close()
+        conn.close()
+        return {
+            'statusCode': 404,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Upload not found'})
+        }
+
+    parent_client_id = str(row[1])
+    parent_version = row[7] or 1
+    s3_folder = row[9]
+
+    # Mark parent as replaced
+    cur.execute("""
+        UPDATE uploads SET status = 'replaced', replaced_at = NOW()
+        WHERE id = %s
+    """, (upload_id,))
+
+    # Create new version
+    new_s3_key = f"{s3_folder}/uploads/{file_name}"
+    new_version = parent_version + 1
+
+    cur.execute("""
+        INSERT INTO uploads (client_id, filename, file_type, s3_key, file_size, version, parent_upload_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+    """, (parent_client_id, file_name, file_type, new_s3_key, file_size, new_version, upload_id))
+
+    new_upload_id = str(cur.fetchone()[0])
+
+    # Generate presigned URL for new file
+    presigned_url = s3_client.generate_presigned_url(
+        'put_object',
+        Params={
+            'Bucket': BUCKET_NAME,
+            'Key': new_s3_key,
+            'ContentType': file_type
+        },
+        ExpiresIn=URL_EXPIRATION
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    print(f"Replaced upload {upload_id} with {new_upload_id} (v{new_version})")
+
+    return {
+        'statusCode': 200,
+        'headers': CORS_HEADERS,
+        'body': json.dumps({
+            'upload_url': presigned_url,
+            'upload_id': new_upload_id,
+            'version': new_version,
+            'parent_upload_id': upload_id
+        })
+    }

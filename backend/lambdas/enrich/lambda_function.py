@@ -106,6 +106,14 @@ def lambda_handler(event, context):
 
         db_client_id = str(row[8])
 
+        # Query active upload S3 keys (only process active sources)
+        cur.execute(
+            "SELECT s3_key FROM uploads WHERE client_id = %s AND (status IS NULL OR status = 'active')",
+            (db_client_id,)
+        )
+        active_keys = [r[0] for r in cur.fetchall()]
+        print(f"Active upload keys for enrichment: {len(active_keys)}")
+
         # Create enrichment tracking record with stage
         cur.execute("""
             INSERT INTO enrichments (client_id, status, stage)
@@ -124,7 +132,8 @@ def lambda_handler(event, context):
             'db_client_id': db_client_id,
             'enrichment_id': enrichment_id,
             'user_id': user['user_id'],
-            'model': model_to_use
+            'model': model_to_use,
+            'active_keys': active_keys
         }
 
         lambda_client.invoke(
@@ -175,6 +184,7 @@ def _run_enrichment_pipeline(event):
     enrichment_id = event['enrichment_id']
     user_id = event['user_id']
     model = event.get('model', 'claude-opus-4-5-20250529')
+    active_keys = event.get('active_keys', None)
 
     conn = None
 
@@ -221,7 +231,7 @@ def _run_enrichment_pipeline(event):
 
         # Stage: extracting
         update_enrichment_stage(conn, enrichment_id, 'extracting')
-        extracted_text = extract_all_files(client_id)
+        extracted_text = extract_all_files(client_id, active_keys=active_keys)
         print(f"Extracted text from {len(extracted_text)} files")
 
         # Stage: transcribing
@@ -554,9 +564,10 @@ def read_skills_from_s3(client_id):
     return skills
 
 
-def extract_all_files(client_id):
-    """Extract text from all uploaded files"""
+def extract_all_files(client_id, active_keys=None):
+    """Extract text from all uploaded files. If active_keys provided, only process those."""
     extracted_text = {}
+    active_keys_set = set(active_keys) if active_keys else None
 
     try:
         response = s3_client.list_objects_v2(
@@ -576,6 +587,11 @@ def extract_all_files(client_id):
 
             # Skip context metadata files (uploaded alongside audio)
             if filename.endswith('.context.json'):
+                continue
+
+            # Filter by active keys if provided
+            if active_keys_set is not None and key not in active_keys_set:
+                print(f"Skipping inactive/deleted file: {filename}")
                 continue
 
             # Skip audio files — handled by Transcribe stage

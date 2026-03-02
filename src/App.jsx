@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Upload, Sparkles, FileText, Building2, FileText as FileIcon, Trash2, CheckCircle2, Music, Loader2, CheckCircle, Clock, AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Calendar, Globe, TrendingUp, Menu, Settings, Moon, Sun, GripVertical, Copy, Edit2, Plus, Home, Zap, Heart, Star, Send, Check, Save, User, Bell, Search, Mail, Phone, MapPin, Play, ExternalLink, Package, LogOut, Lock, Eye, EyeOff, Cloud, FolderOpen, ChevronLeft, HardDrive } from 'lucide-react'
+import { X, Upload, Sparkles, FileText, Building2, FileText as FileIcon, Trash2, CheckCircle2, Music, Loader2, CheckCircle, Clock, AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Calendar, Globe, TrendingUp, Menu, Settings, Moon, Sun, GripVertical, Copy, Edit2, Plus, Home, Zap, Heart, Star, Send, Check, Save, User, Bell, Search, Mail, Phone, MapPin, Play, ExternalLink, Package, LogOut, Lock, Eye, EyeOff, Cloud, FolderOpen, ChevronLeft, HardDrive, MoreVertical, ToggleLeft, ToggleRight, History, RefreshCw, Image, FileSpreadsheet, FileType, File } from 'lucide-react'
 import logoLight from './assets/logo-light.png'
 import logoDark from './assets/logo-dark.png'
 
@@ -342,6 +342,34 @@ export default function App() {
     setShowSidebar(false)
   }
 
+  // Create client when company info is saved (so Sources screen has a clientId)
+  const handleClientCreate = async (data) => {
+    if (clientId) return // already created
+    try {
+      const response = await fetch(`${API_BASE}/clients`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          company_name: data.name,
+          website: data.website,
+          contactName: data.contactName,
+          contactTitle: data.contactTitle,
+          contactLinkedIn: data.contactLinkedIn,
+          industry: data.industry,
+          description: data.description,
+          painPoint: data.painPoint
+        })
+      })
+      if (response.ok) {
+        const { client_id } = await response.json()
+        setClientId(client_id)
+        console.log('Client created on company save:', client_id)
+      }
+    } catch (err) {
+      console.error('Failed to create client:', err)
+    }
+  }
+
   // Auth gate
   if (!isLoggedIn) {
     return <LoginScreen onLogin={handleLogin} />
@@ -445,6 +473,7 @@ export default function App() {
             <nav style={{ flex: 1, padding: '1rem 0' }}>
               {[
                 { screen: 'upload', icon: Home, label: 'Welcome' },
+                { screen: 'sources', icon: FolderOpen, label: 'Sources' },
                 { screen: 'enrich', icon: Sparkles, label: 'Enrich' },
                 { screen: 'results', icon: FileText, label: 'Results' },
                 { screen: 'skills', icon: Database, label: 'Skills' },
@@ -582,10 +611,18 @@ export default function App() {
         {currentScreen === 'upload' && (
           <UploadScreen
             setClientId={setClientId}
+            clientId={clientId}
             companyData={companyData}
             onComplete={() => setCurrentScreen('enrich')}
             onOpenCompanyModal={() => setShowCompanyModal(true)}
             configButtons={configButtons}
+            onNavigate={navigateTo}
+          />
+        )}
+        {currentScreen === 'sources' && (
+          <SourcesScreen
+            clientId={clientId}
+            companyData={companyData}
             onNavigate={navigateTo}
           />
         )}
@@ -607,6 +644,7 @@ export default function App() {
           companyData={companyData}
           setCompanyData={setCompanyData}
           onClose={() => setShowCompanyModal(false)}
+          onClientCreate={handleClientCreate}
         />
       )}
     </div>
@@ -616,7 +654,7 @@ export default function App() {
 // ============================================================
 // COMPANY INFORMATION MODAL
 // ============================================================
-function CompanyInfoModal({ companyData, setCompanyData, onClose }) {
+function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate }) {
   const [localData, setLocalData] = useState({ ...companyData })
 
   const handleSave = () => {
@@ -625,6 +663,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose }) {
       return
     }
     setCompanyData(localData)
+    if (onClientCreate) onClientCreate(localData)
     onClose()
   }
 
@@ -834,401 +873,36 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose }) {
 // ============================================================
 // UPLOAD SCREEN
 // ============================================================
-function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal, configButtons, onNavigate }) {
-  const [files, setFiles] = useState([])
-  const [isDragging, setIsDragging] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState({})
+function UploadScreen({ setClientId, clientId, companyData, onComplete, onOpenCompanyModal, configButtons, onNavigate }) {
   const [error, setError] = useState(null)
-  const [audioContext, setAudioContext] = useState({}) // { filename: { date, participants, topic } }
+  const [sourceCount, setSourceCount] = useState(0)
+  const [activeCount, setActiveCount] = useState(0)
 
-  // Google Drive state
-  const [gdriveConnected, setGdriveConnected] = useState(false)
-  const [gdriveLoading, setGdriveLoading] = useState(false)
-  const [showGdrivePicker, setShowGdrivePicker] = useState(false)
-  const [gdriveFiles, setGdriveFiles] = useState([])
-  const [selectedGdriveFiles, setSelectedGdriveFiles] = useState([])
-  const [gdriveImporting, setGdriveImporting] = useState(false)
-  const [currentGdriveFolder, setCurrentGdriveFolder] = useState('root')
-  const [gdriveFolderStack, setGdriveFolderStack] = useState([])
-
-  const handleDragOver = (e) => {
-    e.preventDefault()
-    setIsDragging(true)
-  }
-
-  const handleDragLeave = (e) => {
-    e.preventDefault()
-    setIsDragging(false)
-  }
-
-  const handleDrop = (e) => {
-    e.preventDefault()
-    setIsDragging(false)
-    const droppedFiles = Array.from(e.dataTransfer.files)
-    addFiles(droppedFiles)
-  }
-
-  const handleFileSelect = (e) => {
-    const selectedFiles = Array.from(e.target.files)
-    addFiles(selectedFiles)
-  }
-
-  const addFiles = (newFiles) => {
-    const validTypes = [
-      'text/csv',
-      'text/plain',
-      'application/pdf',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/json',
-      'application/xml',
-      'text/xml',
-      'application/zip',
-      'application/x-zip-compressed',
-      'audio/mpeg',
-      'audio/wav',
-      'audio/x-wav',
-      'audio/mp4',
-      'audio/x-m4a',
-      'audio/aac'
-    ]
-    const filtered = newFiles.filter(file => {
-      const ext = file.name.split('.').pop().toLowerCase()
-      const validExtensions = ['csv', 'txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'json', 'xml', 'zip', 'mp3', 'wav', 'm4a', 'aac']
-      return validTypes.includes(file.type) || validExtensions.includes(ext)
-    })
-    setFiles(prev => [...prev, ...filtered])
-    // Auto-initialize audio context for new audio files
-    const today = new Date().toISOString().split('T')[0]
-    const newContexts = {}
-    filtered.forEach(file => {
-      if (isAudioFile(file.name)) {
-        newContexts[file.name] = { date: today, participants: '', topic: '' }
-      }
-    })
-    if (Object.keys(newContexts).length > 0) {
-      setAudioContext(prev => ({ ...prev, ...newContexts }))
+  // Fetch source counts when clientId is available
+  useEffect(() => {
+    if (clientId) {
+      fetchSourceCounts()
     }
-  }
+  }, [clientId])
 
-  const isAudioFile = (filename) => {
-    const ext = filename.split('.').pop().toLowerCase()
-    return ['mp3', 'wav', 'm4a', 'aac'].includes(ext)
-  }
-
-  const updateAudioContext = (filename, field, value) => {
-    setAudioContext(prev => ({
-      ...prev,
-      [filename]: { ...prev[filename], [field]: value }
-    }))
-  }
-
-  const removeFile = (index) => {
-    setFiles(prev => {
-      const removed = prev[index]
-      if (removed && isAudioFile(removed.name)) {
-        setAudioContext(ac => {
-          const copy = { ...ac }
-          delete copy[removed.name]
-          return copy
-        })
-      }
-      return prev.filter((_, i) => i !== index)
-    })
-  }
-
-  const handleUpload = async () => {
-    console.log('Upload button clicked')
-    console.log('Company data:', companyData)
-    console.log('Files:', files)
-
-    if (!companyData.name.trim()) {
-      setError('Please enter company name')
-      alert('Please enter company name')
-      return
-    }
-    if (files.length === 0) {
-      setError('Please upload at least one file')
-      alert('Please upload at least one file')
-      return
-    }
-
-    setError(null)
-    setUploading(true)
-    console.log('Starting upload process...')
-
+  const fetchSourceCounts = async () => {
     try {
-      // Step 1: Create client
-      const clientResponse = await fetch(`${API_BASE}/clients`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          company_name: companyData.name,
-          website: companyData.website,
-          contactName: companyData.contactName,
-          contactTitle: companyData.contactTitle,
-          contactLinkedIn: companyData.contactLinkedIn,
-          industry: companyData.industry,
-          description: companyData.description,
-          painPoint: companyData.painPoint
-        })
-      })
-
-      if (!clientResponse.ok) {
-        const errorData = await clientResponse.json()
-        throw new Error(errorData.error || 'Failed to create client')
-      }
-      const { client_id } = await clientResponse.json()
-      setClientId(client_id)
-      console.log('Created client:', client_id)
-
-      // Step 2: Separate manual files from imported (Drive) files
-      const manualFiles = files.filter(f => !f._imported)
-      const importedFiles = files.filter(f => f._imported)
-
-      if (manualFiles.length > 0) {
-        // Build context JSON blobs for audio files
-        const contextUploads = [] // { name, blob }
-        manualFiles.forEach(f => {
-          if (isAudioFile(f.name) && audioContext[f.name]) {
-            const ctx = audioContext[f.name]
-            const contextBlob = new Blob(
-              [JSON.stringify({ date: ctx.date, participants: ctx.participants, topic: ctx.topic })],
-              { type: 'application/json' }
-            )
-            contextUploads.push({ name: `${f.name}.context.json`, blob: contextBlob })
-          }
-        })
-
-        // Combined file list: manual files + context JSONs
-        const allUploadEntries = [
-          ...manualFiles.map(f => ({ name: f.name, type: f.type })),
-          ...contextUploads.map(c => ({ name: c.name, type: 'application/json' }))
-        ]
-
-        // Get presigned URLs for all files (manual + context)
-        console.log('Getting presigned URLs for', allUploadEntries.length, 'files (inc. context)')
-        const uploadResponse = await fetch(`${API_BASE}/upload`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            client_id,
-            files: allUploadEntries
-          })
-        })
-
-        if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json()
-          throw new Error(errorData.error || 'Failed to get upload URLs')
-        }
-        const { upload_urls } = await uploadResponse.json()
-        console.log('Received', upload_urls.length, 'presigned URLs')
-
-        // Step 3: Upload manual files to S3
-        for (let i = 0; i < manualFiles.length; i++) {
-          const file = manualFiles[i]
-          const url = upload_urls[i]
-
-          console.log(`Uploading file ${i + 1}/${manualFiles.length}: ${file.name}`)
-          const s3Response = await fetch(url, {
-            method: 'PUT',
-            body: file,
-            headers: { 'Content-Type': file.type }
-          })
-
-          if (!s3Response.ok) {
-            throw new Error(`Failed to upload ${file.name} to S3`)
-          }
-
-          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }))
-          console.log(`Successfully uploaded: ${file.name}`)
-        }
-
-        // Upload context JSON files for audio
-        for (let i = 0; i < contextUploads.length; i++) {
-          const ctx = contextUploads[i]
-          const url = upload_urls[manualFiles.length + i]
-          console.log(`Uploading audio context: ${ctx.name}`)
-          const ctxResponse = await fetch(url, {
-            method: 'PUT',
-            body: ctx.blob,
-            headers: { 'Content-Type': 'application/json' }
-          })
-          if (!ctxResponse.ok) {
-            console.warn(`Failed to upload context for ${ctx.name}`)
-          }
-        }
-      }
-
-      // Mark imported files as complete too
-      importedFiles.forEach(f => {
-        setUploadProgress(prev => ({ ...prev, [f.name]: 100 }))
-      })
-
-      console.log('All files uploaded successfully')
-      // Success - move to enrich screen
-      setTimeout(() => {
-        console.log('Navigating to enrich screen')
-        onComplete()
-      }, 500)
-
-    } catch (err) {
-      console.error('Upload error:', err)
-      setError(err.message)
-      alert('Upload failed: ' + err.message)
-      setUploading(false)
-    }
-  }
-
-  // === Google Drive OAuth & File Functions ===
-
-  const connectGoogleDrive = async () => {
-    setGdriveLoading(true)
-    try {
-      const res = await fetch(`${API_BASE}/gdrive/auth-url`, {
+      const res = await fetch(`${API_BASE}/uploads?client_id=${clientId}`, {
         headers: getAuthHeaders()
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to get auth URL')
-
-      // Open popup for Google OAuth
-      const popup = window.open(data.auth_url, 'google-drive-auth', 'width=500,height=600,scrollbars=yes')
-
-      // Poll for redirect back to our origin
-      const pollTimer = setInterval(async () => {
-        try {
-          if (!popup || popup.closed) {
-            clearInterval(pollTimer)
-            setGdriveLoading(false)
-            return
-          }
-          const popupUrl = popup.location.href
-          if (popupUrl.startsWith(window.location.origin)) {
-            clearInterval(pollTimer)
-            const url = new URL(popupUrl)
-            const code = url.searchParams.get('code')
-            popup.close()
-
-            if (code) {
-              await exchangeGdriveCode(code)
-            }
-            setGdriveLoading(false)
-          }
-        } catch {
-          // Cross-origin error while popup is on Google's domain - ignore
-        }
-      }, 500)
-    } catch (err) {
-      console.error('Google Drive connect error:', err)
-      setGdriveLoading(false)
-    }
-  }
-
-  const exchangeGdriveCode = async (code) => {
-    try {
-      const res = await fetch(`${API_BASE}/gdrive/callback`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ code })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to connect')
-      setGdriveConnected(true)
-    } catch (err) {
-      console.error('Exchange code error:', err)
-    }
-  }
-
-  const fetchGdriveFiles = async (folderId = 'root') => {
-    try {
-      const res = await fetch(`${API_BASE}/gdrive/files?folder_id=${folderId}`, {
-        headers: getAuthHeaders()
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to list files')
-      setGdriveFiles(data.files || [])
-      setCurrentGdriveFolder(folderId)
-    } catch (err) {
-      console.error('Fetch Drive files error:', err)
-    }
-  }
-
-  const openGdrivePicker = async () => {
-    setShowGdrivePicker(true)
-    setSelectedGdriveFiles([])
-    setGdriveFolderStack([])
-    setCurrentGdriveFolder('root')
-    await fetchGdriveFiles('root')
-  }
-
-  const navigateToGdriveFolder = async (folderId, folderName) => {
-    setGdriveFolderStack(prev => [...prev, { id: currentGdriveFolder, name: folderName }])
-    await fetchGdriveFiles(folderId)
-  }
-
-  const navigateGdriveBack = async () => {
-    const stack = [...gdriveFolderStack]
-    const parent = stack.pop()
-    setGdriveFolderStack(stack)
-    if (parent) {
-      await fetchGdriveFiles(parent.id)
-    } else {
-      await fetchGdriveFiles('root')
-    }
-  }
-
-  const toggleGdriveFileSelection = (file) => {
-    setSelectedGdriveFiles(prev => {
-      const exists = prev.find(f => f.id === file.id)
-      if (exists) return prev.filter(f => f.id !== file.id)
-      return [...prev, file]
-    })
-  }
-
-  const importGdriveFiles = async () => {
-    if (selectedGdriveFiles.length === 0) return
-    setGdriveImporting(true)
-    try {
-      const res = await fetch(`${API_BASE}/gdrive/import`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          file_ids: selectedGdriveFiles.map(f => f.id),
-          client_id: 'pending' // Will be created on upload
-        })
-      })
-
       if (res.ok) {
         const data = await res.json()
-        // Add imported files to the file list as pseudo-File objects
-        const importedFileObjects = (data.files || []).map(f => ({
-          name: f.name,
-          type: f.type,
-          size: 0,
-          _imported: true,
-          _source: 'google_drive',
-          _s3Key: f.s3_key
-        }))
-        setFiles(prev => [...prev, ...importedFileObjects])
+        const uploads = data.uploads || []
+        setSourceCount(uploads.length)
+        setActiveCount(uploads.filter(u => u.status === 'active').length)
       }
-
-      setShowGdrivePicker(false)
-      setSelectedGdriveFiles([])
     } catch (err) {
-      console.error('Import error:', err)
+      console.error('Failed to fetch source counts:', err)
     }
-    setGdriveImporting(false)
   }
 
-  const driveFileCount = files.filter(f => f._source === 'google_drive').length
-
-  const step1Complete = !!companyData.name  // Domain Expertise first
-  const step2Complete = files.length > 0     // Raw Data second
+  const step1Complete = !!companyData.name
+  const step2Complete = sourceCount > 0
   const allStepsComplete = step1Complete && step2Complete
 
   return (
@@ -1418,215 +1092,64 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
               lineHeight: 1.5,
               marginBottom: '0.75rem'
             }}>
-              Drop your documents. We'll analyze everything.
+              Upload documents, connect data sources.
             </p>
 
-            {/* Drop Zone */}
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              style={{
-                border: `2px dashed ${isDragging ? '#dc2626' : 'rgba(255, 255, 255, 0.2)'}`,
-                borderRadius: '8px',
-                padding: '1rem',
-                textAlign: 'center',
-                background: isDragging ? 'rgba(220, 38, 38, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              onClick={() => document.getElementById('file-input').click()}
-            >
-              <Upload size={32} style={{ color: '#dc2626', opacity: 0.7, marginBottom: '0.5rem' }} />
-              <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'white', marginBottom: '0.25rem' }}>
-                {files.length > 0
-                  ? `${files.length} file${files.length !== 1 ? 's' : ''} selected${driveFileCount > 0 ? ` (${driveFileCount} from Drive)` : ''}`
-                  : 'Drop or click'}
-              </p>
-              <p style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.5)' }}>
-                CSV, Excel, Word, PDF, Audio, and more
-              </p>
-              <input
-                id="file-input"
-                type="file"
-                multiple
-                accept=".csv,.txt,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.json,.xml,.zip,.mp3,.wav,.m4a,.aac"
-                onChange={handleFileSelect}
-                style={{ display: 'none' }}
-              />
-            </div>
-
-            {/* Audio Context Forms */}
-            {files.filter(f => isAudioFile(f.name)).length > 0 && (
-              <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {files.filter(f => isAudioFile(f.name)).map(file => {
-                  const ctx = audioContext[file.name] || { date: '', participants: '', topic: '' }
-                  return (
-                    <div key={file.name} style={{
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      borderRadius: '8px',
-                      padding: '0.625rem 0.75rem'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.5rem' }}>
-                        <Music size={14} style={{ color: '#dc2626' }} />
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'white' }}>{file.name}</span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr', gap: '0.375rem' }}>
-                        <input
-                          type="date"
-                          value={ctx.date}
-                          onChange={e => updateAudioContext(file.name, 'date', e.target.value)}
-                          onClick={e => e.stopPropagation()}
-                          style={{
-                            background: 'rgba(255,255,255,0.08)',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            borderRadius: '4px',
-                            color: 'white',
-                            fontSize: '0.7rem',
-                            padding: '0.35rem 0.4rem',
-                            outline: 'none',
-                            colorScheme: 'dark'
-                          }}
-                        />
-                        <input
-                          type="text"
-                          placeholder="e.g., Ken Scott, Alan Moore"
-                          value={ctx.participants}
-                          onChange={e => updateAudioContext(file.name, 'participants', e.target.value)}
-                          onClick={e => e.stopPropagation()}
-                          style={{
-                            background: 'rgba(255,255,255,0.08)',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            borderRadius: '4px',
-                            color: 'white',
-                            fontSize: '0.7rem',
-                            padding: '0.35rem 0.5rem',
-                            outline: 'none'
-                          }}
-                        />
-                        <input
-                          type="text"
-                          placeholder="e.g., Weekly strategy call"
-                          value={ctx.topic}
-                          onChange={e => updateAudioContext(file.name, 'topic', e.target.value)}
-                          onClick={e => e.stopPropagation()}
-                          style={{
-                            background: 'rgba(255,255,255,0.08)',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            borderRadius: '4px',
-                            color: 'white',
-                            fontSize: '0.7rem',
-                            padding: '0.35rem 0.5rem',
-                            outline: 'none'
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* Sources Strip */}
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.375rem',
-              marginTop: '0.625rem'
-            }}>
-              {/* Upload - always active */}
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '4px 10px',
-                borderRadius: '999px',
-                fontSize: '0.65rem',
-                fontWeight: 600,
-                background: 'rgba(220, 38, 38, 0.15)',
-                color: '#dc2626',
-                border: '1px solid rgba(220, 38, 38, 0.3)'
+            {sourceCount > 0 ? (
+              <div style={{
+                padding: '0.875rem',
+                background: 'rgba(220, 38, 38, 0.1)',
+                border: '1px solid rgba(220, 38, 38, 0.3)',
+                borderRadius: '8px'
               }}>
-                <Upload size={11} /> Upload
-              </span>
-
-              {/* Google Drive - active connector */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FolderOpen size={18} style={{ color: '#dc2626' }} />
+                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white' }}>
+                      {sourceCount} source{sourceCount !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' }}>
+                    {activeCount} active
+                  </span>
+                </div>
+                <button
+                  onClick={() => onNavigate('sources')}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    background: 'rgba(220, 38, 38, 0.15)',
+                    border: '1px solid rgba(220, 38, 38, 0.3)',
+                    borderRadius: '6px',
+                    color: '#dc2626',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.375rem'
+                  }}
+                >
+                  <FolderOpen size={14} />
+                  Manage Sources
+                </button>
+              </div>
+            ) : (
               <button
-                onClick={gdriveConnected ? openGdrivePicker : connectGoogleDrive}
-                disabled={gdriveLoading}
+                onClick={() => onNavigate('sources')}
+                className="action-btn red"
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '4px 10px',
-                  borderRadius: '999px',
-                  fontSize: '0.65rem',
-                  fontWeight: 600,
-                  background: gdriveConnected ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.08)',
-                  color: gdriveConnected ? '#3b82f6' : 'rgba(255, 255, 255, 0.6)',
-                  border: gdriveConnected ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(255, 255, 255, 0.15)',
-                  cursor: gdriveLoading ? 'wait' : 'pointer',
-                  transition: 'all 0.2s'
+                  justifyContent: 'center',
+                  padding: '0.75rem',
+                  fontSize: '0.9rem',
+                  width: '100%'
                 }}
               >
-                {gdriveLoading ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <HardDrive size={11} />}
-                {gdriveConnected ? 'Google Drive' : 'Connect Drive'}
+                <Upload size={18} />
+                Add Sources
               </button>
-
-              {/* NotebookLM - grayed out */}
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '4px 10px',
-                borderRadius: '999px',
-                fontSize: '0.65rem',
-                fontWeight: 600,
-                background: 'rgba(255, 255, 255, 0.04)',
-                color: 'rgba(255, 255, 255, 0.25)',
-                border: '1px solid rgba(255, 255, 255, 0.08)'
-              }}>
-                <FileText size={11} /> NotebookLM
-              </span>
-
-              {/* Dropbox - grayed out */}
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '4px 10px',
-                borderRadius: '999px',
-                fontSize: '0.65rem',
-                fontWeight: 600,
-                background: 'rgba(255, 255, 255, 0.04)',
-                color: 'rgba(255, 255, 255, 0.25)',
-                border: '1px solid rgba(255, 255, 255, 0.08)'
-              }}>
-                <Cloud size={11} /> Dropbox
-              </span>
-
-              {/* OneDrive - grayed out */}
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '4px 10px',
-                borderRadius: '999px',
-                fontSize: '0.65rem',
-                fontWeight: 600,
-                background: 'rgba(255, 255, 255, 0.04)',
-                color: 'rgba(255, 255, 255, 0.25)',
-                border: '1px solid rgba(255, 255, 255, 0.08)'
-              }}>
-                <Cloud size={11} /> OneDrive
-              </span>
-            </div>
+            )}
           </div>
         </div>
 
@@ -1875,63 +1398,725 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
         </div>
       )}
 
-      {/* Upload Button - Only show when both steps complete */}
+      {/* Continue Button - Only show when both steps complete */}
       {allStepsComplete && (
         <button
-          onClick={handleUpload}
-          disabled={uploading}
+          onClick={onComplete}
           className="action-btn red"
           style={{
             width: '100%',
             padding: '1.25rem',
             fontSize: '1.125rem',
-            justifyContent: 'center',
-            opacity: uploading ? 0.7 : 1,
-            cursor: uploading ? 'not-allowed' : 'pointer'
+            justifyContent: 'center'
           }}
         >
-          {uploading ? (
-            <>
-              <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
-              Uploading {files.length} file{files.length !== 1 ? 's' : ''}...
-            </>
-          ) : (
-            <>
-              <Upload size={24} />
-              Upload & Continue to Enrichment
-            </>
-          )}
+          <Sparkles size={24} />
+          Continue to Enrichment
         </button>
       )}
+    </div>
+  )
+}
+
+// ============================================================
+// SOURCES SCREEN — NotebookLM-style Source Library
+// ============================================================
+function getFileIcon(filename) {
+  const ext = (filename || '').split('.').pop().toLowerCase()
+  const map = {
+    csv: FileSpreadsheet, xls: FileSpreadsheet, xlsx: FileSpreadsheet,
+    pdf: FileText, doc: FileText, docx: FileText, txt: FileText,
+    mp3: Music, wav: Music, m4a: Music, aac: Music,
+    png: Image, jpg: Image, jpeg: Image, gif: Image,
+    json: FileType, xml: FileType,
+    ppt: File, pptx: File, zip: File
+  }
+  return map[ext] || File
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '—'
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+function formatDate(isoString) {
+  if (!isoString) return '—'
+  const d = new Date(isoString)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function SourcesScreen({ clientId, companyData, onNavigate }) {
+  const [uploads, setUploads] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [isDragging, setIsDragging] = useState(false)
+  const [pendingFiles, setPendingFiles] = useState([]) // { file, progress }
+  const [openMenuId, setOpenMenuId] = useState(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null)
+  const [replacingId, setReplacingId] = useState(null)
+
+  // Google Drive state
+  const [gdriveConnected, setGdriveConnected] = useState(false)
+  const [gdriveLoading, setGdriveLoading] = useState(false)
+  const [showGdrivePicker, setShowGdrivePicker] = useState(false)
+  const [gdriveFiles, setGdriveFiles] = useState([])
+  const [selectedGdriveFiles, setSelectedGdriveFiles] = useState([])
+  const [gdriveImporting, setGdriveImporting] = useState(false)
+  const [currentGdriveFolder, setCurrentGdriveFolder] = useState('root')
+  const [gdriveFolderStack, setGdriveFolderStack] = useState([])
+
+  useEffect(() => {
+    if (clientId) fetchUploads()
+    else setLoading(false)
+  }, [clientId])
+
+  // Close kebab menu on outside click
+  useEffect(() => {
+    const handler = () => setOpenMenuId(null)
+    if (openMenuId) document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [openMenuId])
+
+  const fetchUploads = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch(`${API_BASE}/uploads?client_id=${clientId}`, { headers: getAuthHeaders() })
+      if (res.ok) {
+        const data = await res.json()
+        setUploads(data.uploads || [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch uploads:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // === Upload Handlers ===
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true) }
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false) }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const droppedFiles = Array.from(e.dataTransfer.files)
+    uploadFiles(droppedFiles)
+  }
+
+  const handleFileSelect = (e) => {
+    const selectedFiles = Array.from(e.target.files)
+    uploadFiles(selectedFiles)
+    e.target.value = '' // reset so same file can be re-selected
+  }
+
+  const uploadFiles = async (fileList) => {
+    if (!clientId) return
+
+    const validExtensions = ['csv', 'txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'json', 'xml', 'zip', 'mp3', 'wav', 'm4a', 'aac']
+    const filtered = fileList.filter(file => {
+      const ext = file.name.split('.').pop().toLowerCase()
+      return validExtensions.includes(ext)
+    })
+    if (filtered.length === 0) return
+
+    // Add to pending
+    const pending = filtered.map(f => ({ file: f, progress: 0 }))
+    setPendingFiles(prev => [...prev, ...pending])
+
+    try {
+      // Get presigned URLs
+      const res = await fetch(`${API_BASE}/upload`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          client_id: clientId,
+          files: filtered.map(f => ({ name: f.name, type: f.type, size: f.size }))
+        })
+      })
+      if (!res.ok) throw new Error('Failed to get upload URLs')
+      const { upload_urls } = await res.json()
+
+      // Upload each file
+      for (let i = 0; i < filtered.length; i++) {
+        const file = filtered[i]
+        await fetch(upload_urls[i], {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type }
+        })
+        setPendingFiles(prev => prev.map(p =>
+          p.file.name === file.name ? { ...p, progress: 100 } : p
+        ))
+      }
+
+      // Refresh list and clear pending
+      await fetchUploads()
+      setPendingFiles(prev => prev.filter(p => p.progress < 100))
+    } catch (err) {
+      console.error('Upload error:', err)
+      setPendingFiles([])
+    }
+  }
+
+  // === CRUD Handlers ===
+  const toggleUpload = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/uploads/${id}/toggle`, {
+        method: 'PUT',
+        headers: getAuthHeaders()
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setUploads(prev => prev.map(u => u.id === id ? { ...u, status: data.status } : u))
+      }
+    } catch (err) {
+      console.error('Toggle error:', err)
+    }
+  }
+
+  const deleteUpload = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/uploads/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      })
+      if (res.ok) {
+        setUploads(prev => prev.filter(u => u.id !== id))
+        setDeleteConfirmId(null)
+      }
+    } catch (err) {
+      console.error('Delete error:', err)
+    }
+  }
+
+  const handleReplace = async (parentId, file) => {
+    try {
+      const res = await fetch(`${API_BASE}/uploads/${parentId}/replace`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ name: file.name, type: file.type, size: file.size })
+      })
+      if (!res.ok) throw new Error('Failed to replace')
+      const data = await res.json()
+
+      // Upload new file
+      await fetch(data.upload_url, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type }
+      })
+
+      setReplacingId(null)
+      await fetchUploads()
+    } catch (err) {
+      console.error('Replace error:', err)
+    }
+  }
+
+  // === Google Drive Functions ===
+  const connectGoogleDrive = async () => {
+    setGdriveLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/gdrive/auth-url`, { headers: getAuthHeaders() })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to get auth URL')
+      const popup = window.open(data.auth_url, 'google-drive-auth', 'width=500,height=600,scrollbars=yes')
+      const pollTimer = setInterval(async () => {
+        try {
+          if (!popup || popup.closed) { clearInterval(pollTimer); setGdriveLoading(false); return }
+          const popupUrl = popup.location.href
+          if (popupUrl.startsWith(window.location.origin)) {
+            clearInterval(pollTimer)
+            const url = new URL(popupUrl)
+            const code = url.searchParams.get('code')
+            popup.close()
+            if (code) {
+              const cbRes = await fetch(`${API_BASE}/gdrive/callback`, {
+                method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ code })
+              })
+              if (cbRes.ok) setGdriveConnected(true)
+            }
+            setGdriveLoading(false)
+          }
+        } catch { /* cross-origin while on Google domain */ }
+      }, 500)
+    } catch (err) {
+      console.error('Google Drive connect error:', err)
+      setGdriveLoading(false)
+    }
+  }
+
+  const fetchGdriveFiles = async (folderId = 'root') => {
+    try {
+      const res = await fetch(`${API_BASE}/gdrive/files?folder_id=${folderId}`, { headers: getAuthHeaders() })
+      const data = await res.json()
+      if (res.ok) { setGdriveFiles(data.files || []); setCurrentGdriveFolder(folderId) }
+    } catch (err) { console.error('Fetch Drive files error:', err) }
+  }
+
+  const openGdrivePicker = async () => {
+    setShowGdrivePicker(true)
+    setSelectedGdriveFiles([])
+    setGdriveFolderStack([])
+    setCurrentGdriveFolder('root')
+    await fetchGdriveFiles('root')
+  }
+
+  const navigateToGdriveFolder = async (folderId, folderName) => {
+    setGdriveFolderStack(prev => [...prev, { id: currentGdriveFolder, name: folderName }])
+    await fetchGdriveFiles(folderId)
+  }
+
+  const navigateGdriveBack = async () => {
+    const stack = [...gdriveFolderStack]
+    const parent = stack.pop()
+    setGdriveFolderStack(stack)
+    await fetchGdriveFiles(parent ? parent.id : 'root')
+  }
+
+  const toggleGdriveFileSelection = (file) => {
+    setSelectedGdriveFiles(prev => {
+      const exists = prev.find(f => f.id === file.id)
+      return exists ? prev.filter(f => f.id !== file.id) : [...prev, file]
+    })
+  }
+
+  const importGdriveFiles = async () => {
+    if (selectedGdriveFiles.length === 0) return
+    setGdriveImporting(true)
+    try {
+      const res = await fetch(`${API_BASE}/gdrive/import`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ file_ids: selectedGdriveFiles.map(f => f.id), client_id: clientId })
+      })
+      if (res.ok) await fetchUploads()
+      setShowGdrivePicker(false)
+      setSelectedGdriveFiles([])
+    } catch (err) { console.error('Import error:', err) }
+    setGdriveImporting(false)
+  }
+
+  // === Computed ===
+  const activeUploads = uploads.filter(u => u.status === 'active')
+  const totalSize = uploads.reduce((sum, u) => sum + (u.file_size || 0), 0)
+
+  // === No clientId state ===
+  if (!clientId) {
+    return (
+      <div className="panel">
+        <div className="panel-header">
+          <div className="panel-header-left">
+            <FolderOpen size={20} className="icon-red" />
+            <h2>Source Library</h2>
+          </div>
+        </div>
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <FolderOpen size={64} style={{ color: '#dc2626', opacity: 0.5, margin: '0 auto 1.5rem' }} />
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+            Complete Domain Expertise First
+          </h3>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+            Fill in your company information on the Welcome screen to create a project,<br />
+            then come back here to upload and manage your sources.
+          </p>
+          <button
+            onClick={() => onNavigate('upload')}
+            className="action-btn red"
+            style={{ padding: '0.625rem 1.5rem', fontSize: '0.875rem' }}
+          >
+            <Home size={18} />
+            Go to Welcome
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+      {/* ── Panel 1: Source Library ── */}
+      <div className="panel">
+        <div className="panel-header">
+          <div className="panel-header-left">
+            <FolderOpen size={20} className="icon-red" />
+            <h2>Source Library</h2>
+            <span className="badge-count blue">{uploads.length}</span>
+          </div>
+          <button
+            onClick={fetchUploads}
+            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.25rem' }}
+            title="Refresh"
+          >
+            <RefreshCw size={16} />
+          </button>
+        </div>
+
+        {/* Summary Bar */}
+        {uploads.length > 0 && (
+          <div style={{
+            padding: '0.5rem 1.25rem',
+            background: 'var(--surface-secondary, rgba(255,255,255,0.03))',
+            borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+            display: 'flex',
+            gap: '1rem',
+            fontSize: '0.75rem',
+            color: 'var(--text-secondary)'
+          }}>
+            <span><strong style={{ color: 'var(--text-primary)' }}>{activeUploads.length}</strong> active</span>
+            <span><strong style={{ color: 'var(--text-primary)' }}>{uploads.length}</strong> total</span>
+            <span><strong style={{ color: 'var(--text-primary)' }}>{formatFileSize(totalSize)}</strong></span>
+          </div>
+        )}
+
+        <div style={{ padding: '1.25rem' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <Loader2 size={64} style={{ color: '#dc2626', opacity: 0.5, margin: '0 auto 1.5rem', animation: 'spin 1s linear infinite' }} />
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+                Loading Sources
+              </h3>
+            </div>
+          ) : uploads.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <FolderOpen size={64} style={{ color: '#dc2626', opacity: 0.5, margin: '0 auto 1.5rem' }} />
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+                No Sources Yet
+              </h3>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: 1.6 }}>
+                Sources are the raw data that feeds your analysis — CSVs, PDFs, audio recordings,<br />
+                spreadsheets. Drop files below or connect Google Drive.
+              </p>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Drag & drop files in the <strong>Add Sources</strong> area below to get started.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: '0.5rem' }}>
+              {uploads.map(upload => {
+                const IconComp = getFileIcon(upload.filename)
+                const isActive = upload.status === 'active'
+                const isReplaced = upload.status === 'replaced'
+                const isMenuOpen = openMenuId === upload.id
+                const isDeleting = deleteConfirmId === upload.id
+
+                if (isReplaced) return null // hide replaced versions from main list
+
+                return (
+                  <div
+                    key={upload.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      padding: '0.75rem 0.875rem',
+                      background: 'var(--surface-secondary, rgba(255,255,255,0.03))',
+                      border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+                      borderRadius: '10px',
+                      opacity: isActive ? 1 : 0.5,
+                      filter: isActive ? 'none' : 'grayscale(30%)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {/* File Icon */}
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '8px',
+                      background: 'rgba(220, 38, 38, 0.1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                    }}>
+                      <IconComp size={18} style={{ color: '#dc2626' }} />
+                    </div>
+
+                    {/* File Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        <span style={{
+                          fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                        }}>
+                          {upload.filename}
+                        </span>
+                        {upload.version > 1 && (
+                          <span style={{
+                            fontSize: '0.6rem', fontWeight: 700, padding: '1px 5px',
+                            borderRadius: '4px', background: 'rgba(59, 130, 246, 0.15)',
+                            color: '#3b82f6'
+                          }}>
+                            v{upload.version}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.625rem', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 3,
+                          padding: '1px 6px', borderRadius: '999px', fontSize: '0.6rem', fontWeight: 600,
+                          background: upload.source === 'google_drive' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(220, 38, 38, 0.12)',
+                          color: upload.source === 'google_drive' ? '#3b82f6' : '#dc2626'
+                        }}>
+                          {upload.source === 'google_drive' ? 'Google Drive' : 'Local'}
+                        </span>
+                        <span>{formatFileSize(upload.file_size)}</span>
+                        <span>{formatDate(upload.uploaded_at)}</span>
+                      </div>
+                    </div>
+
+                    {/* Toggle */}
+                    <button
+                      onClick={() => toggleUpload(upload.id)}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem',
+                        color: isActive ? '#22c55e' : 'var(--text-muted)', flexShrink: 0
+                      }}
+                      title={isActive ? 'Deactivate' : 'Activate'}
+                    >
+                      {isActive ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+                    </button>
+
+                    {/* Kebab Menu */}
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(isMenuOpen ? null : upload.id) }}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem',
+                          color: 'var(--text-muted)'
+                        }}
+                      >
+                        <MoreVertical size={18} />
+                      </button>
+
+                      {isMenuOpen && (
+                        <div style={{
+                          position: 'absolute', right: 0, top: '100%', zIndex: 50,
+                          background: 'var(--surface-primary, #1a1a2e)',
+                          border: '1px solid var(--border-color, rgba(255,255,255,0.12))',
+                          borderRadius: '8px', padding: '0.25rem 0', minWidth: '140px',
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+                        }}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setReplacingId(upload.id); setOpenMenuId(null) }}
+                            style={{
+                              width: '100%', textAlign: 'left', padding: '0.5rem 0.875rem',
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: 'var(--text-primary)', fontSize: '0.8rem',
+                              display: 'flex', alignItems: 'center', gap: '0.5rem'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                          >
+                            <RefreshCw size={14} /> Replace
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(upload.id); setOpenMenuId(null) }}
+                            style={{
+                              width: '100%', textAlign: 'left', padding: '0.5rem 0.875rem',
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: '#ef4444', fontSize: '0.8rem',
+                              display: 'flex', alignItems: 'center', gap: '0.5rem'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                          >
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Delete Confirmation Overlay */}
+                    {isDeleting && (
+                      <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', zIndex: 100
+                      }}
+                        onClick={() => setDeleteConfirmId(null)}
+                      >
+                        <div
+                          onClick={e => e.stopPropagation()}
+                          style={{
+                            background: 'var(--surface-primary, #1a1a2e)',
+                            border: '1px solid var(--border-color, rgba(255,255,255,0.12))',
+                            borderRadius: '12px', padding: '1.5rem', maxWidth: '360px', width: '90%',
+                            textAlign: 'center'
+                          }}
+                        >
+                          <Trash2 size={32} style={{ color: '#ef4444', margin: '0 auto 0.75rem' }} />
+                          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                            Delete Source?
+                          </h3>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+                            <strong>{upload.filename}</strong> will be permanently removed.
+                          </p>
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => setDeleteConfirmId(null)}
+                              style={{
+                                padding: '0.5rem 1.25rem', borderRadius: '8px', fontSize: '0.85rem',
+                                background: 'var(--surface-secondary, rgba(255,255,255,0.08))',
+                                border: '1px solid var(--border-color)', color: 'var(--text-primary)',
+                                cursor: 'pointer', fontWeight: 500
+                              }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => deleteUpload(upload.id)}
+                              style={{
+                                padding: '0.5rem 1.25rem', borderRadius: '8px', fontSize: '0.85rem',
+                                background: '#ef4444', border: 'none', color: 'white',
+                                cursor: 'pointer', fontWeight: 600
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Replace File Input */}
+                    {replacingId === upload.id && (
+                      <input
+                        type="file"
+                        ref={el => { if (el) el.click() }}
+                        onChange={(e) => {
+                          const file = e.target.files[0]
+                          if (file) handleReplace(upload.id, file)
+                          else setReplacingId(null)
+                        }}
+                        style={{ display: 'none' }}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Panel 2: Add Sources ── */}
+      <div className="panel">
+        <div className="panel-header">
+          <div className="panel-header-left">
+            <Upload size={20} className="icon-red" />
+            <h2>Add Sources</h2>
+          </div>
+        </div>
+        <div style={{ padding: '1.25rem' }}>
+          {/* Drop Zone */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{
+              border: `2px dashed ${isDragging ? '#dc2626' : 'var(--border-color, rgba(255,255,255,0.2))'}`,
+              borderRadius: '10px',
+              padding: '1.5rem',
+              textAlign: 'center',
+              background: isDragging ? 'rgba(220, 38, 38, 0.08)' : 'var(--surface-secondary, rgba(255,255,255,0.03))',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onClick={() => document.getElementById('sources-file-input').click()}
+          >
+            <Upload size={36} style={{ color: '#dc2626', opacity: 0.6, marginBottom: '0.5rem' }} />
+            <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+              Drop files here or click to browse
+            </p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              CSV, Excel, Word, PDF, Audio, JSON, and more
+            </p>
+            <input
+              id="sources-file-input"
+              type="file"
+              multiple
+              accept=".csv,.txt,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.json,.xml,.zip,.mp3,.wav,.m4a,.aac"
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+            />
+          </div>
+
+          {/* Pending files */}
+          {pendingFiles.length > 0 && (
+            <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+              {pendingFiles.map((p, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: '0.625rem',
+                  padding: '0.5rem 0.75rem',
+                  background: 'var(--surface-secondary, rgba(255,255,255,0.03))',
+                  borderRadius: '8px'
+                }}>
+                  <Loader2 size={14} style={{ color: '#dc2626', animation: p.progress < 100 ? 'spin 1s linear infinite' : 'none', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.file.name}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: p.progress === 100 ? '#22c55e' : 'var(--text-muted)', flexShrink: 0 }}>
+                    {p.progress === 100 ? 'Done' : 'Uploading...'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Sources Strip - Connectors */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginTop: '0.75rem' }}>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '4px 10px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 600,
+              background: 'rgba(220, 38, 38, 0.15)', color: '#dc2626',
+              border: '1px solid rgba(220, 38, 38, 0.3)'
+            }}>
+              <Upload size={11} /> Upload
+            </span>
+
+            <button
+              onClick={gdriveConnected ? openGdrivePicker : connectGoogleDrive}
+              disabled={gdriveLoading}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '4px 10px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 600,
+                background: gdriveConnected ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+                color: gdriveConnected ? '#3b82f6' : 'rgba(255, 255, 255, 0.6)',
+                border: gdriveConnected ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(255, 255, 255, 0.15)',
+                cursor: gdriveLoading ? 'wait' : 'pointer', transition: 'all 0.2s'
+              }}
+            >
+              {gdriveLoading ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <HardDrive size={11} />}
+              {gdriveConnected ? 'Google Drive' : 'Connect Drive'}
+            </button>
+
+            {['NotebookLM', 'Dropbox', 'OneDrive'].map(name => (
+              <span key={name} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '4px 10px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 600,
+                background: 'rgba(255, 255, 255, 0.04)', color: 'rgba(255, 255, 255, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}>
+                {name === 'NotebookLM' ? <FileText size={11} /> : <Cloud size={11} />} {name}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Google Drive File Picker Modal */}
       {showGdrivePicker && (
         <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 1000
         }}>
           <div style={{
-            background: '#1a1a2e',
-            borderRadius: '16px',
-            width: '90%',
-            maxWidth: '520px',
-            maxHeight: '70vh',
-            display: 'flex',
-            flexDirection: 'column',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+            background: '#1a1a2e', borderRadius: '16px', width: '90%', maxWidth: '520px',
+            maxHeight: '70vh', display: 'flex', flexDirection: 'column',
+            border: '1px solid rgba(255, 255, 255, 0.1)', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
           }}>
-            {/* Modal Header */}
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '1rem 1.25rem',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '1rem 1.25rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <HardDrive size={20} style={{ color: '#3b82f6' }} />
@@ -1945,93 +2130,58 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
               </button>
             </div>
 
-            {/* Back Button */}
             {gdriveFolderStack.length > 0 && (
               <button
                 onClick={navigateGdriveBack}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '0.5rem 1.25rem',
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                  color: '#3b82f6',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '0.5rem 1.25rem',
+                  background: 'none', border: 'none', borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                  color: '#3b82f6', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer'
                 }}
               >
                 <ChevronLeft size={16} /> Back
               </button>
             )}
 
-            {/* File List */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
               {gdriveFiles.length === 0 ? (
                 <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: '2rem', fontSize: '0.85rem' }}>
                   No files found in this folder
                 </p>
-              ) : (
-                gdriveFiles.map(file => {
-                  const isSelected = selectedGdriveFiles.some(f => f.id === file.id)
-                  return (
-                    <div
-                      key={file.id}
-                      onClick={() => {
-                        if (file.isFolder) {
-                          navigateToGdriveFolder(file.id, file.name)
-                        } else {
-                          toggleGdriveFileSelection(file)
-                        }
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.625rem',
-                        padding: '0.625rem 1.25rem',
-                        cursor: 'pointer',
-                        background: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                        transition: 'background 0.15s'
-                      }}
-                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
-                      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
-                    >
-                      {file.isFolder ? (
-                        <FolderOpen size={18} style={{ color: '#facc15', flexShrink: 0 }} />
-                      ) : isSelected ? (
-                        <CheckCircle2 size={18} style={{ color: '#3b82f6', flexShrink: 0 }} />
-                      ) : (
-                        <FileText size={18} style={{ color: 'rgba(255,255,255,0.4)', flexShrink: 0 }} />
-                      )}
-                      <span style={{
-                        fontSize: '0.85rem',
-                        color: isSelected ? '#3b82f6' : 'white',
-                        fontWeight: isSelected ? 600 : 400,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        flex: 1
-                      }}>
-                        {file.name}
-                      </span>
-                      {file.isFolder && (
-                        <ChevronRight size={16} style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
-                      )}
-                    </div>
-                  )
-                })
-              )}
+              ) : gdriveFiles.map(file => {
+                const isSelected = selectedGdriveFiles.some(f => f.id === file.id)
+                return (
+                  <div
+                    key={file.id}
+                    onClick={() => file.isFolder ? navigateToGdriveFolder(file.id, file.name) : toggleGdriveFileSelection(file)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.625rem',
+                      padding: '0.625rem 1.25rem', cursor: 'pointer',
+                      background: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                      transition: 'background 0.15s'
+                    }}
+                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+                    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isSelected ? 'rgba(59, 130, 246, 0.1)' : 'transparent' }}
+                  >
+                    {file.isFolder ? <FolderOpen size={18} style={{ color: '#facc15', flexShrink: 0 }} />
+                      : isSelected ? <CheckCircle2 size={18} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                      : <FileText size={18} style={{ color: 'rgba(255,255,255,0.4)', flexShrink: 0 }} />}
+                    <span style={{
+                      fontSize: '0.85rem', color: isSelected ? '#3b82f6' : 'white',
+                      fontWeight: isSelected ? 600 : 400, overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1
+                    }}>
+                      {file.name}
+                    </span>
+                    {file.isFolder && <ChevronRight size={16} style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />}
+                  </div>
+                )
+              })}
             </div>
 
-            {/* Modal Footer */}
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0.75rem 1.25rem',
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '0.75rem 1.25rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)'
             }}>
               <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)' }}>
                 {selectedGdriveFiles.length} file{selectedGdriveFiles.length !== 1 ? 's' : ''} selected
@@ -2041,17 +2191,13 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
                 disabled={selectedGdriveFiles.length === 0 || gdriveImporting}
                 className="action-btn red"
                 style={{
-                  padding: '0.5rem 1.25rem',
-                  fontSize: '0.8rem',
+                  padding: '0.5rem 1.25rem', fontSize: '0.8rem',
                   opacity: selectedGdriveFiles.length === 0 ? 0.4 : 1,
                   cursor: selectedGdriveFiles.length === 0 ? 'not-allowed' : 'pointer'
                 }}
               >
-                {gdriveImporting ? (
-                  <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Importing...</>
-                ) : (
-                  <><Upload size={14} /> Import Files</>
-                )}
+                {gdriveImporting ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Importing...</>
+                  : <><Upload size={14} /> Import Files</>}
               </button>
             </div>
           </div>
@@ -2060,6 +2206,7 @@ function UploadScreen({ setClientId, companyData, onComplete, onOpenCompanyModal
     </div>
   )
 }
+
 
 // ============================================================
 // ENRICH SCREEN
@@ -2978,6 +3125,7 @@ const DEFAULT_BUTTONS = [
 // Internal route map for button navigation
 const ROUTE_MAP = {
   '/upload': 'upload',
+  '/sources': 'sources',
   '/enrich': 'enrich',
   '/results': 'results',
   '/skills': 'skills',

@@ -124,3 +124,15 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_model VARCHAR(100) DEFAULT 
 -- Values: extracting, transcribing, researching, analyzing, complete, error
 -- ============================================================
 ALTER TABLE enrichments ADD COLUMN IF NOT EXISTS stage VARCHAR(50) DEFAULT 'extracting';
+
+-- ============================================================
+-- SOURCE LIBRARY (migration)
+-- Adds file management columns for toggle, replace, delete
+-- ============================================================
+ALTER TABLE uploads ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';
+ALTER TABLE uploads ADD COLUMN IF NOT EXISTS file_size BIGINT;
+ALTER TABLE uploads ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1;
+ALTER TABLE uploads ADD COLUMN IF NOT EXISTS parent_upload_id UUID REFERENCES uploads(id) ON DELETE SET NULL;
+ALTER TABLE uploads ADD COLUMN IF NOT EXISTS replaced_at TIMESTAMP WITH TIME ZONE;
+CREATE INDEX IF NOT EXISTS idx_uploads_status ON uploads(status);
+CREATE INDEX IF NOT EXISTS idx_uploads_parent ON uploads(parent_upload_id);
