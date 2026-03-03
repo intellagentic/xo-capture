@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.26)
+**Status:** Deployed & Operational (v1.27)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -174,6 +174,10 @@ App (root)
       |     |     +-- Claude Opus 4.5 (default, best analysis)
       |     |     +-- Claude Sonnet 4.5 (faster, cheaper)
       |     +-- Theme Toggle (light/dark)
+      |     +-- Streamline Webhook (workspace only)
+      |     |     +-- "Send to Streamline" toggle (default OFF, per-client)
+      |     |     +-- Webhook URL (read-only display)
+      |     |     +-- Manual override note
       |     +-- Configure Buttons (drag-and-drop, inline edit)
       |     |     +-- Button Card (grip, icon, label, URL, actions)
       |     |     +-- Inline Editor (label, URL, color grid, icon grid)
@@ -454,7 +458,7 @@ src/
     - ResultsScreen           (Analysis display with expandable sections)
     - SkillsScreen            (Skills management - list, add, edit, delete)
     - AddSkillModal           (Skill creation/editing modal)
-    - ConfigurationScreen     (Theme toggle, button config, live preview)
+    - ConfigurationScreen     (Theme toggle, Streamline webhook toggle, AI model, button config, live preview)
 
   assets/
     - logo-light.png          (White logo for dark backgrounds, 26px header)
@@ -653,6 +657,8 @@ src/
       |            |  key     |  1:N  +----------+
       |            | icon_s3_ |
       |            |  key     |
+      |            | strmline |
+      |            |  _wh_en  |
       |            | 5 new DB |
       |            |  columns |
       |            | status   |       | id (PK)  |
@@ -2188,6 +2194,27 @@ cd backend
     - Branding upload still also available in CompanyInfoModal (compact version at bottom)
     - Deployed frontend to S3/CloudFront
     - Files: App.jsx
+
+56. **Streamline Webhook Toggle** (Session 15 - March 3, 2026)
+    - **Database**: Added `streamline_webhook_enabled BOOLEAN DEFAULT FALSE` to clients table
+    - **Clients Lambda**:
+      - `GET /clients` returns `streamline_webhook_enabled` in response
+      - `PUT /clients` accepts and persists `streamline_webhook_enabled` (optional field, only updated if present)
+    - **Enrich Lambda**:
+      - Reads `streamline_webhook_enabled` from clients table in `_run_enrichment_pipeline`
+      - Only fires `_send_streamline_webhook()` if flag is true
+      - Logs "Streamline webhook disabled for client" when skipped
+      - `POST /send-to-streamline` (manual button) unaffected — always works as manual override
+    - **Frontend (ConfigurationScreen)**:
+      - "Streamline Webhook" panel (Send icon) between System Skills and Configure Buttons
+      - Toggle switch: "Send to Streamline" with description, default OFF
+      - Persists immediately to DB via `PUT /clients` on toggle
+      - Webhook URL displayed read-only below toggle
+      - Note: "Send to Streamline button on Results screen works regardless of this toggle"
+      - Only shown when inside a client workspace (requires `clientId`)
+    - **Deployment needed**: SQL migration, xo-clients Lambda, xo-enrich Lambda
+    - Deployed frontend to S3/CloudFront
+    - Files: schema.sql, clients/lambda_function.py, enrich/lambda_function.py, App.jsx
 
 ---
 
