@@ -143,3 +143,9 @@ CREATE INDEX IF NOT EXISTS idx_uploads_parent ON uploads(parent_upload_id);
 -- ============================================================
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS logo_s3_key VARCHAR(500);
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS icon_s3_key VARCHAR(500);
+
+-- ============================================================
+-- STREAMLINE WEBHOOK TOGGLE (migration)
+-- Per-client toggle to auto-send enrichment results to Streamline
+-- ============================================================
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS streamline_webhook_enabled BOOLEAN DEFAULT FALSE;

@@ -202,7 +202,8 @@ def _run_enrichment_pipeline(event):
         cur.execute("""
             SELECT company_name, website_url, contact_name, contact_title,
                    contact_linkedin, industry, description, pain_point,
-                   logo_s3_key, icon_s3_key
+                   logo_s3_key, icon_s3_key,
+                   COALESCE(streamline_webhook_enabled, FALSE)
             FROM clients WHERE id = %s
         """, (db_client_id,))
         row = cur.fetchone()
@@ -221,6 +222,7 @@ def _run_enrichment_pipeline(event):
         pain_point = row[7] or ''
         logo_s3_key = row[8] or ''
         icon_s3_key = row[9] or ''
+        streamline_webhook_enabled = bool(row[10])
 
         # Load system skills (bundled with Lambda, always injected first)
         system_skills = load_system_skills()
@@ -297,16 +299,19 @@ def _run_enrichment_pipeline(event):
         print(f"Analysis complete for client: {client_id}")
 
         # Fire webhook to Streamline (non-blocking — enrichment success is independent)
-        _send_streamline_webhook(
-            company_name=company_name,
-            contact_name=contact_name,
-            contact_title=contact_title,
-            model=model,
-            analysis=analysis,
-            source_files=list(extracted_text.keys()),
-            logo_s3_key=logo_s3_key,
-            icon_s3_key=icon_s3_key
-        )
+        if streamline_webhook_enabled:
+            _send_streamline_webhook(
+                company_name=company_name,
+                contact_name=contact_name,
+                contact_title=contact_title,
+                model=model,
+                analysis=analysis,
+                source_files=list(extracted_text.keys()),
+                logo_s3_key=logo_s3_key,
+                icon_s3_key=icon_s3_key
+            )
+        else:
+            print("Streamline webhook disabled for client")
 
         return {'status': 'complete', 'client_id': client_id}
 

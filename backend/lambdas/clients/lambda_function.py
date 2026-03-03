@@ -130,7 +130,8 @@ def handle_get_client(event, user):
             cur.execute("""
                 SELECT id, company_name, website_url, contact_name, contact_title,
                        contact_linkedin, industry, description, pain_point,
-                       s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key
+                       s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
+                       COALESCE(streamline_webhook_enabled, FALSE)
                 FROM clients WHERE s3_folder = %s AND user_id = %s
             """, (client_id, user['user_id']))
         else:
@@ -138,7 +139,8 @@ def handle_get_client(event, user):
             cur.execute("""
                 SELECT id, company_name, website_url, contact_name, contact_title,
                        contact_linkedin, industry, description, pain_point,
-                       s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key
+                       s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
+                       COALESCE(streamline_webhook_enabled, FALSE)
                 FROM clients WHERE user_id = %s
                 ORDER BY created_at DESC LIMIT 1
             """, (user['user_id'],))
@@ -196,7 +198,8 @@ def handle_get_client(event, user):
                 'created_at': row[10].isoformat() if row[10] else None,
                 'updated_at': row[11].isoformat() if row[11] else None,
                 'logo_url': logo_url,
-                'icon_url': icon_url
+                'icon_url': icon_url,
+                'streamline_webhook_enabled': bool(row[14])
             })
         }
     except Exception as e:
@@ -234,14 +237,13 @@ def handle_update_client(event, user):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("""
-            UPDATE clients SET
-                company_name = %s, website_url = %s, contact_name = %s,
-                contact_title = %s, contact_linkedin = %s, industry = %s,
-                description = %s, pain_point = %s, updated_at = NOW()
-            WHERE s3_folder = %s AND user_id = %s
-            RETURNING id
-        """, (
+        # Build dynamic SET clause — streamline_webhook_enabled is optional
+        set_fields = [
+            "company_name = %s", "website_url = %s", "contact_name = %s",
+            "contact_title = %s", "contact_linkedin = %s", "industry = %s",
+            "description = %s", "pain_point = %s", "updated_at = NOW()"
+        ]
+        params = [
             company_name,
             body.get('website', '').strip(),
             body.get('contactName', '').strip(),
@@ -250,9 +252,19 @@ def handle_update_client(event, user):
             body.get('industry', '').strip(),
             body.get('description', '').strip(),
             body.get('painPoint', '').strip(),
-            client_id,
-            user['user_id']
-        ))
+        ]
+
+        if 'streamline_webhook_enabled' in body:
+            set_fields.append("streamline_webhook_enabled = %s")
+            params.append(bool(body['streamline_webhook_enabled']))
+
+        params.extend([client_id, user['user_id']])
+
+        cur.execute(f"""
+            UPDATE clients SET {', '.join(set_fields)}
+            WHERE s3_folder = %s AND user_id = %s
+            RETURNING id
+        """, params)
 
         row = cur.fetchone()
         conn.commit()

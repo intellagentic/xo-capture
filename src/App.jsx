@@ -1246,7 +1246,7 @@ export default function App() {
         )}
         {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} />}
         {currentScreen === 'skills' && <SkillsScreen clientId={clientId} />}
-        {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} />}
+        {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} />}
         {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
       </main>
 
@@ -4181,10 +4181,61 @@ const ROUTE_MAP = {
   '/configuration': 'configuration'
 }
 
-function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferredModel, setPreferredModel }) {
+function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferredModel, setPreferredModel, clientId }) {
   const isDark = theme === 'dark'
   const [editingId, setEditingId] = useState(null)
   const [draggedId, setDraggedId] = useState(null)
+  const [webhookEnabled, setWebhookEnabled] = useState(false)
+  const [webhookLoaded, setWebhookLoaded] = useState(false)
+  const [webhookSaving, setWebhookSaving] = useState(false)
+
+  useEffect(() => {
+    if (clientId) {
+      fetch(`${API_BASE}/clients?client_id=${clientId}`, { headers: getAuthHeaders() })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) setWebhookEnabled(!!data.streamline_webhook_enabled)
+        })
+        .catch(() => {})
+        .finally(() => setWebhookLoaded(true))
+    } else {
+      setWebhookLoaded(true)
+    }
+  }, [clientId])
+
+  const toggleWebhook = async () => {
+    if (!clientId) return
+    const newValue = !webhookEnabled
+    setWebhookEnabled(newValue)
+    setWebhookSaving(true)
+    try {
+      // Need company_name for the PUT — fetch current then update
+      const getRes = await fetch(`${API_BASE}/clients?client_id=${clientId}`, { headers: getAuthHeaders() })
+      if (getRes.ok) {
+        const current = await getRes.json()
+        await fetch(`${API_BASE}/clients`, {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            client_id: clientId,
+            company_name: current.company_name,
+            website: current.website,
+            contactName: current.contactName,
+            contactTitle: current.contactTitle,
+            contactLinkedIn: current.contactLinkedIn,
+            industry: current.industry,
+            description: current.description,
+            painPoint: current.painPoint,
+            streamline_webhook_enabled: newValue
+          })
+        })
+      }
+    } catch (err) {
+      console.error('Failed to save webhook setting:', err)
+      setWebhookEnabled(!newValue) // revert on error
+    }
+    setWebhookSaving(false)
+  }
 
   // Theme-aware colors matching reference C object
   const C = {
@@ -4414,6 +4465,83 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
           </div>
         </div>
       </div>
+
+      {/* Streamline Webhook Toggle */}
+      {clientId && (
+        <div className="panel" style={{ marginTop: '1rem' }}>
+          <div className="panel-header">
+            <div className="panel-header-left">
+              <Send size={20} className="icon-red" />
+              <h2>Streamline Webhook</h2>
+            </div>
+          </div>
+          <div style={{ padding: '1.25rem' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '1rem',
+              background: C.surface,
+              borderRadius: 10,
+              border: `1px solid ${C.border}`
+            }}>
+              <div style={{ flex: 1, marginRight: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 500, color: C.text }}>
+                    Send to Streamline
+                  </span>
+                  {webhookSaving && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: C.muted }} />}
+                </div>
+                <p style={{ fontSize: '0.75rem', color: C.muted, marginTop: 4, lineHeight: 1.4 }}>
+                  Automatically send enrichment results to Streamline when enrichment completes
+                </p>
+              </div>
+              <button
+                onClick={toggleWebhook}
+                disabled={webhookSaving}
+                style={{
+                  width: 52,
+                  height: 28,
+                  borderRadius: 14,
+                  border: 'none',
+                  background: webhookEnabled ? '#dc2626' : '#e5e5e5',
+                  position: 'relative',
+                  cursor: webhookSaving ? 'wait' : 'pointer',
+                  transition: 'all 0.2s',
+                  flexShrink: 0
+                }}
+              >
+                <div style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '50%',
+                  background: 'white',
+                  position: 'absolute',
+                  top: 3,
+                  left: webhookEnabled ? 27 : 3,
+                  transition: 'all 0.2s',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)'
+                }} />
+              </button>
+            </div>
+            <div style={{
+              marginTop: '0.75rem',
+              padding: '0.625rem 0.875rem',
+              background: `${C.muted}10`,
+              borderRadius: 8,
+              border: `1px solid ${C.border}`
+            }}>
+              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Webhook URL</span>
+              <p style={{ fontSize: '0.8rem', color: C.text, marginTop: 4, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                {process.env.STREAMLINE_WEBHOOK_URL || 'Configured server-side (STREAMLINE_WEBHOOK_URL env var)'}
+              </p>
+            </div>
+            <p style={{ fontSize: '0.7rem', color: C.muted, marginTop: '0.625rem', lineHeight: 1.4 }}>
+              The "Send to Streamline" button on the Results screen works regardless of this toggle — it's a manual override.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Configure Buttons & Live Preview -- Two Column */}
       <div style={{
