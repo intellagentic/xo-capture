@@ -136,3 +136,10 @@ ALTER TABLE uploads ADD COLUMN IF NOT EXISTS parent_upload_id UUID REFERENCES up
 ALTER TABLE uploads ADD COLUMN IF NOT EXISTS replaced_at TIMESTAMP WITH TIME ZONE;
 CREATE INDEX IF NOT EXISTS idx_uploads_status ON uploads(status);
 CREATE INDEX IF NOT EXISTS idx_uploads_parent ON uploads(parent_upload_id);
+
+-- ============================================================
+-- CLIENT BRANDING (migration)
+-- Logo and icon S3 keys for client visual identity
+-- ============================================================
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS logo_s3_key VARCHAR(500);
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS icon_s3_key VARCHAR(500);

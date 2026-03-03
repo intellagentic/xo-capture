@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.24)
+**Status:** Deployed & Operational (v1.25)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -205,6 +205,10 @@ xo-client-data/
 |     |     +-- routes.xlsx
 |     |     +-- contract.pdf
 |     |     +-- meeting-notes.mp3
+|     |
+|     +-- branding/
+|     |     +-- logo.png              (company logo, overwrites on re-upload)
+|     |     +-- icon.png              (company icon, overwrites on re-upload)
 |     |
 |     +-- extracted/                  (future: parsed text output)
 |     |     +-- customers.txt
@@ -588,6 +592,7 @@ src/
 - /clients (GET/POST/PUT)
 - /clients/list (GET) -- list all clients for user with source count + enrichment stats
 - /upload (POST)
+- /upload/branding (GET/POST) -- presigned URLs for client logo/icon branding assets
 - /enrich (POST)
 - /results/{id} (GET)
 - /buttons (GET) -- fetch user's buttons
@@ -636,8 +641,12 @@ src/
 +-----+----+       |          |
       |            | pain_pt  |
       |            | s3_folder|       +----------+
-      |            | 5 new DB |<------+ enrichmts|
-      |            |  columns |  1:N  +----------+
+      |            | logo_s3_ |<------+ enrichmts|
+      |            |  key     |  1:N  +----------+
+      |            | icon_s3_ |
+      |            |  key     |
+      |            | 5 new DB |
+      |            |  columns |
       |            | status   |       | id (PK)  |
       |            | created  |       | client_id|
       |            | updated  |       | status   |
@@ -1218,7 +1227,7 @@ All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_hel
 **Timeout:** 30 seconds
 **Handler:** lambda_function.lambda_handler
 
-**What it does (method router with 5 handlers):**
+**What it does (method router with 7 handlers):**
 
 1. **POST /upload** — Original presigned URL flow (auth + client validation)
    - Generates presigned PUT URLs for each file (1 hour expiry)
@@ -1240,6 +1249,17 @@ All Lambdas require JWT auth (except /auth/login). Auth is provided by `auth_hel
    - Marks parent as status='replaced', replaced_at=NOW()
    - Creates new record with version+1 and parent_upload_id
    - Returns presigned URL for new file
+
+6. **POST /upload/branding** — Generate presigned PUT URL for client logo or icon
+   - Accepts: client_id, file_type ("logo" or "icon"), content_type, file_extension
+   - Validates ownership, generates S3 key: `{client_id}/branding/{file_type}.{ext}` (overwrites previous)
+   - Updates `logo_s3_key` or `icon_s3_key` in clients table
+   - Returns: upload_url, s3_key
+
+7. **GET /upload/branding?client_id=X** — Get presigned GET URLs for viewing logo/icon
+   - Fetches logo_s3_key and icon_s3_key from clients table
+   - Generates presigned GET URLs (1 hour expiry) for each non-null key
+   - Returns: logo_url, icon_url, logo_s3_key, icon_s3_key
 
 **File:** backend/lambdas/upload/lambda_function.py
 
@@ -2127,6 +2147,27 @@ cd backend
     - Redeployed xo-auth Lambda
     - Files: auth/lambda_function.py
 
+54. **Client Logo & Icon Branding** (Session 15 - March 3, 2026)
+    - **Database**: Added `logo_s3_key` and `icon_s3_key` VARCHAR(500) columns to clients table
+    - **Upload Lambda** — 2 new endpoints:
+      - `POST /upload/branding` — presigned PUT URL for logo or icon, stores S3 key in clients table
+      - `GET /upload/branding?client_id=X` — presigned GET URLs for viewing logo/icon
+      - Validates content type (PNG, JPG, SVG, WebP), overwrites previous on re-upload
+    - **Clients Lambda** — presigned URLs generated server-side:
+      - `GET /clients/list` returns `icon_url` per client (presigned GET, 1h expiry) for dashboard cards
+      - `GET /clients` returns `logo_url` and `icon_url` for workspace header
+    - **Enrich Lambda** — webhook payload updated:
+      - `client_logo_url` and `client_icon_url` (direct S3 URLs) added to Streamline webhook
+      - Both `_run_enrichment_pipeline` and `_handle_send_to_streamline` include branding
+    - **Frontend (App.jsx)**:
+      - **CompanyInfoModal** — "Client Branding" section with drag-and-drop/click upload zones for logo (400x100px) and icon (128x128px), thumbnail previews, 2MB client-side validation
+      - **Dashboard cards** — 32x32px client icon to left of company name, letter-in-circle fallback
+      - **Workspace header** — client logo (20px height) next to company name in subtitle
+      - `companyData` state extended with `logoUrl`/`iconUrl`, populated from API responses
+    - S3 folder structure: `{client_id}/branding/logo.{ext}` and `{client_id}/branding/icon.{ext}`
+    - **Deployment needed**: SQL migration, 3 Lambdas (upload, clients, enrich), API Gateway route `/upload/branding` (GET+POST+OPTIONS), frontend build
+    - Files: schema.sql, upload/lambda_function.py, clients/lambda_function.py, enrich/lambda_function.py, App.jsx
+
 ---
 
 ## PENDING ITEMS
@@ -2174,7 +2215,7 @@ cd backend
    - PDF export of analysis results
    - Email report delivery
    - Shareable links (time-limited)
-   - White-label branding options
+   - ~~White-label branding options~~ **PARTIALLY DONE (v1.25)** -- client logo + icon upload, dashboard icons, workspace header logo
 
 ---
 

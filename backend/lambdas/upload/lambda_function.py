@@ -8,6 +8,8 @@ Routes:
   DELETE /uploads/{id}      -> handle_delete_upload (soft-delete + S3 delete)
   PUT  /uploads/{id}/toggle -> handle_toggle_upload (active <-> inactive)
   POST /uploads/{id}/replace -> handle_replace_upload (version replacement)
+  POST /upload/branding     -> handle_branding_upload (presigned URL for logo/icon)
+  GET  /upload/branding     -> handle_branding_get    (presigned GET URLs for logo/icon)
 """
 
 import json
@@ -37,6 +39,14 @@ def lambda_handler(event, context):
     path = event.get('resource', '') or event.get('path', '')
 
     try:
+        # POST /upload/branding (must check before generic /upload)
+        if method == 'POST' and '/branding' in path:
+            return handle_branding_upload(event, user)
+
+        # GET /upload/branding
+        if method == 'GET' and '/branding' in path:
+            return handle_branding_get(event, user)
+
         # POST /upload (original endpoint)
         if method == 'POST' and '/upload' in path and '/uploads' not in path:
             return handle_upload(event, user)
@@ -425,5 +435,151 @@ def handle_replace_upload(event, user):
             'upload_id': new_upload_id,
             'version': new_version,
             'parent_upload_id': upload_id
+        })
+    }
+
+
+# ============================================================
+# POST /upload/branding — Generate presigned URL for logo/icon
+# ============================================================
+def handle_branding_upload(event, user):
+    body = json.loads(event.get('body', '{}'))
+    client_id = body.get('client_id', '').strip()
+    file_type = body.get('file_type', '').strip()  # "logo" or "icon"
+    content_type = body.get('content_type', 'image/png').strip()
+    file_extension = body.get('file_extension', 'png').strip().lstrip('.')
+
+    if not client_id:
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'client_id is required'})
+        }
+
+    if file_type not in ('logo', 'icon'):
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'file_type must be "logo" or "icon"'})
+        }
+
+    allowed_types = {'image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'}
+    if content_type not in allowed_types:
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': f'Unsupported content_type. Allowed: {", ".join(allowed_types)}'})
+        }
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    db_client_id, _ = _verify_client(cur, client_id, user['user_id'])
+    if not db_client_id:
+        cur.close()
+        conn.close()
+        return {
+            'statusCode': 404,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Client not found'})
+        }
+
+    s3_key = f"{client_id}/branding/{file_type}.{file_extension}"
+
+    presigned_url = s3_client.generate_presigned_url(
+        'put_object',
+        Params={
+            'Bucket': BUCKET_NAME,
+            'Key': s3_key,
+            'ContentType': content_type
+        },
+        ExpiresIn=URL_EXPIRATION
+    )
+
+    # Update the appropriate column in clients table
+    column = 'logo_s3_key' if file_type == 'logo' else 'icon_s3_key'
+    cur.execute(
+        f"UPDATE clients SET {column} = %s, updated_at = NOW() WHERE id = %s",
+        (s3_key, db_client_id)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    print(f"Generated branding upload URL for {file_type}: {s3_key}")
+
+    return {
+        'statusCode': 200,
+        'headers': CORS_HEADERS,
+        'body': json.dumps({
+            'upload_url': presigned_url,
+            's3_key': s3_key
+        })
+    }
+
+
+# ============================================================
+# GET /upload/branding?client_id=X — Get presigned GET URLs for logo/icon
+# ============================================================
+def handle_branding_get(event, user):
+    params = event.get('queryStringParameters') or {}
+    client_id = params.get('client_id', '').strip()
+
+    if not client_id:
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'client_id query parameter is required'})
+        }
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    db_client_id, _ = _verify_client(cur, client_id, user['user_id'])
+    if not db_client_id:
+        cur.close()
+        conn.close()
+        return {
+            'statusCode': 404,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Client not found'})
+        }
+
+    cur.execute(
+        "SELECT logo_s3_key, icon_s3_key FROM clients WHERE id = %s",
+        (db_client_id,)
+    )
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    logo_s3_key = row[0] if row else None
+    icon_s3_key = row[1] if row else None
+
+    logo_url = None
+    icon_url = None
+
+    if logo_s3_key:
+        logo_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': BUCKET_NAME, 'Key': logo_s3_key},
+            ExpiresIn=URL_EXPIRATION
+        )
+
+    if icon_s3_key:
+        icon_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': BUCKET_NAME, 'Key': icon_s3_key},
+            ExpiresIn=URL_EXPIRATION
+        )
+
+    return {
+        'statusCode': 200,
+        'headers': CORS_HEADERS,
+        'body': json.dumps({
+            'logo_url': logo_url,
+            'icon_url': icon_url,
+            'logo_s3_key': logo_s3_key,
+            'icon_s3_key': icon_s3_key
         })
     }

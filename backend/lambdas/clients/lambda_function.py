@@ -62,7 +62,8 @@ def handle_list_clients(event, user):
                    c.created_at, c.updated_at,
                    (SELECT COUNT(*) FROM uploads u WHERE u.client_id = c.id AND u.status = 'active') as source_count,
                    (SELECT e.status FROM enrichments e WHERE e.client_id = c.id ORDER BY e.started_at DESC LIMIT 1) as last_enrichment_status,
-                   (SELECT e.completed_at FROM enrichments e WHERE e.client_id = c.id ORDER BY e.started_at DESC LIMIT 1) as last_enrichment_date
+                   (SELECT e.completed_at FROM enrichments e WHERE e.client_id = c.id ORDER BY e.started_at DESC LIMIT 1) as last_enrichment_date,
+                   c.icon_s3_key
             FROM clients c WHERE c.user_id = %s ORDER BY c.updated_at DESC
         """, (user['user_id'],))
 
@@ -72,6 +73,18 @@ def handle_list_clients(event, user):
 
         clients = []
         for row in rows:
+            icon_s3_key = row[10]
+            icon_url = None
+            if icon_s3_key:
+                try:
+                    icon_url = s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={'Bucket': BUCKET_NAME, 'Key': icon_s3_key},
+                        ExpiresIn=3600
+                    )
+                except Exception:
+                    pass
+
             clients.append({
                 'id': str(row[0]),
                 'company_name': row[1] or '',
@@ -82,7 +95,8 @@ def handle_list_clients(event, user):
                 'updated_at': row[6].isoformat() if row[6] else None,
                 'source_count': row[7] or 0,
                 'enrichment_status': row[8] or 'none',
-                'enrichment_date': row[9].isoformat() if row[9] else None
+                'enrichment_date': row[9].isoformat() if row[9] else None,
+                'icon_url': icon_url
             })
 
         return {
@@ -116,7 +130,7 @@ def handle_get_client(event, user):
             cur.execute("""
                 SELECT id, company_name, website_url, contact_name, contact_title,
                        contact_linkedin, industry, description, pain_point,
-                       s3_folder, created_at, updated_at
+                       s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key
                 FROM clients WHERE s3_folder = %s AND user_id = %s
             """, (client_id, user['user_id']))
         else:
@@ -124,7 +138,7 @@ def handle_get_client(event, user):
             cur.execute("""
                 SELECT id, company_name, website_url, contact_name, contact_title,
                        contact_linkedin, industry, description, pain_point,
-                       s3_folder, created_at, updated_at
+                       s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key
                 FROM clients WHERE user_id = %s
                 ORDER BY created_at DESC LIMIT 1
             """, (user['user_id'],))
@@ -139,6 +153,31 @@ def handle_get_client(event, user):
                 'headers': CORS_HEADERS,
                 'body': json.dumps({'error': 'No client found'})
             }
+
+        logo_s3_key = row[12]
+        icon_s3_key = row[13]
+        logo_url = None
+        icon_url = None
+
+        if logo_s3_key:
+            try:
+                logo_url = s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': BUCKET_NAME, 'Key': logo_s3_key},
+                    ExpiresIn=3600
+                )
+            except Exception:
+                pass
+
+        if icon_s3_key:
+            try:
+                icon_url = s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': BUCKET_NAME, 'Key': icon_s3_key},
+                    ExpiresIn=3600
+                )
+            except Exception:
+                pass
 
         return {
             'statusCode': 200,
@@ -155,7 +194,9 @@ def handle_get_client(event, user):
                 'painPoint': row[8] or '',
                 'client_id': row[9] or '',
                 'created_at': row[10].isoformat() if row[10] else None,
-                'updated_at': row[11].isoformat() if row[11] else None
+                'updated_at': row[11].isoformat() if row[11] else None,
+                'logo_url': logo_url,
+                'icon_url': icon_url
             })
         }
     except Exception as e:

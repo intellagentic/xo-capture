@@ -585,9 +585,23 @@ function DashboardScreen({ onSelectClient, onCreateClient }) {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                {client.company_name}
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                {client.icon_url ? (
+                  <img src={client.icon_url} alt="" style={{ width: '32px', height: '32px', objectFit: 'contain', borderRadius: '8px', flexShrink: 0 }} />
+                ) : (
+                  <div style={{
+                    width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0,
+                    background: 'var(--bg-secondary, #f3f4f6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '0.875rem', fontWeight: 700, color: '#dc2626'
+                  }}>
+                    {(client.company_name || '?')[0].toUpperCase()}
+                  </div>
+                )}
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                  {client.company_name}
+                </h3>
+              </div>
               <ChevronRight size={16} style={{ color: 'var(--text-muted, #9ca3af)', flexShrink: 0, marginTop: '2px' }} />
             </div>
 
@@ -703,7 +717,9 @@ export default function App() {
     contactLinkedIn: '',
     industry: '',
     description: '',
-    painPoint: ''
+    painPoint: '',
+    logoUrl: null,
+    iconUrl: null
   })
 
   // Theme state - persisted to localStorage
@@ -772,7 +788,9 @@ export default function App() {
           contactLinkedIn: data.contactLinkedIn || '',
           industry: data.industry || '',
           description: data.description || '',
-          painPoint: data.painPoint || ''
+          painPoint: data.painPoint || '',
+          logoUrl: data.logo_url || null,
+          iconUrl: data.icon_url || null
         })
         if (data.client_id && !clientId) {
           setClientId(data.client_id)
@@ -868,7 +886,9 @@ export default function App() {
           contactLinkedIn: data.contactLinkedIn || '',
           industry: data.industry || '',
           description: data.description || '',
-          painPoint: data.painPoint || ''
+          painPoint: data.painPoint || '',
+          logoUrl: data.logo_url || null,
+          iconUrl: data.icon_url || null
         })
       }
     } catch (err) {
@@ -881,7 +901,7 @@ export default function App() {
   const handleCreateNewClient = () => {
     setClientId(null)
     localStorage.removeItem('xo-client-id')
-    setCompanyData({ name: '', website: '', contactName: '', contactTitle: '', contactLinkedIn: '', industry: '', description: '', painPoint: '' })
+    setCompanyData({ name: '', website: '', contactName: '', contactTitle: '', contactLinkedIn: '', industry: '', description: '', painPoint: '', logoUrl: null, iconUrl: null })
     setShowCompanyModal(true)
   }
 
@@ -926,7 +946,16 @@ export default function App() {
                 <span className="header-title-mobile">Rapid Prototype</span>
                 <span className="version-badge">Rapid Prototype</span>
               </h1>
-              <p>{currentScreen === 'dashboard' ? 'Client Dashboard' : (companyData.name || 'Domain Partner Onboarding')}</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {currentScreen === 'dashboard' ? 'Client Dashboard' : (
+                  <>
+                    {companyData.logoUrl && (
+                      <img src={companyData.logoUrl} alt="" style={{ height: '20px', maxWidth: '100px', objectFit: 'contain', borderRadius: '3px' }} />
+                    )}
+                    {companyData.name || 'Domain Partner Onboarding'}
+                  </>
+                )}
+              </p>
             </div>
           </div>
           <div className="header-right">
@@ -1204,6 +1233,7 @@ export default function App() {
           setCompanyData={setCompanyData}
           onClose={() => setShowCompanyModal(false)}
           onClientCreate={handleClientCreateFromDashboard}
+          clientId={clientId}
         />
       )}
     </div>
@@ -1213,17 +1243,109 @@ export default function App() {
 // ============================================================
 // COMPANY INFORMATION MODAL
 // ============================================================
-function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate }) {
+function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate, clientId }) {
   const [localData, setLocalData] = useState({ ...companyData })
+  const [logoUrl, setLogoUrl] = useState(companyData.logoUrl || null)
+  const [iconUrl, setIconUrl] = useState(companyData.iconUrl || null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingIcon, setUploadingIcon] = useState(false)
+
+  // Load branding URLs on mount if we have a clientId
+  useEffect(() => {
+    if (clientId) {
+      fetch(`${API_BASE}/upload/branding?client_id=${clientId}`, { headers: getAuthHeaders() })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            if (data.logo_url) setLogoUrl(data.logo_url)
+            if (data.icon_url) setIconUrl(data.icon_url)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [clientId])
+
+  const handleBrandingUpload = async (file, fileType) => {
+    if (!clientId) {
+      alert('Please save partner information first to enable branding uploads.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('File must be under 2MB')
+      return
+    }
+    const ext = file.name.split('.').pop().toLowerCase()
+    const contentTypeMap = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml', webp: 'image/webp' }
+    const contentType = contentTypeMap[ext]
+    if (!contentType) {
+      alert('Supported formats: PNG, JPG, SVG, WebP')
+      return
+    }
+
+    const setUploading = fileType === 'logo' ? setUploadingLogo : setUploadingIcon
+    setUploading(true)
+
+    try {
+      // Get presigned URL
+      const res = await fetch(`${API_BASE}/upload/branding`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ client_id: clientId, file_type: fileType, content_type: contentType, file_extension: ext })
+      })
+      if (!res.ok) throw new Error('Failed to get upload URL')
+      const { upload_url } = await res.json()
+
+      // Upload file to S3
+      await fetch(upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': contentType },
+        body: file
+      })
+
+      // Fetch fresh presigned GET URL
+      const brandingRes = await fetch(`${API_BASE}/upload/branding?client_id=${clientId}`, { headers: getAuthHeaders() })
+      if (brandingRes.ok) {
+        const data = await brandingRes.json()
+        if (fileType === 'logo' && data.logo_url) {
+          setLogoUrl(data.logo_url)
+          setCompanyData(prev => ({ ...prev, logoUrl: data.logo_url }))
+        }
+        if (fileType === 'icon' && data.icon_url) {
+          setIconUrl(data.icon_url)
+          setCompanyData(prev => ({ ...prev, iconUrl: data.icon_url }))
+        }
+      }
+    } catch (err) {
+      console.error(`Failed to upload ${fileType}:`, err)
+      alert(`Failed to upload ${fileType}. Please try again.`)
+    }
+    setUploading(false)
+  }
 
   const handleSave = () => {
     if (!localData.name.trim()) {
       alert('Company name is required')
       return
     }
-    setCompanyData(localData)
+    setCompanyData(prev => ({ ...localData, logoUrl: prev.logoUrl, iconUrl: prev.iconUrl }))
     if (onClientCreate) onClientCreate(localData)
     onClose()
+  }
+
+  const brandingDropZoneStyle = {
+    border: '2px dashed var(--border-color)',
+    borderRadius: '8px',
+    padding: '1rem',
+    textAlign: 'center',
+    cursor: 'pointer',
+    transition: 'border-color 0.2s',
+    position: 'relative',
+    minHeight: '80px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column',
+    gap: '0.5rem'
   }
 
   return (
@@ -1408,6 +1530,113 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                   resize: 'vertical'
                 }}
               />
+            </div>
+
+            {/* Client Branding Section */}
+            <div style={{
+              borderTop: '1px solid var(--border-color)',
+              paddingTop: '1rem',
+              marginTop: '0.5rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                <Image size={16} style={{ color: '#dc2626' }} />
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>Client Branding</span>
+                {!clientId && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)' }}>(save partner info first)</span>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                {/* Logo Upload */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.375rem', color: 'var(--text-primary)' }}>
+                    Company Logo
+                  </label>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted, #6b7280)', marginBottom: '0.5rem' }}>
+                    400x100px, PNG/SVG, transparent bg
+                  </p>
+                  <div
+                    style={{
+                      ...brandingDropZoneStyle,
+                      opacity: clientId ? 1 : 0.5,
+                      pointerEvents: clientId ? 'auto' : 'none'
+                    }}
+                    onClick={() => {
+                      if (!clientId) return
+                      const input = document.createElement('input')
+                      input.type = 'file'
+                      input.accept = '.png,.jpg,.jpeg,.svg,.webp'
+                      input.onchange = (e) => {
+                        if (e.target.files[0]) handleBrandingUpload(e.target.files[0], 'logo')
+                      }
+                      input.click()
+                    }}
+                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#dc2626' }}
+                    onDragLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)' }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      e.currentTarget.style.borderColor = 'var(--border-color)'
+                      if (e.dataTransfer.files[0]) handleBrandingUpload(e.dataTransfer.files[0], 'logo')
+                    }}
+                  >
+                    {uploadingLogo ? (
+                      <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: '#dc2626' }} />
+                    ) : logoUrl ? (
+                      <img src={logoUrl} alt="Logo" style={{ maxHeight: '50px', maxWidth: '100%', objectFit: 'contain' }} />
+                    ) : (
+                      <>
+                        <Upload size={18} style={{ color: 'var(--text-muted, #9ca3af)' }} />
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #9ca3af)' }}>Drop logo or click</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Icon Upload */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.375rem', color: 'var(--text-primary)' }}>
+                    Company Icon
+                  </label>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-muted, #6b7280)', marginBottom: '0.5rem' }}>
+                    128x128px, PNG/SVG, square
+                  </p>
+                  <div
+                    style={{
+                      ...brandingDropZoneStyle,
+                      opacity: clientId ? 1 : 0.5,
+                      pointerEvents: clientId ? 'auto' : 'none'
+                    }}
+                    onClick={() => {
+                      if (!clientId) return
+                      const input = document.createElement('input')
+                      input.type = 'file'
+                      input.accept = '.png,.jpg,.jpeg,.svg,.webp'
+                      input.onchange = (e) => {
+                        if (e.target.files[0]) handleBrandingUpload(e.target.files[0], 'icon')
+                      }
+                      input.click()
+                    }}
+                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#dc2626' }}
+                    onDragLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)' }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      e.currentTarget.style.borderColor = 'var(--border-color)'
+                      if (e.dataTransfer.files[0]) handleBrandingUpload(e.dataTransfer.files[0], 'icon')
+                    }}
+                  >
+                    {uploadingIcon ? (
+                      <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: '#dc2626' }} />
+                    ) : iconUrl ? (
+                      <img src={iconUrl} alt="Icon" style={{ width: '48px', height: '48px', objectFit: 'contain', borderRadius: '8px' }} />
+                    ) : (
+                      <>
+                        <Upload size={18} style={{ color: 'var(--text-muted, #9ca3af)' }} />
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #9ca3af)' }}>Drop icon or click</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
