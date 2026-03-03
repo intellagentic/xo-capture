@@ -1,5 +1,5 @@
 """
-XO Quickstart - Database Seed Script
+XO Capture - Database Seed Script
 Creates admin user and default buttons.
 
 Usage:

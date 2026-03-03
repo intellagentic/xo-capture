@@ -27,6 +27,7 @@ transcribe_client = boto3.client('transcribe')
 BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 FUNCTION_NAME = os.environ.get('AWS_LAMBDA_FUNCTION_NAME', 'xo-enrich')
+STREAMLINE_WEBHOOK_URL = os.environ.get('STREAMLINE_WEBHOOK_URL', '')
 AUDIO_EXTENSIONS = {'mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'wma'}
 SYSTEM_SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'system-skills')
 
@@ -50,6 +51,11 @@ def lambda_handler(event, context):
     # Handle OPTIONS preflight
     if event.get('httpMethod') == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': ''}
+
+    # Route: POST /send-to-streamline
+    resource = event.get('resource', '')
+    if resource == '/send-to-streamline':
+        return _handle_send_to_streamline(event)
 
     # Auth check
     user, err = require_auth(event)
@@ -286,6 +292,17 @@ def _run_enrichment_pipeline(event):
         conn.close()
 
         print(f"Analysis complete for client: {client_id}")
+
+        # Fire webhook to Streamline (non-blocking — enrichment success is independent)
+        _send_streamline_webhook(
+            company_name=company_name,
+            contact_name=contact_name,
+            contact_title=contact_title,
+            model=model,
+            analysis=analysis,
+            source_files=list(extracted_text.keys())
+        )
+
         return {'status': 'complete', 'client_id': client_id}
 
     except Exception as e:
@@ -304,6 +321,109 @@ def _run_enrichment_pipeline(event):
                 pass
 
         return {'status': 'error', 'message': str(e)}
+
+
+def _handle_send_to_streamline(event):
+    """
+    POST /send-to-streamline
+    Re-sends the latest enrichment results to Streamline webhook
+    without re-running enrichment.
+    """
+    user, err = require_auth(event)
+    if err:
+        return err
+
+    conn = None
+    try:
+        body = json.loads(event.get('body', '{}'))
+        client_id = body.get('client_id', '').strip()
+
+        if not client_id:
+            return {
+                'statusCode': 400,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'client_id is required'})
+            }
+
+        if not STREAMLINE_WEBHOOK_URL:
+            return {
+                'statusCode': 400,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'Streamline webhook URL not configured'})
+            }
+
+        # Read client metadata from DB
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT c.company_name, c.contact_name, c.contact_title, c.id,
+                   e.results_s3_key
+            FROM clients c
+            LEFT JOIN enrichments e ON e.client_id = c.id AND e.status = 'complete'
+            WHERE c.s3_folder = %s AND c.user_id = %s
+            ORDER BY e.completed_at DESC
+            LIMIT 1
+        """, (client_id, user['user_id']))
+
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not row:
+            return {
+                'statusCode': 404,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'Client or enrichment not found'})
+            }
+
+        company_name = row[0] or 'Unknown Company'
+        contact_name = row[1] or ''
+        contact_title = row[2] or ''
+        results_s3_key = row[4]
+
+        if not results_s3_key:
+            return {
+                'statusCode': 404,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'No enrichment results found for this client'})
+            }
+
+        # Read results from S3
+        s3_resp = s3_client.get_object(Bucket=BUCKET_NAME, Key=results_s3_key)
+        analysis = json.loads(s3_resp['Body'].read().decode('utf-8'))
+
+        source_files = analysis.get('analyzed_files', [])
+        model_used = analysis.get('model', 'unknown')
+
+        # Send to Streamline
+        _send_streamline_webhook(
+            company_name=company_name,
+            contact_name=contact_name,
+            contact_title=contact_title,
+            model=model_used,
+            analysis=analysis,
+            source_files=source_files
+        )
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'message': 'Results sent to Streamline', 'status': 'sent'})
+        }
+
+    except Exception as e:
+        print(f"Error in send-to-streamline: {str(e)}")
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return {
+            'statusCode': 500,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': str(e)})
+        }
 
 
 def update_enrichment_stage(conn, enrichment_id, stage, status=None):
@@ -736,6 +856,53 @@ def extract_docx(file_content):
     except Exception as e:
         print(f"Error parsing DOCX: {str(e)}")
         return f"Word document with {len(file_content)} bytes"
+
+
+def _send_streamline_webhook(company_name, contact_name, contact_title, model, analysis, source_files):
+    """
+    POST enrichment results to Streamline webhook URL.
+    Non-blocking — logs result but never fails the enrichment.
+    """
+    if not STREAMLINE_WEBHOOK_URL:
+        print("Streamline webhook: no URL configured, skipping")
+        return
+
+    try:
+        import urllib.request
+
+        contact_display = contact_name
+        if contact_title:
+            contact_display += f" ({contact_title})"
+
+        payload = {
+            "client_name": company_name,
+            "client_contact": contact_display,
+            "enrichment_model": model,
+            "enrichment_date": datetime.now(timezone.utc).isoformat(),
+            "executive_summary": analysis.get("summary", ""),
+            "problems_identified": analysis.get("problems", []),
+            "proposed_schema": analysis.get("schema", {}).get("tables", []),
+            "action_plan": {
+                phase.get("phase", ""): phase.get("actions", [])
+                for phase in analysis.get("plan", [])
+            },
+            "data_sources": analysis.get("sources", []),
+            "source_files": source_files,
+            "xo_results_url": "https://d36la414u58rw5.cloudfront.net"
+        }
+
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(
+            STREAMLINE_WEBHOOK_URL,
+            data=data,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        resp = urllib.request.urlopen(req, timeout=10)
+        print(f"Streamline webhook: {resp.status} ({len(data)} bytes sent)")
+
+    except Exception as e:
+        print(f"Streamline webhook failed (non-fatal): {str(e)}")
 
 
 def analyze_with_claude(company_name, website, contact_name, contact_title,

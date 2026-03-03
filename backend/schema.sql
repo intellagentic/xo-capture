@@ -1,5 +1,5 @@
 -- ============================================================
--- XO QUICKSTART - PostgreSQL Schema
+-- XO CAPTURE - PostgreSQL Schema
 -- Database: xo_quickstart
 -- Engine: PostgreSQL 15 on RDS (db.t3.micro)
 -- ============================================================

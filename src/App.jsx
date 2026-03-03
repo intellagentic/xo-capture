@@ -598,7 +598,7 @@ export default function App() {
             <div className="logo-box">XO</div>
             <div className="header-title">
               <h1>
-                <span className="header-title-desktop">XO Quickstart</span>
+                <span className="header-title-desktop">XO Capture</span>
                 <span className="header-title-mobile">Rapid Prototype</span>
                 <span className="version-badge">Rapid Prototype</span>
               </h1>
@@ -3956,6 +3956,8 @@ function ResultsScreen({ setShowModal, clientId }) {
   const [error, setError] = useState(null)
   const [expandedTables, setExpandedTables] = useState({})
   const [expandedProblems, setExpandedProblems] = useState({})
+  const [streamlineSending, setStreamlineSending] = useState(false)
+  const [streamlineStatus, setStreamlineStatus] = useState(null) // null | 'sent' | 'error'
 
   useEffect(() => {
     if (clientId) {
@@ -3976,6 +3978,27 @@ function ResultsScreen({ setShowModal, clientId }) {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const sendToStreamline = async () => {
+    setStreamlineSending(true)
+    setStreamlineStatus(null)
+    try {
+      const response = await fetch(`${API_BASE}/send-to-streamline`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ client_id: clientId })
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Failed to send')
+      setStreamlineStatus('sent')
+      setTimeout(() => setStreamlineStatus(null), 4000)
+    } catch (err) {
+      setStreamlineStatus('error')
+      setTimeout(() => setStreamlineStatus(null), 4000)
+    } finally {
+      setStreamlineSending(false)
     }
   }
 
@@ -4172,6 +4195,32 @@ function ResultsScreen({ setShowModal, clientId }) {
             <h2>Analysis Results</h2>
             <span className="badge-count green">Complete</span>
           </div>
+          {displayResults.status === 'complete' && displayResults.summary && displayResults.summary !== 'Analysis failed' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {streamlineStatus === 'sent' && (
+                <span style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 500 }}>Sent to Streamline</span>
+              )}
+              {streamlineStatus === 'error' && (
+                <span style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 500 }}>Failed to send</span>
+              )}
+              <button
+                onClick={sendToStreamline}
+                disabled={streamlineSending}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 14px',
+                  background: streamlineSending ? '#94a3b8' : '#3b82f6',
+                  color: 'white', border: 'none', borderRadius: 8,
+                  cursor: streamlineSending ? 'not-allowed' : 'pointer',
+                  fontSize: '0.75rem', fontWeight: 600,
+                  transition: 'all .2s'
+                }}
+              >
+                {streamlineSending ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={14} />}
+                {streamlineSending ? 'Sending...' : 'Send to Streamline'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
