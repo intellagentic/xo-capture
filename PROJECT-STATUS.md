@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.25)
+**Status:** Deployed & Operational (v1.26)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -104,13 +104,14 @@ App (root)
 |     +-- Skills         (Database icon)
 |     +-- ---divider---
 |     +-- Configuration  (Settings icon)
+|     +-- Branding       (Image icon) -- workspace only (hidden on dashboard)
 |     +-- Theme Toggle   (Sun/Moon)
 |     +-- Sign Out       (LogOut icon, red)
 |
 +-- DashboardScreen (admin only, currentScreen === 'dashboard')
 |     +-- Header: "All Clients (N)" + "+ New Client" button
 |     +-- Grid of client cards (auto-fill, min 300px)
-|     |     +-- Company name (bold) + chevron right
+|     |     +-- Client icon (32px, or letter fallback) + Company name (bold) + chevron right
 |     |     +-- Industry badge (pill)
 |     |     +-- Source count (FolderOpen icon) + enrichment status badge
 |     |     +-- Last enriched date (if available)
@@ -129,6 +130,8 @@ App (root)
 |     +-- Industry
 |     +-- Description
 |     +-- Immediate Pain Point    <-- NEW (textarea)
+|     +-- ---divider---
+|     +-- Client Branding (logo + icon upload, thumbnail previews)
 |
 +-- Screen Router (currentScreen state)
       |
@@ -167,15 +170,20 @@ App (root)
       |     +-- AddSkillModal (name, content, upload .md)
       |
       +-- ConfigurationScreen
-            +-- AI Model Selector (radio cards)
-            |     +-- Claude Opus 4.5 (default, best analysis)
-            |     +-- Claude Sonnet 4.5 (faster, cheaper)
-            +-- Theme Toggle (light/dark)
-            +-- Configure Buttons (drag-and-drop, inline edit)
-            |     +-- Button Card (grip, icon, label, URL, actions)
-            |     +-- Inline Editor (label, URL, color grid, icon grid)
-            |     +-- "+ Add Button"
-            +-- Live Preview Panel
+      |     +-- AI Model Selector (radio cards)
+      |     |     +-- Claude Opus 4.5 (default, best analysis)
+      |     |     +-- Claude Sonnet 4.5 (faster, cheaper)
+      |     +-- Theme Toggle (light/dark)
+      |     +-- Configure Buttons (drag-and-drop, inline edit)
+      |     |     +-- Button Card (grip, icon, label, URL, actions)
+      |     |     +-- Inline Editor (label, URL, color grid, icon grid)
+      |     |     +-- "+ Add Button"
+      |     +-- Live Preview Panel
+      |
+      +-- BrandingScreen (workspace only)
+            +-- Company Logo card (drop zone, preview, replace)
+            +-- Company Icon card (drop zone, preview, replace)
+            +-- Preview section (header logo mockup, dashboard card icon mockup)
 ```
 
 ### 3. S3 Folder Structure (per client)
@@ -438,7 +446,7 @@ Request/Response Flow:
 src/
   App.jsx          -- Main application component
     - LoginScreen             (Invitation branding, single form, auto-create/login)
-    - Hamburger Sidebar       (Navigation: Welcome, Sources, Enrich, Results, Skills, Configuration, theme toggle -- all always clickable)
+    - Hamburger Sidebar       (Navigation: Welcome, Sources, Enrich, Results, Skills, Configuration, Branding (workspace only), theme toggle -- all always clickable)
     - CompanyInfoModal        (Partner information form - 8 fields, creates client on save)
     - UploadScreen            (3-step journey with founder quotes, Step 2 links to Sources)
     - SourcesScreen           (Source Library + Add Sources — file CRUD, toggle, replace, delete)
@@ -2167,6 +2175,19 @@ cd backend
     - S3 folder structure: `{client_id}/branding/logo.{ext}` and `{client_id}/branding/icon.{ext}`
     - **Deployment needed**: SQL migration, 3 Lambdas (upload, clients, enrich), API Gateway route `/upload/branding` (GET+POST+OPTIONS), frontend build
     - Files: schema.sql, upload/lambda_function.py, clients/lambda_function.py, enrich/lambda_function.py, App.jsx
+
+55. **Branding Screen — Dedicated Sidebar Page** (Session 15 - March 3, 2026)
+    - Moved branding upload from hidden-in-modal to a **dedicated BrandingScreen** component
+    - **Sidebar**: Added "Branding" item (Image icon) between Configuration and Light/Dark Mode toggle
+      - Only visible when inside a client workspace (hidden on All Clients dashboard)
+    - **BrandingScreen** (full page, max-width 700px centered):
+      - Company Logo card — large drop zone with drag-and-drop + click-to-browse, preview after upload, "Click or drop to replace" hint
+      - Company Icon card — same pattern, square format
+      - Preview section (appears after upload): header logo mockup (dark bar with XO box + logo), dashboard card icon mockup (icon + company name)
+      - No-client empty state: "No Client Selected" with guidance message
+    - Branding upload still also available in CompanyInfoModal (compact version at bottom)
+    - Deployed frontend to S3/CloudFront
+    - Files: App.jsx
 
 ---
 

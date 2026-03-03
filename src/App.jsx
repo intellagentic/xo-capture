@@ -1109,6 +1109,29 @@ export default function App() {
                 <Settings size={20} />
                 Configuration
               </button>
+              {currentScreen !== 'dashboard' && clientId && (
+                <button
+                  onClick={() => navigateTo('branding')}
+                  style={{
+                    width: '100%',
+                    background: currentScreen === 'branding' ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
+                    border: 'none',
+                    borderLeft: currentScreen === 'branding' ? '3px solid #dc2626' : '3px solid transparent',
+                    color: currentScreen === 'branding' ? '#dc2626' : '#ffffff',
+                    padding: '0.875rem 1.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Image size={20} />
+                  Branding
+                </button>
+              )}
 
               {/* Theme Toggle in Sidebar */}
               <div style={{
@@ -1224,6 +1247,7 @@ export default function App() {
         {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} />}
         {currentScreen === 'skills' && <SkillsScreen clientId={clientId} />}
         {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} />}
+        {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
       </main>
 
       {/* Company Information Modal */}
@@ -1657,6 +1681,233 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
     </div>
   )
 }
+
+// ============================================================
+// BRANDING SCREEN
+// ============================================================
+function BrandingScreen({ clientId, companyData, setCompanyData }) {
+  const [logoUrl, setLogoUrl] = useState(companyData.logoUrl || null)
+  const [iconUrl, setIconUrl] = useState(companyData.iconUrl || null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingIcon, setUploadingIcon] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (clientId) {
+      fetch(`${API_BASE}/upload/branding?client_id=${clientId}`, { headers: getAuthHeaders() })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            if (data.logo_url) setLogoUrl(data.logo_url)
+            if (data.icon_url) setIconUrl(data.icon_url)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoaded(true))
+    } else {
+      setLoaded(true)
+    }
+  }, [clientId])
+
+  const handleUpload = async (file, fileType) => {
+    if (!clientId) return
+    if (file.size > 2 * 1024 * 1024) {
+      alert('File must be under 2MB')
+      return
+    }
+    const ext = file.name.split('.').pop().toLowerCase()
+    const contentTypeMap = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml', webp: 'image/webp' }
+    const contentType = contentTypeMap[ext]
+    if (!contentType) {
+      alert('Supported formats: PNG, JPG, SVG, WebP')
+      return
+    }
+
+    const setUploading = fileType === 'logo' ? setUploadingLogo : setUploadingIcon
+    setUploading(true)
+
+    try {
+      const res = await fetch(`${API_BASE}/upload/branding`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ client_id: clientId, file_type: fileType, content_type: contentType, file_extension: ext })
+      })
+      if (!res.ok) throw new Error('Failed to get upload URL')
+      const { upload_url } = await res.json()
+
+      await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file })
+
+      const brandingRes = await fetch(`${API_BASE}/upload/branding?client_id=${clientId}`, { headers: getAuthHeaders() })
+      if (brandingRes.ok) {
+        const data = await brandingRes.json()
+        if (fileType === 'logo' && data.logo_url) {
+          setLogoUrl(data.logo_url)
+          setCompanyData(prev => ({ ...prev, logoUrl: data.logo_url }))
+        }
+        if (fileType === 'icon' && data.icon_url) {
+          setIconUrl(data.icon_url)
+          setCompanyData(prev => ({ ...prev, iconUrl: data.icon_url }))
+        }
+      }
+    } catch (err) {
+      console.error(`Failed to upload ${fileType}:`, err)
+      alert(`Failed to upload ${fileType}. Please try again.`)
+    }
+    setUploading(false)
+  }
+
+  const dropZoneBase = {
+    border: '2px dashed var(--border-color)',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    transition: 'border-color 0.2s, background 0.2s',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    position: 'relative'
+  }
+
+  const makeDropHandlers = (fileType) => ({
+    onClick: () => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.png,.jpg,.jpeg,.svg,.webp'
+      input.onchange = (e) => { if (e.target.files[0]) handleUpload(e.target.files[0], fileType) }
+      input.click()
+    },
+    onDragOver: (e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.background = 'rgba(220,38,38,0.04)' },
+    onDragLeave: (e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.background = 'transparent' },
+    onDrop: (e) => {
+      e.preventDefault()
+      e.currentTarget.style.borderColor = 'var(--border-color)'
+      e.currentTarget.style.background = 'transparent'
+      if (e.dataTransfer.files[0]) handleUpload(e.dataTransfer.files[0], fileType)
+    }
+  })
+
+  if (!clientId) {
+    return (
+      <div style={{ padding: '3rem 1.5rem', textAlign: 'center' }}>
+        <Image size={48} style={{ color: 'var(--text-muted, #9ca3af)', margin: '0 auto 1rem' }} />
+        <h3 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem' }}>No Client Selected</h3>
+        <p style={{ color: 'var(--text-muted, #6b7280)' }}>Create or select a client first to manage branding assets.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '1.5rem', maxWidth: '700px', margin: '0 auto' }}>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Image size={22} style={{ color: '#dc2626' }} />
+          Client Branding
+        </h2>
+        <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+          Upload a logo and icon for <strong>{companyData.name || 'this client'}</strong>. These appear on the dashboard, workspace header, and Streamline webhook.
+        </p>
+      </div>
+
+      {/* Company Logo */}
+      <div style={{
+        background: 'var(--bg-primary, #ffffff)',
+        border: '1px solid var(--border-color, #e5e7eb)',
+        borderRadius: '12px',
+        padding: '1.5rem',
+        marginBottom: '1.25rem'
+      }}>
+        <div style={{ marginBottom: '1rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Company Logo</h3>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted, #6b7280)', marginTop: '0.25rem' }}>
+            Recommended: 400x100px, PNG or SVG with transparent background. Max 2MB.
+          </p>
+        </div>
+        <div style={{ ...dropZoneBase, padding: '2rem', minHeight: '120px' }} {...makeDropHandlers('logo')}>
+          {uploadingLogo ? (
+            <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', color: '#dc2626' }} />
+          ) : logoUrl ? (
+            <div style={{ textAlign: 'center' }}>
+              <img src={logoUrl} alt="Logo" style={{ maxHeight: '80px', maxWidth: '100%', objectFit: 'contain' }} />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted, #9ca3af)', marginTop: '0.75rem' }}>Click or drop to replace</p>
+            </div>
+          ) : (
+            <>
+              <Upload size={28} style={{ color: 'var(--text-muted, #9ca3af)' }} />
+              <span style={{ fontSize: '0.875rem', color: 'var(--text-muted, #9ca3af)' }}>Drop logo here or click to browse</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #b0b0b0)' }}>PNG, JPG, SVG, or WebP</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Company Icon */}
+      <div style={{
+        background: 'var(--bg-primary, #ffffff)',
+        border: '1px solid var(--border-color, #e5e7eb)',
+        borderRadius: '12px',
+        padding: '1.5rem',
+        marginBottom: '1.25rem'
+      }}>
+        <div style={{ marginBottom: '1rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Company Icon</h3>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted, #6b7280)', marginTop: '0.25rem' }}>
+            Recommended: 128x128px, PNG or SVG, square format. Shown on dashboard cards. Max 2MB.
+          </p>
+        </div>
+        <div style={{ ...dropZoneBase, padding: '2rem', minHeight: '120px' }} {...makeDropHandlers('icon')}>
+          {uploadingIcon ? (
+            <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', color: '#dc2626' }} />
+          ) : iconUrl ? (
+            <div style={{ textAlign: 'center' }}>
+              <img src={iconUrl} alt="Icon" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '12px' }} />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted, #9ca3af)', marginTop: '0.75rem' }}>Click or drop to replace</p>
+            </div>
+          ) : (
+            <>
+              <Upload size={28} style={{ color: 'var(--text-muted, #9ca3af)' }} />
+              <span style={{ fontSize: '0.875rem', color: 'var(--text-muted, #9ca3af)' }}>Drop icon here or click to browse</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #b0b0b0)' }}>PNG, JPG, SVG, or WebP</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Preview */}
+      {(logoUrl || iconUrl) && (
+        <div style={{
+          background: 'var(--bg-primary, #ffffff)',
+          border: '1px solid var(--border-color, #e5e7eb)',
+          borderRadius: '12px',
+          padding: '1.5rem'
+        }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 1rem' }}>Preview</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {logoUrl && (
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-muted, #6b7280)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Header Logo</span>
+                <div style={{ marginTop: '0.5rem', background: '#1a1a2e', borderRadius: '8px', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ width: '28px', height: '28px', background: '#dc2626', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '0.7rem', fontWeight: 800 }}>XO</div>
+                  <img src={logoUrl} alt="" style={{ height: '20px', maxWidth: '120px', objectFit: 'contain' }} />
+                </div>
+              </div>
+            )}
+            {iconUrl && (
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-muted, #6b7280)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dashboard Card Icon</span>
+                <div style={{ marginTop: '0.5rem', background: 'var(--bg-secondary, #f9fafb)', borderRadius: '8px', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                  <img src={iconUrl} alt="" style={{ width: '32px', height: '32px', objectFit: 'contain', borderRadius: '8px' }} />
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{companyData.name || 'Company Name'}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 // ============================================================
 // UPLOAD SCREEN
