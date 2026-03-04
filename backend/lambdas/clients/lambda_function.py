@@ -43,6 +43,8 @@ def lambda_handler(event, context):
         return handle_update_client(event, user)
     elif method == 'POST':
         return handle_create_client(event, user)
+    elif method == 'DELETE':
+        return handle_delete_client(event, user)
     else:
         return {
             'statusCode': 405,
@@ -320,6 +322,73 @@ def handle_update_client(event, user):
 
     except Exception as e:
         print(f"Error updating client: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Internal server error', 'message': str(e)})
+        }
+
+
+def handle_delete_client(event, user):
+    """DELETE /clients?client_id=X — Delete client and all associated data."""
+    try:
+        params = event.get('queryStringParameters') or {}
+        client_id = params.get('client_id', '').strip()
+
+        if not client_id:
+            return {
+                'statusCode': 400,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'client_id is required'})
+            }
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Verify ownership and get DB id
+        cur.execute("""
+            SELECT id FROM clients WHERE s3_folder = %s AND user_id = %s
+        """, (client_id, user['user_id']))
+        row = cur.fetchone()
+
+        if not row:
+            cur.close()
+            conn.close()
+            return {
+                'statusCode': 404,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'Client not found'})
+            }
+
+        # Delete from DB (cascades to uploads, enrichments, skills)
+        cur.execute("DELETE FROM clients WHERE id = %s", (row[0],))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        # Delete S3 folder and all contents
+        try:
+            paginator = s3_client.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=f"{client_id}/"):
+                objects = page.get('Contents', [])
+                if objects:
+                    s3_client.delete_objects(
+                        Bucket=BUCKET_NAME,
+                        Delete={'Objects': [{'Key': obj['Key']} for obj in objects]}
+                    )
+            print(f"Deleted S3 folder: {client_id}/")
+        except Exception as e:
+            print(f"Warning: failed to delete S3 folder {client_id}/: {e}")
+
+        print(f"Deleted client: {client_id}")
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'deleted': True, 'client_id': client_id})
+        }
+
+    except Exception as e:
+        print(f"Error deleting client: {str(e)}")
         return {
             'statusCode': 500,
             'headers': CORS_HEADERS,

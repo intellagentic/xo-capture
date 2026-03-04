@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.33)
+**Status:** Deployed & Operational (v1.34)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2284,6 +2284,13 @@ cd backend
     - Existing pipeline already handles: Transcribe job start, poll, transcript extraction, filename labeling, inclusion in Claude prompt
     - Files: `src/App.jsx`, `backend/lambdas/enrich/lambda_function.py`
     - Deployed: frontend (S3/CloudFront), xo-enrich Lambda, Lambda timeout config
+
+65. **Delete Client from Dashboard** (Session 17 - March 3, 2026)
+    - **Frontend**: Trash icon on each client card (gray → red on hover), confirmation modal with hardcoded contrast colors (#1a1a1a heading, #444 description), Cancel + Delete buttons matching source delete style
+    - **Backend**: New `handle_delete_client()` in clients Lambda — verifies ownership, deletes from DB (cascades to uploads, enrichments, skills), deletes entire S3 folder via paginated delete
+    - **API Gateway**: Added DELETE method on `/clients` resource → xo-clients Lambda proxy integration + invoke permission, deployed to prod
+    - Files: `src/App.jsx`, `backend/lambdas/clients/lambda_function.py`
+    - Deployed: frontend (S3/CloudFront), xo-clients Lambda, API Gateway
 
 ---
 

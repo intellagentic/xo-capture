@@ -472,6 +472,7 @@ function DashboardScreen({ onSelectClient, onCreateClient }) {
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [deleteConfirmClient, setDeleteConfirmClient] = useState(null)
 
   useEffect(() => {
     fetchClients()
@@ -490,6 +491,23 @@ function DashboardScreen({ onSelectClient, onCreateClient }) {
       setError('Connection failed')
     }
     setLoading(false)
+  }
+
+  const deleteClient = async (client) => {
+    try {
+      const res = await fetch(`${API_BASE}/clients?client_id=${client.client_id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      })
+      if (res.ok) {
+        setDeleteConfirmClient(null)
+        fetchClients()
+      } else {
+        alert('Failed to delete client')
+      }
+    } catch {
+      alert('Failed to delete client')
+    }
   }
 
   const enrichmentBadge = (status) => {
@@ -602,7 +620,21 @@ function DashboardScreen({ onSelectClient, onCreateClient }) {
                   {client.company_name}
                 </h3>
               </div>
-              <ChevronRight size={16} style={{ color: 'var(--text-muted, #9ca3af)', flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteConfirmClient(client) }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem',
+                    color: 'var(--text-muted, #9ca3af)', borderRadius: '4px', display: 'flex'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted, #9ca3af)'}
+                  title="Delete client"
+                >
+                  <Trash2 size={15} />
+                </button>
+                <ChevronRight size={16} style={{ color: 'var(--text-muted, #9ca3af)', marginTop: '1px' }} />
+              </div>
             </div>
 
             {client.industry && (
@@ -632,6 +664,59 @@ function DashboardScreen({ onSelectClient, onCreateClient }) {
           </div>
         ))}
       </div>
+
+      {/* Delete Client Confirmation Modal */}
+      {deleteConfirmClient && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 100
+        }}
+          onClick={() => setDeleteConfirmClient(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#ffffff',
+              border: '1px solid #e5e7eb',
+              borderRadius: '12px', padding: '1.5rem', maxWidth: '400px', width: '90%',
+              textAlign: 'center',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)'
+            }}
+          >
+            <Trash2 size={32} style={{ color: '#ef4444', margin: '0 auto 0.75rem' }} />
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1a1a1a', marginBottom: '0.5rem' }}>
+              Delete {deleteConfirmClient.company_name}?
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: '#444444', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+              This will permanently remove the client and all their sources, enrichments, and branding. This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+              <button
+                onClick={() => setDeleteConfirmClient(null)}
+                style={{
+                  padding: '0.5rem 1.25rem', borderRadius: '8px', fontSize: '0.85rem',
+                  background: '#f3f4f6',
+                  border: '1px solid #d1d5db', color: '#333333',
+                  cursor: 'pointer', fontWeight: 500
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteClient(deleteConfirmClient)}
+                style={{
+                  padding: '0.5rem 1.25rem', borderRadius: '8px', fontSize: '0.85rem',
+                  background: '#ef4444', border: 'none', color: '#ffffff',
+                  cursor: 'pointer', fontWeight: 600
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
