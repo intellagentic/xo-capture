@@ -2144,28 +2144,28 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
         flexWrap: 'wrap'
       }}>
 
-        {/* LEFT COLUMN — Partner Information Form (always editable) */}
+        {/* LEFT COLUMN — Partner Information Form (always editable, light theme) */}
         <div style={{
           flex: '0 0 38%',
           minWidth: '280px',
-          background: '#1a1a2e',
+          background: '#ffffff',
           borderRadius: '12px',
           padding: '1.25rem',
-          border: '2px solid transparent',
+          border: '1px solid #e0e0e0',
           display: 'flex',
           flexDirection: 'column',
           gap: '0.875rem'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
             <Building2 size={18} style={{ color: '#dc2626' }} />
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'white', margin: 0 }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1a1a2e', margin: 0 }}>
               PARTNER INFORMATION
             </h3>
           </div>
 
           {/* Company Name */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
               Company Name *
             </label>
             <input
@@ -2175,9 +2175,9 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               placeholder="Enter company name"
               style={{
                 width: '100%', padding: '0.5rem 0.625rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '6px', fontSize: '0.85rem', color: 'white',
+                background: '#f9fafb',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px', fontSize: '0.85rem', color: '#111827',
                 fontFamily: 'inherit', outline: 'none'
               }}
             />
@@ -2185,7 +2185,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
 
           {/* Website URL */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
               Website URL
             </label>
             <input
@@ -2195,9 +2195,9 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               placeholder="https://example.com"
               style={{
                 width: '100%', padding: '0.5rem 0.625rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '6px', fontSize: '0.85rem', color: 'white',
+                background: '#f9fafb',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px', fontSize: '0.85rem', color: '#111827',
                 fontFamily: 'inherit', outline: 'none'
               }}
             />
@@ -2205,7 +2205,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
 
           {/* Industry */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
               Industry / Vertical
             </label>
             <input
@@ -2215,9 +2215,9 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               placeholder="e.g., Waste Management, Healthcare"
               style={{
                 width: '100%', padding: '0.5rem 0.625rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '6px', fontSize: '0.85rem', color: 'white',
+                background: '#f9fafb',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px', fontSize: '0.85rem', color: '#111827',
                 fontFamily: 'inherit', outline: 'none'
               }}
             />
@@ -2225,7 +2225,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
 
           {/* Description */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
               Description
             </label>
             <textarea
@@ -2235,9 +2235,9 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               rows={2}
               style={{
                 width: '100%', padding: '0.5rem 0.625rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '6px', fontSize: '0.85rem', color: 'white',
+                background: '#f9fafb',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px', fontSize: '0.85rem', color: '#111827',
                 fontFamily: 'inherit', outline: 'none', resize: 'vertical'
               }}
             />
@@ -2245,7 +2245,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
 
           {/* Pain Point */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
               Immediate Pain Point
             </label>
             <textarea
@@ -2255,21 +2255,21 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               rows={2}
               style={{
                 width: '100%', padding: '0.5rem 0.625rem',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '6px', fontSize: '0.85rem', color: 'white',
+                background: '#f9fafb',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px', fontSize: '0.85rem', color: '#111827',
                 fontFamily: 'inherit', outline: 'none', resize: 'vertical'
               }}
             />
           </div>
 
           {/* Divider */}
-          <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)' }} />
+          <div style={{ height: '1px', background: '#e5e7eb' }} />
 
           {/* Contacts Section */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                 Contacts
               </label>
               <button
@@ -2278,8 +2278,8 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.25rem',
                   padding: '0.2rem 0.5rem', fontSize: '0.7rem', fontWeight: 600,
-                  background: 'rgba(220, 38, 38, 0.15)', color: '#dc2626',
-                  border: '1px solid rgba(220, 38, 38, 0.3)', borderRadius: '4px', cursor: 'pointer'
+                  background: 'rgba(220, 38, 38, 0.08)', color: '#dc2626',
+                  border: '1px solid rgba(220, 38, 38, 0.25)', borderRadius: '4px', cursor: 'pointer'
                 }}
               >
                 <Plus size={12} /> Add
@@ -2288,8 +2288,8 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
 
             {formContacts.length === 0 && (
               <div style={{
-                border: '1px dashed rgba(255, 255, 255, 0.12)', borderRadius: '6px',
-                padding: '0.75rem', textAlign: 'center', color: 'rgba(255, 255, 255, 0.35)',
+                border: '1px dashed #d1d5db', borderRadius: '6px',
+                padding: '0.75rem', textAlign: 'center', color: '#9ca3af',
                 fontSize: '0.75rem'
               }}>
                 No contacts yet
@@ -2298,31 +2298,31 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
 
             {formContacts.map((contact, idx) => (
               <div key={idx} style={{
-                border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px',
+                border: '1px solid #e5e7eb', borderRadius: '8px',
                 padding: '0.625rem', marginBottom: '0.5rem',
-                background: 'rgba(255, 255, 255, 0.02)'
+                background: '#f9fafb'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: idx === 0 ? '#dc2626' : 'rgba(255, 255, 255, 0.4)' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: idx === 0 ? '#dc2626' : '#6b7280' }}>
                     {idx === 0 ? 'Primary Contact' : `Contact ${idx + 1}`}
                   </span>
                   <button type="button" onClick={() => removeContact(idx)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255, 255, 255, 0.3)', padding: '2px' }}>
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px' }}>
                     <Trash2 size={12} />
                   </button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.375rem' }}>
                   <input type="text" value={contact.name} onChange={(e) => updateContact(idx, 'name', e.target.value)}
-                    placeholder="Name" style={{ width: '100%', padding: '0.375rem 0.5rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '5px', fontSize: '0.75rem', color: 'white', fontFamily: 'inherit', outline: 'none' }} />
+                    placeholder="Name" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
                   <input type="text" value={contact.title} onChange={(e) => updateContact(idx, 'title', e.target.value)}
-                    placeholder="Title" style={{ width: '100%', padding: '0.375rem 0.5rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '5px', fontSize: '0.75rem', color: 'white', fontFamily: 'inherit', outline: 'none' }} />
+                    placeholder="Title" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
                   <input type="email" value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)}
-                    placeholder="Email" style={{ width: '100%', padding: '0.375rem 0.5rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '5px', fontSize: '0.75rem', color: 'white', fontFamily: 'inherit', outline: 'none' }} />
+                    placeholder="Email" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
                   <input type="text" value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)}
-                    placeholder="Phone" style={{ width: '100%', padding: '0.375rem 0.5rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '5px', fontSize: '0.75rem', color: 'white', fontFamily: 'inherit', outline: 'none' }} />
+                    placeholder="Phone" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
                 </div>
                 <input type="url" value={contact.linkedin || ''} onChange={(e) => updateContact(idx, 'linkedin', e.target.value)}
-                  placeholder="LinkedIn URL" style={{ width: '100%', padding: '0.375rem 0.5rem', marginTop: '0.375rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '5px', fontSize: '0.75rem', color: 'white', fontFamily: 'inherit', outline: 'none' }} />
+                  placeholder="LinkedIn URL" style={{ width: '100%', padding: '0.375rem 0.5rem', marginTop: '0.375rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
               </div>
             ))}
           </div>
