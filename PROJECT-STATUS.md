@@ -2263,6 +2263,13 @@ cd backend
     - Files: `src/App.jsx`, `backend/lambdas/clients/lambda_function.py`, `backend/lambdas/enrich/lambda_function.py`, `backend/schema.sql`
     - Deployed: frontend (S3/CloudFront), xo-clients Lambda, xo-enrich Lambda
 
+62. **Fix xo-clients Lambda — missing auth_helper** (Session 17 - March 3, 2026)
+    - **Root cause**: Session 61 deploy zipped only `clients/` directory, missing `auth_helper.py` from `backend/lambdas/shared/`
+    - Lambda failed with `Runtime.ImportModuleError: No module named 'auth_helper'`
+    - **Fix**: Copied `auth_helper.py` into zip alongside `lambda_function.py`, redeployed
+    - Verified: Lambda returns 401 (correct — no auth token in test), no more import errors
+    - Dashboard `/clients/list` endpoint restored
+
 ---
 
 ## PENDING ITEMS
