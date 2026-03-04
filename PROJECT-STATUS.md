@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.31)
+**Status:** Deployed & Operational (v1.32)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2269,6 +2269,12 @@ cd backend
     - **Fix**: Copied `auth_helper.py` into zip alongside `lambda_function.py`, redeployed
     - Verified: Lambda returns 401 (correct — no auth token in test), no more import errors
     - Dashboard `/clients/list` endpoint restored
+
+63. **Client Banner — show uploaded icon/logo** (Session 17 - March 3, 2026)
+    - Banner now uses priority: logo → icon → letter fallback (previously skipped icon)
+    - Branding upload state refresh already working (both CompanyInfoModal and BrandingScreen call `setCompanyData` after upload)
+    - Single file change: `src/App.jsx`
+    - Deployed frontend to S3/CloudFront
 
 ---
 

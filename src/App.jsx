@@ -1234,14 +1234,18 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div style={{
-                  width: '44px', height: '44px', borderRadius: '10px', flexShrink: 0,
-                  background: '#1a1a2e',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '1.25rem', fontWeight: 700, color: '#dc2626'
-                }}>
-                  {(companyData.name || '?')[0].toUpperCase()}
-                </div>
+                {companyData.iconUrl ? (
+                  <img src={companyData.iconUrl} alt="" style={{ width: '44px', height: '44px', objectFit: 'contain', borderRadius: '10px', flexShrink: 0 }} />
+                ) : (
+                  <div style={{
+                    width: '44px', height: '44px', borderRadius: '10px', flexShrink: 0,
+                    background: '#1a1a2e',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '1.25rem', fontWeight: 700, color: '#dc2626'
+                  }}>
+                    {(companyData.name || '?')[0].toUpperCase()}
+                  </div>
+                )}
                 <div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
                     {companyData.name || 'New Client'}
