@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.37)
+**Status:** Deployed & Operational (v1.38)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2313,6 +2313,15 @@ cd backend
     - **Removed**: Domain Expertise card (functionality moved to profile card)
     - **Responsive**: flexWrap wrap with minWidth constraints — stacks vertically on narrow viewports
     - **Empty state**: Left column shows "New Partner" button when no client configured
+    - Single file change: `src/App.jsx`
+    - Deployed frontend to S3/CloudFront
+
+69. **Inline Partner Information Form + Domain Expertise Card Restored** (Session 19 - March 3, 2026)
+    - **Left Column**: Replaced read-only profile card with always-visible, editable Partner Information form — Company Name, Website URL, Industry, Description, Pain Point fields + Contacts section with Add/Remove (2-col grid: Name, Title, Email, Phone + LinkedIn) + Save button with loading state
+    - **Right Column**: Restored Domain Expertise card as first card (step 1, "The Filter") showing company name/industry when saved; Raw Data card (step 2); Intellagentic Growth card (step 3) — all three stacked vertically
+    - **No modal needed**: Partner info is edited directly in the left column; form state syncs from companyData on client switch
+    - **Dark theme inputs**: All form fields use semi-transparent backgrounds matching the card style
+    - Props added: `setCompanyData` and `onClientCreate` passed to UploadScreen for inline save
     - Single file change: `src/App.jsx`
     - Deployed frontend to S3/CloudFront
 

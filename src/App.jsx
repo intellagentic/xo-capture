@@ -1344,6 +1344,8 @@ export default function App() {
             setClientId={setClientId}
             clientId={clientId}
             companyData={companyData}
+            setCompanyData={setCompanyData}
+            onClientCreate={handleClientCreate}
             onComplete={() => setCurrentScreen('enrich')}
             onOpenCompanyModal={() => setShowCompanyModal(true)}
             configButtons={configButtons}
@@ -2052,10 +2054,57 @@ function BrandingScreen({ clientId, companyData, setCompanyData }) {
 // ============================================================
 // UPLOAD SCREEN
 // ============================================================
-function UploadScreen({ setClientId, clientId, companyData, onComplete, onOpenCompanyModal, configButtons, onNavigate }) {
+function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onClientCreate, onComplete, onOpenCompanyModal, configButtons, onNavigate }) {
   const [error, setError] = useState(null)
   const [sourceCount, setSourceCount] = useState(0)
   const [activeCount, setActiveCount] = useState(0)
+
+  // Inline form state
+  const [formData, setFormData] = useState({
+    name: companyData.name || '',
+    website: companyData.website || '',
+    industry: companyData.industry || '',
+    description: companyData.description || '',
+    painPoint: companyData.painPoint || ''
+  })
+  const [formContacts, setFormContacts] = useState(() =>
+    (companyData.contacts || []).map(c => ({ ...c }))
+  )
+  const [saving, setSaving] = useState(false)
+
+  // Sync form when companyData changes externally (e.g. client switch)
+  useEffect(() => {
+    setFormData({
+      name: companyData.name || '',
+      website: companyData.website || '',
+      industry: companyData.industry || '',
+      description: companyData.description || '',
+      painPoint: companyData.painPoint || ''
+    })
+    setFormContacts((companyData.contacts || []).map(c => ({ ...c })))
+  }, [companyData.name, clientId])
+
+  const addContact = () => {
+    setFormContacts(prev => [...prev, { name: '', title: '', email: '', phone: '', linkedin: '' }])
+  }
+  const updateContact = (index, field, value) => {
+    setFormContacts(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c))
+  }
+  const removeContact = (index) => {
+    setFormContacts(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleFormSave = async () => {
+    if (!formData.name.trim()) {
+      alert('Company name is required')
+      return
+    }
+    setSaving(true)
+    const saveData = { ...formData, contacts: formContacts }
+    setCompanyData(prev => ({ ...saveData, logoUrl: prev.logoUrl, iconUrl: prev.iconUrl }))
+    if (onClientCreate) await onClientCreate(saveData)
+    setSaving(false)
+  }
 
   // Fetch source counts when clientId is available
   useEffect(() => {
@@ -2095,7 +2144,7 @@ function UploadScreen({ setClientId, clientId, companyData, onComplete, onOpenCo
         flexWrap: 'wrap'
       }}>
 
-        {/* LEFT COLUMN — Client Profile Card */}
+        {/* LEFT COLUMN — Partner Information Form (always editable) */}
         <div style={{
           flex: '0 0 38%',
           minWidth: '280px',
@@ -2105,188 +2154,257 @@ function UploadScreen({ setClientId, clientId, companyData, onComplete, onOpenCo
           border: '2px solid transparent',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.75rem'
+          gap: '0.875rem'
         }}>
-          {!companyData.name ? (
-            <>
-              <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'white', marginBottom: '0.25rem' }}>
-                CLIENT PROFILE
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.6)', lineHeight: 1.5 }}>
-                Tell us about your business. YOU are the filter.
-              </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+            <Building2 size={18} style={{ color: '#dc2626' }} />
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'white', margin: 0 }}>
+              PARTNER INFORMATION
+            </h3>
+          </div>
+
+          {/* Company Name */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Company Name *
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Enter company name"
+              style={{
+                width: '100%', padding: '0.5rem 0.625rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '6px', fontSize: '0.85rem', color: 'white',
+                fontFamily: 'inherit', outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* Website URL */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Website URL
+            </label>
+            <input
+              type="url"
+              value={formData.website}
+              onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+              placeholder="https://example.com"
+              style={{
+                width: '100%', padding: '0.5rem 0.625rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '6px', fontSize: '0.85rem', color: 'white',
+                fontFamily: 'inherit', outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* Industry */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Industry / Vertical
+            </label>
+            <input
+              type="text"
+              value={formData.industry}
+              onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+              placeholder="e.g., Waste Management, Healthcare"
+              style={{
+                width: '100%', padding: '0.5rem 0.625rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '6px', fontSize: '0.85rem', color: 'white',
+                fontFamily: 'inherit', outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Description
+            </label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Brief description of the business"
+              rows={2}
+              style={{
+                width: '100%', padding: '0.5rem 0.625rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '6px', fontSize: '0.85rem', color: 'white',
+                fontFamily: 'inherit', outline: 'none', resize: 'vertical'
+              }}
+            />
+          </div>
+
+          {/* Pain Point */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Immediate Pain Point
+            </label>
+            <textarea
+              value={formData.painPoint}
+              onChange={(e) => setFormData({ ...formData, painPoint: e.target.value })}
+              placeholder="What's the one problem you need solved?"
+              rows={2}
+              style={{
+                width: '100%', padding: '0.5rem 0.625rem',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '6px', fontSize: '0.85rem', color: 'white',
+                fontFamily: 'inherit', outline: 'none', resize: 'vertical'
+              }}
+            />
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)' }} />
+
+          {/* Contacts Section */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                Contacts
+              </label>
               <button
-                onClick={onOpenCompanyModal}
-                className="action-btn red"
-                style={{ justifyContent: 'center', padding: '0.75rem', fontSize: '0.9rem', width: '100%' }}
-              >
-                <Building2 size={18} />
-                New Partner
-              </button>
-            </>
-          ) : (
-            <>
-              {/* Logo / Icon / Letter Avatar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                {companyData.logoUrl ? (
-                  <img src={companyData.logoUrl} alt={companyData.name} style={{ height: '48px', maxWidth: '160px', objectFit: 'contain' }} />
-                ) : companyData.iconUrl ? (
-                  <img src={companyData.iconUrl} alt="" style={{ width: '48px', height: '48px', objectFit: 'contain', borderRadius: '10px' }} />
-                ) : (
-                  <div style={{
-                    width: '48px', height: '48px', borderRadius: '10px', flexShrink: 0,
-                    background: 'rgba(220, 38, 38, 0.15)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '1.25rem', fontWeight: 700, color: '#dc2626'
-                  }}>
-                    {(companyData.name || '?')[0].toUpperCase()}
-                  </div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {companyData.name}
-                  </div>
-                  {companyData.industry && (
-                    <span style={{
-                      display: 'inline-block',
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      color: 'rgba(255, 255, 255, 0.5)',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      padding: '0.15rem 0.5rem',
-                      borderRadius: '4px',
-                      marginTop: '0.25rem'
-                    }}>
-                      {companyData.industry}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Website */}
-              {companyData.website && (
-                <a
-                  href={companyData.website.startsWith('http') ? companyData.website : `https://${companyData.website}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    fontSize: '0.75rem',
-                    color: '#dc2626',
-                    textDecoration: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.375rem',
-                    opacity: 0.8
-                  }}
-                >
-                  <Globe size={12} />
-                  {companyData.website.replace(/^https?:\/\//, '')}
-                </a>
-              )}
-
-              {/* Divider */}
-              <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)' }} />
-
-              {/* Contacts Section */}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Contacts
-                  </span>
-                  <button
-                    onClick={onOpenCompanyModal}
-                    style={{
-                      background: 'none', border: 'none', color: '#dc2626',
-                      fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
-                      padding: '0.125rem 0.25rem', display: 'flex', alignItems: 'center', gap: '0.25rem'
-                    }}
-                  >
-                    <Plus size={12} />
-                    Add
-                  </button>
-                </div>
-
-                {(companyData.contacts || []).length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {(companyData.contacts || []).map((contact, idx) => (
-                      <div key={idx} style={{
-                        padding: '0.625rem',
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        borderRadius: '8px',
-                        border: '1px solid rgba(255, 255, 255, 0.06)'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.25rem' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'white' }}>
-                            {contact.name || 'Unnamed'}
-                          </span>
-                          {idx === 0 && (
-                            <span style={{
-                              fontSize: '0.6rem', fontWeight: 600, color: '#dc2626',
-                              background: 'rgba(220, 38, 38, 0.15)',
-                              padding: '0.1rem 0.35rem', borderRadius: '3px'
-                            }}>
-                              Primary
-                            </span>
-                          )}
-                        </div>
-                        {contact.title && (
-                          <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.5)', marginBottom: '0.2rem' }}>
-                            {contact.title}
-                          </div>
-                        )}
-                        {contact.email && (
-                          <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.4)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <Mail size={10} />
-                            {contact.email}
-                          </div>
-                        )}
-                        {contact.phone && (
-                          <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.4)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.1rem' }}>
-                            <Phone size={10} />
-                            {contact.phone}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.4)', fontStyle: 'italic', margin: 0 }}>
-                    No contacts added yet
-                  </p>
-                )}
-              </div>
-
-              {/* Edit Details Button */}
-              <button
-                onClick={onOpenCompanyModal}
+                type="button"
+                onClick={addContact}
                 style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  background: 'rgba(220, 38, 38, 0.1)',
-                  border: '1px solid rgba(220, 38, 38, 0.25)',
-                  borderRadius: '8px',
-                  color: '#dc2626',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.375rem',
-                  marginTop: '0.25rem'
+                  display: 'flex', alignItems: 'center', gap: '0.25rem',
+                  padding: '0.2rem 0.5rem', fontSize: '0.7rem', fontWeight: 600,
+                  background: 'rgba(220, 38, 38, 0.15)', color: '#dc2626',
+                  border: '1px solid rgba(220, 38, 38, 0.3)', borderRadius: '4px', cursor: 'pointer'
                 }}
               >
-                <Edit2 size={13} />
-                Edit Details
+                <Plus size={12} /> Add
               </button>
-            </>
-          )}
+            </div>
+
+            {formContacts.length === 0 && (
+              <div style={{
+                border: '1px dashed rgba(255, 255, 255, 0.12)', borderRadius: '6px',
+                padding: '0.75rem', textAlign: 'center', color: 'rgba(255, 255, 255, 0.35)',
+                fontSize: '0.75rem'
+              }}>
+                No contacts yet
+              </div>
+            )}
+
+            {formContacts.map((contact, idx) => (
+              <div key={idx} style={{
+                border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px',
+                padding: '0.625rem', marginBottom: '0.5rem',
+                background: 'rgba(255, 255, 255, 0.02)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: idx === 0 ? '#dc2626' : 'rgba(255, 255, 255, 0.4)' }}>
+                    {idx === 0 ? 'Primary Contact' : `Contact ${idx + 1}`}
+                  </span>
+                  <button type="button" onClick={() => removeContact(idx)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255, 255, 255, 0.3)', padding: '2px' }}>
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.375rem' }}>
+                  <input type="text" value={contact.name} onChange={(e) => updateContact(idx, 'name', e.target.value)}
+                    placeholder="Name" style={{ width: '100%', padding: '0.375rem 0.5rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '5px', fontSize: '0.75rem', color: 'white', fontFamily: 'inherit', outline: 'none' }} />
+                  <input type="text" value={contact.title} onChange={(e) => updateContact(idx, 'title', e.target.value)}
+                    placeholder="Title" style={{ width: '100%', padding: '0.375rem 0.5rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '5px', fontSize: '0.75rem', color: 'white', fontFamily: 'inherit', outline: 'none' }} />
+                  <input type="email" value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)}
+                    placeholder="Email" style={{ width: '100%', padding: '0.375rem 0.5rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '5px', fontSize: '0.75rem', color: 'white', fontFamily: 'inherit', outline: 'none' }} />
+                  <input type="text" value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)}
+                    placeholder="Phone" style={{ width: '100%', padding: '0.375rem 0.5rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '5px', fontSize: '0.75rem', color: 'white', fontFamily: 'inherit', outline: 'none' }} />
+                </div>
+                <input type="url" value={contact.linkedin || ''} onChange={(e) => updateContact(idx, 'linkedin', e.target.value)}
+                  placeholder="LinkedIn URL" style={{ width: '100%', padding: '0.375rem 0.5rem', marginTop: '0.375rem', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '5px', fontSize: '0.75rem', color: 'white', fontFamily: 'inherit', outline: 'none' }} />
+              </div>
+            ))}
+          </div>
+
+          {/* Save Button */}
+          <button
+            onClick={handleFormSave}
+            disabled={saving}
+            style={{
+              width: '100%', padding: '0.625rem',
+              background: saving ? 'rgba(220, 38, 38, 0.4)' : '#dc2626',
+              border: 'none', borderRadius: '8px',
+              color: 'white', fontSize: '0.85rem', fontWeight: 600,
+              cursor: saving ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            {saving ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
+            {saving ? 'Saving...' : 'Save Partner Information'}
+          </button>
         </div>
 
         {/* RIGHT COLUMN — Workflow Cards */}
         <div style={{ flex: '1 1 0', minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
-          {/* Raw Data Card */}
+          {/* Card 1: Domain Expertise */}
+          <div style={{
+            background: '#1a1a2e',
+            borderRadius: '12px',
+            padding: '0.875rem',
+            border: step1Complete ? '2px solid #dc2626' : '2px solid transparent',
+            transition: 'all 0.3s',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                background: step1Complete ? '#dc2626' : 'rgba(220, 38, 38, 0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '2px solid rgba(220, 38, 38, 0.3)', transition: 'all 0.3s'
+              }}>
+                {step1Complete ? (
+                  <CheckCircle2 size={20} style={{ color: 'white' }} />
+                ) : (
+                  <span style={{ fontSize: '1rem', fontWeight: 700, color: '#dc2626' }}>1</span>
+                )}
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'white', marginBottom: '0.15rem', letterSpacing: '-0.01em' }}>
+                  DOMAIN EXPERTISE
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                  The Filter
+                </p>
+                <p style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.5, marginBottom: '0.5rem' }}>
+                  Tell us about your business. YOU are the filter.
+                </p>
+
+                {step1Complete ? (
+                  <div style={{
+                    padding: '0.625rem',
+                    background: 'rgba(220, 38, 38, 0.1)',
+                    border: '1px solid rgba(220, 38, 38, 0.3)',
+                    borderRadius: '8px'
+                  }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'white' }}>{companyData.name}</div>
+                    {companyData.industry && (
+                      <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', marginTop: '0.15rem' }}>{companyData.industry}</div>
+                    )}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.45)', fontStyle: 'italic' }}>
+                    Fill in partner information and save →
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Raw Data */}
           <div style={{
             background: '#1a1a2e',
             borderRadius: '12px',
@@ -2306,7 +2424,7 @@ function UploadScreen({ setClientId, clientId, companyData, onComplete, onOpenCo
                 {step2Complete ? (
                   <CheckCircle2 size={20} style={{ color: 'white' }} />
                 ) : (
-                  <span style={{ fontSize: '1rem', fontWeight: 700, color: '#dc2626' }}>1</span>
+                  <span style={{ fontSize: '1rem', fontWeight: 700, color: '#dc2626' }}>2</span>
                 )}
               </div>
               <div style={{ flex: 1 }}>
@@ -2367,7 +2485,7 @@ function UploadScreen({ setClientId, clientId, companyData, onComplete, onOpenCo
             </div>
           </div>
 
-          {/* Intellagentic Growth Card */}
+          {/* Card 3: Intellagentic Growth */}
           <div style={{
             background: allStepsComplete ? '#1a1a2e' : '#2a2a3e',
             borderRadius: '12px',
@@ -2385,7 +2503,7 @@ function UploadScreen({ setClientId, clientId, companyData, onComplete, onOpenCo
                 border: `2px solid ${allStepsComplete ? 'rgba(220, 38, 38, 0.3)' : 'rgba(150, 150, 150, 0.4)'}`,
                 transition: 'all 0.3s'
               }}>
-                <span style={{ fontSize: '1rem', fontWeight: 700, color: allStepsComplete ? '#dc2626' : '#999' }}>2</span>
+                <span style={{ fontSize: '1rem', fontWeight: 700, color: allStepsComplete ? '#dc2626' : '#999' }}>3</span>
               </div>
               <div style={{ flex: 1 }}>
                 <h3 style={{
