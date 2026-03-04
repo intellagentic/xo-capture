@@ -131,7 +131,8 @@ def handle_get_client(event, user):
                 SELECT id, company_name, website_url, contact_name, contact_title,
                        contact_linkedin, industry, description, pain_point,
                        s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
-                       COALESCE(streamline_webhook_enabled, FALSE)
+                       COALESCE(streamline_webhook_enabled, FALSE),
+                       contact_email, contact_phone
                 FROM clients WHERE s3_folder = %s AND user_id = %s
             """, (client_id, user['user_id']))
         else:
@@ -140,7 +141,8 @@ def handle_get_client(event, user):
                 SELECT id, company_name, website_url, contact_name, contact_title,
                        contact_linkedin, industry, description, pain_point,
                        s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
-                       COALESCE(streamline_webhook_enabled, FALSE)
+                       COALESCE(streamline_webhook_enabled, FALSE),
+                       contact_email, contact_phone
                 FROM clients WHERE user_id = %s
                 ORDER BY created_at DESC LIMIT 1
             """, (user['user_id'],))
@@ -199,7 +201,9 @@ def handle_get_client(event, user):
                 'updated_at': row[11].isoformat() if row[11] else None,
                 'logo_url': logo_url,
                 'icon_url': icon_url,
-                'streamline_webhook_enabled': bool(row[14])
+                'streamline_webhook_enabled': bool(row[14]),
+                'contactEmail': row[15] or '',
+                'contactPhone': row[16] or ''
             })
         }
     except Exception as e:
@@ -240,7 +244,9 @@ def handle_update_client(event, user):
         # Build dynamic SET clause — streamline_webhook_enabled is optional
         set_fields = [
             "company_name = %s", "website_url = %s", "contact_name = %s",
-            "contact_title = %s", "contact_linkedin = %s", "industry = %s",
+            "contact_title = %s", "contact_linkedin = %s",
+            "contact_email = %s", "contact_phone = %s",
+            "industry = %s",
             "description = %s", "pain_point = %s", "updated_at = NOW()"
         ]
         params = [
@@ -249,6 +255,8 @@ def handle_update_client(event, user):
             body.get('contactName', '').strip(),
             body.get('contactTitle', '').strip(),
             body.get('contactLinkedIn', '').strip(),
+            body.get('contactEmail', '').strip(),
+            body.get('contactPhone', '').strip(),
             body.get('industry', '').strip(),
             body.get('description', '').strip(),
             body.get('painPoint', '').strip(),
@@ -278,7 +286,9 @@ def handle_update_client(event, user):
             body.get('contactLinkedIn', '').strip(),
             body.get('industry', '').strip(),
             body.get('description', '').strip(),
-            body.get('painPoint', '').strip()
+            body.get('painPoint', '').strip(),
+            contact_email=body.get('contactEmail', '').strip(),
+            contact_phone=body.get('contactPhone', '').strip()
         )
         s3_client.put_object(
             Bucket=BUCKET_NAME,
@@ -327,6 +337,8 @@ def handle_create_client(event, user):
         contact_name = body.get('contactName', '').strip()
         contact_title = body.get('contactTitle', '').strip()
         contact_linkedin = body.get('contactLinkedIn', '').strip()
+        contact_email = body.get('contactEmail', '').strip()
+        contact_phone = body.get('contactPhone', '').strip()
         industry = body.get('industry', '').strip()
         description = body.get('description', '').strip()
         pain_point = body.get('painPoint', '').strip()
@@ -357,7 +369,8 @@ def handle_create_client(event, user):
         # Generate client-config.md
         config_md = generate_client_config(
             company_name, website, contact_name, contact_title,
-            contact_linkedin, industry, description, pain_point
+            contact_linkedin, industry, description, pain_point,
+            contact_email=contact_email, contact_phone=contact_phone
         )
         s3_client.put_object(
             Bucket=BUCKET_NAME,
@@ -376,12 +389,14 @@ def handle_create_client(event, user):
         cur.execute("""
             INSERT INTO clients (
                 user_id, company_name, website_url, contact_name, contact_title,
-                contact_linkedin, industry, description, pain_point, s3_folder
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                contact_linkedin, contact_email, contact_phone,
+                industry, description, pain_point, s3_folder
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (
             user['user_id'], company_name, website, contact_name, contact_title,
-            contact_linkedin, industry, description, pain_point, client_id
+            contact_linkedin, contact_email, contact_phone,
+            industry, description, pain_point, client_id
         ))
 
         db_id = str(cur.fetchone()[0])
@@ -505,7 +520,8 @@ def copy_default_skill(client_id):
 
 
 def generate_client_config(company_name, website, contact_name, contact_title,
-                           contact_linkedin, industry, description, pain_point):
+                           contact_linkedin, industry, description, pain_point,
+                           contact_email='', contact_phone=''):
     """Generate a client-config.md structured context document."""
     today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
@@ -526,7 +542,7 @@ def generate_client_config(company_name, website, contact_name, contact_title,
     if description:
         sections.append(f"- **Description:** {description}")
 
-    if contact_name or contact_title or contact_linkedin:
+    if contact_name or contact_title or contact_linkedin or contact_email or contact_phone:
         sections.append("")
         sections.append("## Primary Contact")
         sections.append("")
@@ -536,6 +552,10 @@ def generate_client_config(company_name, website, contact_name, contact_title,
             sections.append(f"- **Title:** {contact_title}")
         if contact_linkedin:
             sections.append(f"- **LinkedIn:** {contact_linkedin}")
+        if contact_email:
+            sections.append(f"- **Email:** {contact_email}")
+        if contact_phone:
+            sections.append(f"- **Phone:** {contact_phone}")
 
     if pain_point:
         sections.append("")

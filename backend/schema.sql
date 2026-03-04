@@ -149,3 +149,10 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS icon_s3_key VARCHAR(500);
 -- Per-client toggle to auto-send enrichment results to Streamline
 -- ============================================================
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS streamline_webhook_enabled BOOLEAN DEFAULT FALSE;
+
+-- ============================================================
+-- CONTACT EMAIL & PHONE (migration)
+-- Direct contact details for client primary contact
+-- ============================================================
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS contact_email VARCHAR(500);
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(100);

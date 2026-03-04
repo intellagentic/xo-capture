@@ -203,7 +203,8 @@ def _run_enrichment_pipeline(event):
             SELECT company_name, website_url, contact_name, contact_title,
                    contact_linkedin, industry, description, pain_point,
                    logo_s3_key, icon_s3_key,
-                   COALESCE(streamline_webhook_enabled, FALSE)
+                   COALESCE(streamline_webhook_enabled, FALSE),
+                   contact_email, contact_phone
             FROM clients WHERE id = %s
         """, (db_client_id,))
         row = cur.fetchone()
@@ -223,6 +224,8 @@ def _run_enrichment_pipeline(event):
         logo_s3_key = row[8] or ''
         icon_s3_key = row[9] or ''
         streamline_webhook_enabled = bool(row[10])
+        contact_email = row[11] or ''
+        contact_phone = row[12] or ''
 
         # Load system skills (bundled with Lambda, always injected first)
         system_skills = load_system_skills()
@@ -304,6 +307,8 @@ def _run_enrichment_pipeline(event):
                 company_name=company_name,
                 contact_name=contact_name,
                 contact_title=contact_title,
+                contact_email=contact_email,
+                contact_phone=contact_phone,
                 model=model,
                 analysis=analysis,
                 source_files=list(extracted_text.keys()),
@@ -368,7 +373,8 @@ def _handle_send_to_streamline(event):
 
         cur.execute("""
             SELECT c.company_name, c.contact_name, c.contact_title, c.id,
-                   e.results_s3_key, c.logo_s3_key, c.icon_s3_key
+                   e.results_s3_key, c.logo_s3_key, c.icon_s3_key,
+                   c.contact_email, c.contact_phone
             FROM clients c
             LEFT JOIN enrichments e ON e.client_id = c.id AND e.status = 'complete'
             WHERE c.s3_folder = %s AND c.user_id = %s
@@ -393,6 +399,8 @@ def _handle_send_to_streamline(event):
         results_s3_key = row[4]
         logo_s3_key = row[5] or ''
         icon_s3_key = row[6] or ''
+        contact_email = row[7] or ''
+        contact_phone = row[8] or ''
 
         if not results_s3_key:
             return {
@@ -413,6 +421,8 @@ def _handle_send_to_streamline(event):
             company_name=company_name,
             contact_name=contact_name,
             contact_title=contact_title,
+            contact_email=contact_email,
+            contact_phone=contact_phone,
             model=model_used,
             analysis=analysis,
             source_files=source_files,
@@ -872,7 +882,7 @@ def extract_docx(file_content):
         return f"Word document with {len(file_content)} bytes"
 
 
-def _send_streamline_webhook(company_name, contact_name, contact_title, model, analysis, source_files, logo_s3_key='', icon_s3_key=''):
+def _send_streamline_webhook(company_name, contact_name, contact_title, model, analysis, source_files, logo_s3_key='', icon_s3_key='', contact_email='', contact_phone=''):
     """
     POST enrichment results to Streamline webhook URL.
     Non-blocking — logs result but never fails the enrichment.
@@ -891,6 +901,8 @@ def _send_streamline_webhook(company_name, contact_name, contact_title, model, a
         payload = {
             "client_name": company_name,
             "client_contact": contact_display,
+            "client_email": contact_email,
+            "client_phone": contact_phone,
             "enrichment_model": model,
             "enrichment_date": datetime.now(timezone.utc).isoformat(),
             "executive_summary": analysis.get("summary", ""),

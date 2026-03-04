@@ -715,6 +715,8 @@ export default function App() {
     contactName: '',
     contactTitle: '',
     contactLinkedIn: '',
+    contactEmail: '',
+    contactPhone: '',
     industry: '',
     description: '',
     painPoint: '',
@@ -786,6 +788,8 @@ export default function App() {
           contactName: data.contactName || '',
           contactTitle: data.contactTitle || '',
           contactLinkedIn: data.contactLinkedIn || '',
+          contactEmail: data.contactEmail || '',
+          contactPhone: data.contactPhone || '',
           industry: data.industry || '',
           description: data.description || '',
           painPoint: data.painPoint || '',
@@ -834,6 +838,8 @@ export default function App() {
             contactName: data.contactName,
             contactTitle: data.contactTitle,
             contactLinkedIn: data.contactLinkedIn,
+            contactEmail: data.contactEmail,
+            contactPhone: data.contactPhone,
             industry: data.industry,
             description: data.description,
             painPoint: data.painPoint
@@ -853,6 +859,8 @@ export default function App() {
             contactName: data.contactName,
             contactTitle: data.contactTitle,
             contactLinkedIn: data.contactLinkedIn,
+            contactEmail: data.contactEmail,
+            contactPhone: data.contactPhone,
             industry: data.industry,
             description: data.description,
             painPoint: data.painPoint
@@ -884,6 +892,8 @@ export default function App() {
           contactName: data.contactName || '',
           contactTitle: data.contactTitle || '',
           contactLinkedIn: data.contactLinkedIn || '',
+          contactEmail: data.contactEmail || '',
+          contactPhone: data.contactPhone || '',
           industry: data.industry || '',
           description: data.description || '',
           painPoint: data.painPoint || '',
@@ -901,7 +911,7 @@ export default function App() {
   const handleCreateNewClient = () => {
     setClientId(null)
     localStorage.removeItem('xo-client-id')
-    setCompanyData({ name: '', website: '', contactName: '', contactTitle: '', contactLinkedIn: '', industry: '', description: '', painPoint: '', logoUrl: null, iconUrl: null })
+    setCompanyData({ name: '', website: '', contactName: '', contactTitle: '', contactLinkedIn: '', contactEmail: '', contactPhone: '', industry: '', description: '', painPoint: '', logoUrl: null, iconUrl: null })
     setShowCompanyModal(true)
   }
 
@@ -1492,6 +1502,48 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                 value={localData.contactTitle}
                 onChange={(e) => setLocalData({ ...localData, contactTitle: e.target.value })}
                 placeholder="e.g., CEO, Operations Manager"
+                style={{
+                  width: '100%',
+                  padding: '0.625rem',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  fontSize: '0.875rem',
+                  fontFamily: 'inherit'
+                }}
+              />
+            </div>
+
+            {/* Contact Email */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+                Contact Email
+              </label>
+              <input
+                type="email"
+                value={localData.contactEmail}
+                onChange={(e) => setLocalData({ ...localData, contactEmail: e.target.value })}
+                placeholder="email@company.com"
+                style={{
+                  width: '100%',
+                  padding: '0.625rem',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  fontSize: '0.875rem',
+                  fontFamily: 'inherit'
+                }}
+              />
+            </div>
+
+            {/* Contact Phone */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+                Contact Phone
+              </label>
+              <input
+                type="text"
+                value={localData.contactPhone}
+                onChange={(e) => setLocalData({ ...localData, contactPhone: e.target.value })}
+                placeholder="+1 555-123-4567"
                 style={{
                   width: '100%',
                   padding: '0.625rem',

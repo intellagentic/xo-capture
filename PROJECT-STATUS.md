@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.30)
+**Status:** Deployed & Operational (v1.31)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2253,6 +2253,15 @@ cd backend
     - **Without logo**: Shows letter fallback icon + company name (bold) + "Client Workspace" subtitle
     - Single file change: `src/App.jsx`
     - Deployed frontend to S3/CloudFront
+
+61. **Contact Email & Phone Fields** (Session 17 - March 3, 2026)
+    - **Frontend**: Added "Contact Email" (email input) and "Contact Phone" (text input for international formats like +44, +1) to Domain Expertise form, between Contact Title and LinkedIn
+    - **Database**: Added `contact_email VARCHAR(500)` and `contact_phone VARCHAR(100)` columns to clients table via migration
+    - **Clients Lambda**: GET returns `contactEmail`/`contactPhone`, PUT/POST persist both fields, `generate_client_config()` includes email/phone in Primary Contact section
+    - **Enrich Lambda**: Reads `contact_email`/`contact_phone` from DB, passes to Streamline webhook as `client_email`/`client_phone`
+    - **Schema**: Added ALTER TABLE statements in `schema.sql`
+    - Files: `src/App.jsx`, `backend/lambdas/clients/lambda_function.py`, `backend/lambdas/enrich/lambda_function.py`, `backend/schema.sql`
+    - Deployed: frontend (S3/CloudFront), xo-clients Lambda, xo-enrich Lambda
 
 ---
 
