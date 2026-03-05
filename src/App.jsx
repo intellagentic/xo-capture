@@ -1441,6 +1441,8 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
   const removeLocalAddress = (index) => {
     setLocalAddresses(prev => prev.filter((_, i) => i !== index))
   }
+  const [modalContactsExpanded, setModalContactsExpanded] = useState(false)
+  const [modalAddressesExpanded, setModalAddressesExpanded] = useState(false)
   const [logoUrl, setLogoUrl] = useState(companyData.logoUrl || null)
   const [iconUrl, setIconUrl] = useState(companyData.iconUrl || null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
@@ -1632,7 +1634,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                 </div>
               )}
 
-              {localContacts.map((contact, idx) => (
+              {localContacts.map((contact, idx) => (idx > 0 && !modalContactsExpanded) ? null : (
                 <div key={idx} style={{
                   border: '1px solid var(--border-color)', borderRadius: '8px',
                   padding: '0.75rem', marginBottom: '0.75rem'
@@ -1650,25 +1652,50 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                     </button>
                   </div>
 
-                  {/* 2-column grid: First Name, Last Name, Title, Email, Phone */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <input type="text" value={contact.firstName || ''} onChange={(e) => updateContact(idx, 'firstName', e.target.value)}
-                      placeholder="First Name" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
-                    <input type="text" value={contact.lastName || ''} onChange={(e) => updateContact(idx, 'lastName', e.target.value)}
-                      placeholder="Last Name" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <input type="text" value={contact.firstName || ''} onChange={(e) => updateContact(idx, 'firstName', e.target.value)}
+                        placeholder="First Name" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
+                      <input type="text" value={contact.lastName || ''} onChange={(e) => updateContact(idx, 'lastName', e.target.value)}
+                        placeholder="Last Name" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
+                    </div>
+                    {localData.name && (
+                      <div style={{ padding: '0.5rem', background: 'var(--bg-secondary, #f3f4f6)', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        {localData.name}
+                      </div>
+                    )}
                     <input type="text" value={contact.title} onChange={(e) => updateContact(idx, 'title', e.target.value)}
                       placeholder="Title / Role" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
-                    <input type="email" value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)}
-                      placeholder="Email" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
-                    <input type="text" value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)}
-                      placeholder="Phone" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <input type="email" value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)}
+                        placeholder="Email" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
+                      <input type="text" value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)}
+                        placeholder="Phone" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
+                    </div>
+                    <input type="url" value={contact.linkedin} onChange={(e) => updateContact(idx, 'linkedin', e.target.value)}
+                      placeholder="LinkedIn URL" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
                   </div>
-
-                  {/* Full-width LinkedIn */}
-                  <input type="url" value={contact.linkedin} onChange={(e) => updateContact(idx, 'linkedin', e.target.value)}
-                    placeholder="LinkedIn URL" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
                 </div>
               ))}
+
+              {localContacts.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setModalContactsExpanded(prev => !prev)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '0.3rem',
+                    padding: '0.25rem 0', fontSize: '0.8rem', fontWeight: 600,
+                    color: 'var(--accent-color, #3b82f6)'
+                  }}
+                >
+                  {modalContactsExpanded ? (
+                    <><ChevronUp size={14} /> Hide {localContacts.length - 1} more contact{localContacts.length - 1 > 1 ? 's' : ''}</>
+                  ) : (
+                    <><ChevronDown size={14} /> View {localContacts.length - 1} more contact{localContacts.length - 1 > 1 ? 's' : ''}</>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Addresses Section */}
@@ -1702,7 +1729,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                 </div>
               )}
 
-              {localAddresses.map((addr, idx) => (
+              {localAddresses.map((addr, idx) => (idx > 0 && !modalAddressesExpanded) ? null : (
                 <div key={idx} style={{
                   border: '1px solid var(--border-color)', borderRadius: '8px',
                   padding: '0.75rem', marginBottom: '0.75rem'
@@ -1738,6 +1765,25 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                   </div>
                 </div>
               ))}
+
+              {localAddresses.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setModalAddressesExpanded(prev => !prev)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '0.3rem',
+                    padding: '0.25rem 0', fontSize: '0.8rem', fontWeight: 600,
+                    color: 'var(--accent-color, #3b82f6)'
+                  }}
+                >
+                  {modalAddressesExpanded ? (
+                    <><ChevronUp size={14} /> Hide {localAddresses.length - 1} more address{localAddresses.length - 1 > 1 ? 'es' : ''}</>
+                  ) : (
+                    <><ChevronDown size={14} /> View {localAddresses.length - 1} more address{localAddresses.length - 1 > 1 ? 'es' : ''}</>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Industry */}
@@ -2440,20 +2486,29 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                     <Trash2 size={12} />
                   </button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.375rem' }}>
-                  <input type="text" value={contact.firstName || ''} onChange={(e) => updateContact(idx, 'firstName', e.target.value)} onBlur={autoSave}
-                    placeholder="First Name" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
-                  <input type="text" value={contact.lastName || ''} onChange={(e) => updateContact(idx, 'lastName', e.target.value)} onBlur={autoSave}
-                    placeholder="Last Name" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.375rem' }}>
+                    <input type="text" value={contact.firstName || ''} onChange={(e) => updateContact(idx, 'firstName', e.target.value)} onBlur={autoSave}
+                      placeholder="First Name" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
+                    <input type="text" value={contact.lastName || ''} onChange={(e) => updateContact(idx, 'lastName', e.target.value)} onBlur={autoSave}
+                      placeholder="Last Name" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
+                  </div>
+                  {formData.name && (
+                    <div style={{ padding: '0.375rem 0.5rem', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: '5px', fontSize: '0.75rem', color: '#6b7280' }}>
+                      {formData.name}
+                    </div>
+                  )}
                   <input type="text" value={contact.title} onChange={(e) => updateContact(idx, 'title', e.target.value)} onBlur={autoSave}
                     placeholder="Title" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
-                  <input type="email" value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)} onBlur={autoSave}
-                    placeholder="Email" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
-                  <input type="text" value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)} onBlur={autoSave}
-                    placeholder="Phone" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.375rem' }}>
+                    <input type="email" value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)} onBlur={autoSave}
+                      placeholder="Email" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
+                    <input type="text" value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)} onBlur={autoSave}
+                      placeholder="Phone" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
+                  </div>
+                  <input type="url" value={contact.linkedin || ''} onChange={(e) => updateContact(idx, 'linkedin', e.target.value)} onBlur={autoSave}
+                    placeholder="LinkedIn URL" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
                 </div>
-                <input type="url" value={contact.linkedin || ''} onChange={(e) => updateContact(idx, 'linkedin', e.target.value)} onBlur={autoSave}
-                  placeholder="LinkedIn URL" style={{ width: '100%', padding: '0.375rem 0.5rem', marginTop: '0.375rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
               </div>
             ))}
 

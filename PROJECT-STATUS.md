@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.44)
+**Status:** Deployed & Operational (v1.45)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2374,6 +2374,16 @@ cd backend
     - **Toggle**: Clicking expands to show all; clicking again collapses ("Hide X more contacts/addresses" with ChevronUp icon)
     - **Add button always visible**: "+ Add" button stays accessible regardless of expanded/collapsed state
     - Proper index preservation: uses ternary `null` pattern in `.map()` to maintain original array indices for update/remove handlers
+    - Single file change: `src/App.jsx`
+    - Deployed frontend to S3/CloudFront
+
+76. **Company Name on Contact Cards** (Session 21 - March 5, 2026)
+    - Each contact card now displays company/organization name as a read-only row between Name and Title
+    - **Layout order**: First Name + Last Name → Company Name (gray, read-only) → Title → Email + Phone → LinkedIn
+    - Company name sourced from Organization Profile's Company Name field (`formData.name` in UploadScreen, `localData.name` in CompanyInfoModal)
+    - Only shown when company name is populated; hidden otherwise
+    - Applied to both UploadScreen left column and CompanyInfoModal
+    - Also added expand/collapse to CompanyInfoModal contacts and addresses (matching UploadScreen pattern from v1.44)
     - Single file change: `src/App.jsx`
     - Deployed frontend to S3/CloudFront
 
