@@ -2593,81 +2593,48 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
             </div>
           </div>
 
-        </div>
-      </div>
-
-      {/* Founder Quotes */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        gap: '1.5rem',
-        margin: '1rem 0 1rem',
-        padding: '0 0.5rem'
-      }}>
-        {/* Alan's Quote */}
-        <div style={{
-          position: 'relative',
-          padding: '0.25rem 0'
-        }}>
+          {/* Founder Quotes */}
           <div style={{
-            fontSize: '3.5rem',
-            lineHeight: 0.8,
-            color: '#dc2626',
-            fontFamily: 'Georgia, serif',
-            marginBottom: '0.25rem',
-            opacity: 0.8
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '1rem',
+            marginTop: '0.25rem'
           }}>
-            "
-          </div>
-          <p style={{
-            fontSize: '0.95rem',
-            fontStyle: 'italic',
-            color: 'var(--text-primary)',
-            lineHeight: 1.6,
-            marginBottom: '0.625rem'
-          }}>
-            I wasn't leading. I was typing at 6:00 AM. I became my own admin clerk.
-          </p>
-          <p style={{
-            fontSize: '0.75rem',
-            color: 'var(--text-secondary)',
-            margin: 0
-          }}>
-            — Alan Moore, Co-Founder & CEO, Intellagentic
-          </p>
-        </div>
+            {/* Alan's Quote */}
+            <div style={{ padding: '0.25rem 0' }}>
+              <div style={{
+                fontSize: '3rem', lineHeight: 0.8, color: '#dc2626',
+                fontFamily: 'Georgia, serif', marginBottom: '0.25rem', opacity: 0.8
+              }}>"</div>
+              <p style={{
+                fontSize: '0.85rem', fontStyle: 'italic', color: 'var(--text-primary)',
+                lineHeight: 1.6, marginBottom: '0.5rem'
+              }}>
+                I wasn't leading. I was typing at 6:00 AM. I became my own admin clerk.
+              </p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>
+                — Alan Moore, Co-Founder & CEO
+              </p>
+            </div>
 
-        {/* Ken's Quote */}
-        <div style={{
-          position: 'relative',
-          padding: '0.25rem 0'
-        }}>
-          <div style={{
-            fontSize: '3.5rem',
-            lineHeight: 0.8,
-            color: '#dc2626',
-            fontFamily: 'Georgia, serif',
-            marginBottom: '0.25rem',
-            opacity: 0.8
-          }}>
-            "
+            {/* Ken's Quote */}
+            <div style={{ padding: '0.25rem 0' }}>
+              <div style={{
+                fontSize: '3rem', lineHeight: 0.8, color: '#dc2626',
+                fontFamily: 'Georgia, serif', marginBottom: '0.25rem', opacity: 0.8
+              }}>"</div>
+              <p style={{
+                fontSize: '0.85rem', fontStyle: 'italic', color: 'var(--text-primary)',
+                lineHeight: 1.6, marginBottom: '0.5rem'
+              }}>
+                We're business operators first, not technologists. We built this because we needed it.
+              </p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: 0 }}>
+                — Ken Scott, Co-Founder & President
+              </p>
+            </div>
           </div>
-          <p style={{
-            fontSize: '0.95rem',
-            fontStyle: 'italic',
-            color: 'var(--text-primary)',
-            lineHeight: 1.6,
-            marginBottom: '0.625rem'
-          }}>
-            We're business operators first, not technologists. We built this because we needed it.
-          </p>
-          <p style={{
-            fontSize: '0.75rem',
-            color: 'var(--text-secondary)',
-            margin: 0
-          }}>
-            — Ken Scott, Co-Founder & President, Intellagentic
-          </p>
+
         </div>
       </div>
 
