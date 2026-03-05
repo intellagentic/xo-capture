@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.49)
+**Status:** Deployed & Operational (v1.50)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2418,6 +2418,15 @@ cd backend
     - Non-admin users unchanged — still restricted to their own clients
     - Files: `backend/lambdas/clients/lambda_function.py`
     - Deployed xo-clients Lambda
+
+81. **Fix Enrichment Lambda sniffio Import Error** (Session 22 - March 5, 2026)
+    - Enrichment was failing at cold start: `No module named 'sniffio'` (a dependency of the Anthropic SDK)
+    - Root cause: `sniffio` module directory was missing from deployment package — only `.dist-info` metadata was present
+    - Installed `sniffio` into `package/` directory
+    - Also fixed zip build process: was zipping with `package/` prefix (modules at `package/sniffio/`) instead of zipping from inside `package/` (modules at `sniffio/` root level, matching `deploy-enrich.sh`)
+    - Verified cold start succeeds with OPTIONS invoke returning 200
+    - Files: `backend/lambdas/enrich/package/sniffio/` (new module)
+    - Deployed xo-enrich Lambda
 
 ---
 
