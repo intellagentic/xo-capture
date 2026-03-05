@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.39)
+**Status:** Deployed & Operational (v1.40)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2329,6 +2329,13 @@ cd backend
     - **Inputs**: Light gray background (#f9fafb) with gray borders (#d1d5db); labels in muted gray (#6b7280)
     - **Contacts**: Cards use #f9fafb background with #e5e7eb borders; inner inputs white with gray borders
     - **Divider**: Changed from semi-transparent white to #e5e7eb
+    - Single file change: `src/App.jsx`
+    - Deployed frontend to S3/CloudFront
+
+71. **Screenshot Tip, Text Input Source, Partner Form Autosave** (Session 20 - March 4, 2026)
+    - **Screenshot tip**: Added tip below file drop zone — "You can screenshot WhatsApp messages, text conversations, or any screen and drop them in as images." PNG, JPG, JPEG, WEBP added to valid upload extensions and file picker accept list
+    - **Text input source**: New "Paste Text Source" section in Add Sources panel — source label field + large textarea + "Add Source" button; creates a `.txt` file in S3 (named from label + timestamp) via presigned URL upload, included in enrichment like any other upload
+    - **Partner form autosave**: All form fields (Company Name, Website, Industry, Description, Pain Point, all contact inputs) trigger `autoSave` on blur; Save button replaced with subtle "Saving..." spinner / green "Saved" checkmark indicator that fades after 2 seconds; form state syncs on client switch
     - Single file change: `src/App.jsx`
     - Deployed frontend to S3/CloudFront
 

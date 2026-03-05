@@ -2071,6 +2071,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
     (companyData.contacts || []).map(c => ({ ...c }))
   )
   const [saving, setSaving] = useState(false)
+  const [savedIndicator, setSavedIndicator] = useState(false)
 
   // Sync form when companyData changes externally (e.g. client switch)
   useEffect(() => {
@@ -2094,16 +2095,16 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
     setFormContacts(prev => prev.filter((_, i) => i !== index))
   }
 
-  const handleFormSave = async () => {
-    if (!formData.name.trim()) {
-      alert('Company name is required')
-      return
-    }
+  // Autosave: called on blur from any form field
+  const autoSave = async () => {
+    if (!formData.name.trim()) return
     setSaving(true)
     const saveData = { ...formData, contacts: formContacts }
     setCompanyData(prev => ({ ...saveData, logoUrl: prev.logoUrl, iconUrl: prev.iconUrl }))
     if (onClientCreate) await onClientCreate(saveData)
     setSaving(false)
+    setSavedIndicator(true)
+    setTimeout(() => setSavedIndicator(false), 2000)
   }
 
   // Fetch source counts when clientId is available
@@ -2172,6 +2173,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onBlur={autoSave}
               placeholder="Enter company name"
               style={{
                 width: '100%', padding: '0.5rem 0.625rem',
@@ -2192,6 +2194,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               type="url"
               value={formData.website}
               onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+              onBlur={autoSave}
               placeholder="https://example.com"
               style={{
                 width: '100%', padding: '0.5rem 0.625rem',
@@ -2212,6 +2215,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               type="text"
               value={formData.industry}
               onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+              onBlur={autoSave}
               placeholder="e.g., Waste Management, Healthcare"
               style={{
                 width: '100%', padding: '0.5rem 0.625rem',
@@ -2231,6 +2235,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onBlur={autoSave}
               placeholder="Brief description of the business"
               rows={2}
               style={{
@@ -2251,6 +2256,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
             <textarea
               value={formData.painPoint}
               onChange={(e) => setFormData({ ...formData, painPoint: e.target.value })}
+              onBlur={autoSave}
               placeholder="What's the one problem you need solved?"
               rows={2}
               style={{
@@ -2312,38 +2318,40 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                   </button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.375rem' }}>
-                  <input type="text" value={contact.name} onChange={(e) => updateContact(idx, 'name', e.target.value)}
+                  <input type="text" value={contact.name} onChange={(e) => updateContact(idx, 'name', e.target.value)} onBlur={autoSave}
                     placeholder="Name" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
-                  <input type="text" value={contact.title} onChange={(e) => updateContact(idx, 'title', e.target.value)}
+                  <input type="text" value={contact.title} onChange={(e) => updateContact(idx, 'title', e.target.value)} onBlur={autoSave}
                     placeholder="Title" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
-                  <input type="email" value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)}
+                  <input type="email" value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)} onBlur={autoSave}
                     placeholder="Email" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
-                  <input type="text" value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)}
+                  <input type="text" value={contact.phone} onChange={(e) => updateContact(idx, 'phone', e.target.value)} onBlur={autoSave}
                     placeholder="Phone" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
                 </div>
-                <input type="url" value={contact.linkedin || ''} onChange={(e) => updateContact(idx, 'linkedin', e.target.value)}
+                <input type="url" value={contact.linkedin || ''} onChange={(e) => updateContact(idx, 'linkedin', e.target.value)} onBlur={autoSave}
                   placeholder="LinkedIn URL" style={{ width: '100%', padding: '0.375rem 0.5rem', marginTop: '0.375rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
               </div>
             ))}
           </div>
 
-          {/* Save Button */}
-          <button
-            onClick={handleFormSave}
-            disabled={saving}
-            style={{
-              width: '100%', padding: '0.625rem',
-              background: saving ? 'rgba(220, 38, 38, 0.4)' : '#dc2626',
-              border: 'none', borderRadius: '8px',
-              color: 'white', fontSize: '0.85rem', fontWeight: 600,
-              cursor: saving ? 'not-allowed' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
-              transition: 'all 0.2s'
-            }}
-          >
-            {saving ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
-            {saving ? 'Saving...' : 'Save Partner Information'}
-          </button>
+          {/* Autosave Indicator */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: '0.375rem', padding: '0.375rem 0', minHeight: '1.5rem',
+            transition: 'opacity 0.3s',
+            opacity: saving || savedIndicator ? 1 : 0
+          }}>
+            {saving ? (
+              <>
+                <Loader2 size={13} style={{ animation: 'spin 1s linear infinite', color: '#6b7280' }} />
+                <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Saving...</span>
+              </>
+            ) : savedIndicator ? (
+              <>
+                <CheckCircle size={13} style={{ color: '#22c55e' }} />
+                <span style={{ fontSize: '0.75rem', color: '#22c55e' }}>Saved</span>
+              </>
+            ) : null}
+          </div>
         </div>
 
         {/* RIGHT COLUMN — Workflow Cards */}
@@ -2703,6 +2711,11 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
   const [replacingId, setReplacingId] = useState(null)
 
+  // Text input source state
+  const [textSourceLabel, setTextSourceLabel] = useState('')
+  const [textSourceContent, setTextSourceContent] = useState('')
+  const [textSourceSaving, setTextSourceSaving] = useState(false)
+
   // Google Drive state
   const [gdriveConnected, setGdriveConnected] = useState(false)
   const [gdriveLoading, setGdriveLoading] = useState(false)
@@ -2760,7 +2773,7 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
   const uploadFiles = async (fileList) => {
     if (!clientId) return
 
-    const validExtensions = ['csv', 'txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'json', 'xml', 'zip', 'mp3', 'wav', 'm4a', 'aac']
+    const validExtensions = ['csv', 'txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'json', 'xml', 'zip', 'mp3', 'wav', 'm4a', 'aac', 'png', 'jpg', 'jpeg', 'webp']
     const filtered = fileList.filter(file => {
       const ext = file.name.split('.').pop().toLowerCase()
       return validExtensions.includes(ext)
@@ -2804,6 +2817,42 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
       console.error('Upload error:', err)
       setPendingFiles([])
     }
+  }
+
+  // Upload text as a .txt file source
+  const addTextSource = async () => {
+    if (!clientId || !textSourceContent.trim()) return
+    setTextSourceSaving(true)
+    try {
+      const label = (textSourceLabel.trim() || 'Text Note').replace(/[^a-zA-Z0-9 _-]/g, '')
+      const fileName = `${label.replace(/\s+/g, '_')}_${Date.now()}.txt`
+      const blob = new Blob([textSourceContent], { type: 'text/plain' })
+      const file = new File([blob], fileName, { type: 'text/plain' })
+
+      const res = await fetch(`${API_BASE}/upload`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          client_id: clientId,
+          files: [{ name: file.name, type: file.type, size: file.size }]
+        })
+      })
+      if (!res.ok) throw new Error('Failed to get upload URL')
+      const { upload_urls } = await res.json()
+
+      await fetch(upload_urls[0], {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': 'text/plain' }
+      })
+
+      await fetchUploads()
+      setTextSourceLabel('')
+      setTextSourceContent('')
+    } catch (err) {
+      console.error('Text source upload error:', err)
+    }
+    setTextSourceSaving(false)
   }
 
   // === CRUD Handlers ===
@@ -3292,17 +3341,27 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
               Drop files here or click to browse
             </p>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              CSV, Excel, Word, PDF, Video, Audio, JSON, and more
+              CSV, Excel, Word, PDF, Images, Video, Audio, JSON, and more
             </p>
             <input
               id="sources-file-input"
               type="file"
               multiple
-              accept=".csv,.txt,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.json,.xml,.zip,.mp3,.wav,.m4a,.aac,.mp4,.webm"
+              accept=".csv,.txt,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.json,.xml,.zip,.mp3,.wav,.m4a,.aac,.mp4,.webm,.png,.jpg,.jpeg,.webp"
               onChange={handleFileSelect}
               style={{ display: 'none' }}
             />
           </div>
+
+          {/* Screenshot tip */}
+          <p style={{
+            fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem',
+            padding: '0.5rem 0.75rem',
+            background: 'var(--surface-secondary, rgba(0,0,0,0.03))',
+            borderRadius: '6px', lineHeight: 1.5
+          }}>
+            <strong style={{ color: 'var(--text-secondary)' }}>Tip:</strong> You can screenshot WhatsApp messages, text conversations, or any screen and drop them in as images. We accept PNG, JPG, and PDF screenshots.
+          </p>
 
           {/* Pending files */}
           {pendingFiles.length > 0 && (
@@ -3365,6 +3424,63 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
                 {name === 'NotebookLM' ? <FileText size={11} /> : <Cloud size={11} />} {name}
               </span>
             ))}
+          </div>
+          {/* Text Input Source */}
+          <div style={{
+            marginTop: '1rem',
+            borderTop: '1px solid var(--border-color, rgba(255,255,255,0.1))',
+            paddingTop: '1rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <FileText size={16} style={{ color: '#dc2626' }} />
+              <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>Paste Text Source</span>
+            </div>
+
+            <input
+              type="text"
+              value={textSourceLabel}
+              onChange={(e) => setTextSourceLabel(e.target.value)}
+              placeholder="Source label (e.g. Phone call notes, Email thread, Meeting notes)"
+              style={{
+                width: '100%', padding: '0.5rem 0.625rem', marginBottom: '0.5rem',
+                border: '1px solid var(--border-color, rgba(255,255,255,0.15))',
+                borderRadius: '6px', fontSize: '0.85rem',
+                color: 'var(--text-primary)', background: 'var(--surface-secondary, rgba(255,255,255,0.03))',
+                fontFamily: 'inherit', outline: 'none'
+              }}
+            />
+
+            <textarea
+              value={textSourceContent}
+              onChange={(e) => setTextSourceContent(e.target.value)}
+              placeholder="Paste raw text content here — call notes, email threads, chat logs, meeting minutes..."
+              rows={5}
+              style={{
+                width: '100%', padding: '0.625rem', marginBottom: '0.5rem',
+                border: '1px solid var(--border-color, rgba(255,255,255,0.15))',
+                borderRadius: '6px', fontSize: '0.85rem',
+                color: 'var(--text-primary)', background: 'var(--surface-secondary, rgba(255,255,255,0.03))',
+                fontFamily: 'inherit', outline: 'none', resize: 'vertical', lineHeight: 1.5
+              }}
+            />
+
+            <button
+              onClick={addTextSource}
+              disabled={textSourceSaving || !textSourceContent.trim()}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
+                width: '100%', padding: '0.6rem',
+                background: !textSourceContent.trim() ? 'var(--surface-secondary, rgba(0,0,0,0.05))' : '#dc2626',
+                color: !textSourceContent.trim() ? 'var(--text-muted)' : 'white',
+                border: !textSourceContent.trim() ? '1px solid var(--border-color)' : 'none',
+                borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
+                cursor: !textSourceContent.trim() || textSourceSaving ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              {textSourceSaving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={15} />}
+              {textSourceSaving ? 'Saving...' : 'Add Source'}
+            </button>
           </div>
         </div>
       </div>
