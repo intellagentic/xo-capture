@@ -437,6 +437,11 @@ body {
   .header-title h1 { font-size: 0.875rem; }
   .header-title-desktop { display: none; }
   .header-title-mobile { display: inline; }
+
+  /* Workspace two-column → stacked on mobile */
+  .workspace-columns { flex-direction: column !important; }
+  .workspace-col-left { flex: 1 1 auto !important; min-width: 0 !important; width: 100% !important; }
+  .workspace-col-right { min-width: 0 !important; width: 100% !important; }
   .version-badge { display: none; }
 
   /* Mobile modal */

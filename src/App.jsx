@@ -2307,16 +2307,15 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
   return (
     <div>
       {/* Two-Column Split Layout */}
-      <div style={{
+      <div className="workspace-columns" style={{
         display: 'flex',
         gap: '1rem',
         marginBottom: '1rem',
-        alignItems: 'flex-start',
-        flexWrap: 'wrap'
+        alignItems: 'flex-start'
       }}>
 
         {/* LEFT COLUMN — Partner Information Form (always editable, light theme) */}
-        <div style={{
+        <div className="workspace-col-left" style={{
           flex: '0 0 38%',
           minWidth: '280px',
           background: '#ffffff',
@@ -2656,7 +2655,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
         </div>
 
         {/* RIGHT COLUMN — Workflow Cards */}
-        <div style={{ flex: '1 1 0', minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div className="workspace-col-right" style={{ flex: '1 1 0', minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
           {/* Card 1: Domain Expertise */}
           <div style={{

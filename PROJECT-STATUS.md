@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.46)
+**Status:** Deployed & Operational (v1.47)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2390,6 +2390,14 @@ cd backend
 77. **Login Screen Header Fix** (Session 21 - March 5, 2026)
     - Changed login screen header from "Rapid Deployment" to "Capture" + "Rapid Prototype" badge, matching the logged-in header exactly
     - Single file change: `src/App.jsx`
+    - Deployed frontend to S3/CloudFront
+
+78. **Mobile Responsive Workspace Layout** (Session 21 - March 5, 2026)
+    - Two-column workspace layout now stacks vertically on screens ≤768px
+    - Organization Profile card goes full width on top, three workflow cards full width below
+    - Added CSS classes (`workspace-columns`, `workspace-col-left`, `workspace-col-right`) with `@media (max-width: 768px)` breakpoint using `flex-direction: column`
+    - Desktop unchanged: side-by-side 38%/62% split
+    - Files: `src/App.jsx`, `src/index.css`
     - Deployed frontend to S3/CloudFront
 
 ---
