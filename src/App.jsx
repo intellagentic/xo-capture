@@ -771,6 +771,36 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isPartner, p
   const enrichedClients = filteredClients.filter(c => ['complete', 'completed', 'processing'].includes(c.enrichment_status))
   const needsEnrichment = filteredClients.filter(c => !['complete', 'completed', 'processing'].includes(c.enrichment_status))
 
+  // Group clients by partner for the grouped layout
+  const groupedByPartner = useMemo(() => {
+    const groups = []
+    const partnerMap = {}
+    const unassigned = []
+
+    filteredClients.forEach(c => {
+      if (c.partner_id) {
+        if (!partnerMap[c.partner_id]) {
+          // Find partner info from partners prop
+          const partner = partners.find(p => String(p.id) === String(c.partner_id))
+          partnerMap[c.partner_id] = {
+            id: c.partner_id,
+            name: partner?.name || partner?.company || c.partner_name || 'Unknown Partner',
+            clients: []
+          }
+          groups.push(partnerMap[c.partner_id])
+        }
+        partnerMap[c.partner_id].clients.push(c)
+      } else {
+        unassigned.push(c)
+      }
+    })
+
+    // Sort groups alphabetically by partner name
+    groups.sort((a, b) => a.name.localeCompare(b.name))
+
+    return { groups, unassigned }
+  }, [filteredClients, partners])
+
   const renderRow = (client) => (
     <div
       key={client.id}
@@ -811,11 +841,6 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isPartner, p
         <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {client.company_name}
         </span>
-        {isAdmin && client.partner_name && (
-          <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted, #9ca3af)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            via {client.partner_name}
-          </span>
-        )}
       </div>
       {client.industry && (
         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #9ca3af)', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -923,29 +948,77 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isPartner, p
         </button>
       </div>
 
-      {/* Client list */}
+      {/* Client list — grouped by Channel Partner */}
       <div style={{
         background: 'var(--bg-card, #ffffff)',
         border: '1px solid var(--border-color, #e5e7eb)',
         borderRadius: '10px',
         overflow: 'hidden'
       }}>
-        {enrichedClients.map(renderRow)}
-        {enrichedClients.length > 0 && needsEnrichment.length > 0 && (
-          <div style={{
-            padding: '0.3rem 0.875rem',
-            fontSize: '0.6875rem',
-            fontWeight: 600,
-            color: 'var(--text-muted, #9ca3af)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            background: 'var(--bg-card-alt, #fafafa)',
-            borderBottom: '1px solid var(--border-color, #e5e7eb)'
-          }}>
-            Needs Enrichment
+        {groupedByPartner.groups.map((group) => (
+          <div key={group.id}>
+            {/* Partner section header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              padding: '0.4rem 0.875rem',
+              background: 'var(--bg-secondary, #f9fafb)',
+              borderBottom: '1px solid var(--border-color, #e5e7eb)'
+            }}>
+              <div style={{
+                width: '20px', height: '20px', borderRadius: '5px', flexShrink: 0,
+                background: 'rgba(220, 38, 38, 0.08)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.6rem', fontWeight: 700, color: '#dc2626'
+              }}>
+                {(group.name || '?')[0].toUpperCase()}
+              </div>
+              <span style={{
+                fontSize: '0.75rem', fontWeight: 600,
+                color: 'var(--text-secondary, #6b7280)',
+                letterSpacing: '0.01em'
+              }}>
+                {group.name}
+              </span>
+              <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted, #9ca3af)', fontWeight: 400 }}>
+                ({group.clients.length})
+              </span>
+            </div>
+            {group.clients.map(renderRow)}
+          </div>
+        ))}
+        {groupedByPartner.unassigned.length > 0 && (
+          <div>
+            {/* Unassigned / Direct section header */}
+            {(groupedByPartner.groups.length > 0 || isAdmin) && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                padding: '0.4rem 0.875rem',
+                background: 'var(--bg-secondary, #f9fafb)',
+                borderBottom: '1px solid var(--border-color, #e5e7eb)'
+              }}>
+                <div style={{
+                  width: '20px', height: '20px', borderRadius: '5px', flexShrink: 0,
+                  background: 'rgba(107, 114, 128, 0.08)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '0.6rem', fontWeight: 700, color: '#6b7280'
+                }}>
+                  —
+                </div>
+                <span style={{
+                  fontSize: '0.75rem', fontWeight: 600,
+                  color: 'var(--text-secondary, #6b7280)',
+                  letterSpacing: '0.01em'
+                }}>
+                  Direct (Unassigned)
+                </span>
+                <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted, #9ca3af)', fontWeight: 400 }}>
+                  ({groupedByPartner.unassigned.length})
+                </span>
+              </div>
+            )}
+            {groupedByPartner.unassigned.map(renderRow)}
           </div>
         )}
-        {needsEnrichment.map(renderRow)}
       </div>
 
       {filteredClients.length === 0 && clients.length > 0 && (
