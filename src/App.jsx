@@ -1421,7 +1421,7 @@ export default function App() {
       {/* Main Content */}
       <main className="main">
         {/* Client Identity Banner — shown when inside a workspace */}
-        {currentScreen !== 'dashboard' && clientId && (
+        {currentScreen !== 'dashboard' && currentScreen !== 'partners' && clientId && (
           <div style={{
             display: 'flex',
             alignItems: 'center',
