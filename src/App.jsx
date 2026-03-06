@@ -1506,11 +1506,12 @@ export default function App() {
         {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
         {currentScreen === 'partners' && isAdmin && <PartnersScreen partners={partners} setPartners={setPartners} />}
 
-        {/* Footer */}
-        <div style={{ textAlign: 'center', padding: '1.5rem 0 0.75rem', fontSize: '11px', color: '#808080' }}>
-          &copy; 2026 Intellagentic Limited. All rights reserved.
-        </div>
       </main>
+
+      {/* Footer */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, textAlign: 'center', padding: '0.375rem 0', fontSize: '11px', color: '#808080', pointerEvents: 'none', zIndex: 10 }}>
+        &copy; 2026 Intellagentic Limited. All rights reserved.
+      </div>
 
       {/* Company Information Modal */}
       {showCompanyModal && (
