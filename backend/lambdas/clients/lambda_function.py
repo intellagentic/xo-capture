@@ -116,7 +116,12 @@ def lambda_handler(event, context):
 
     method = event.get('httpMethod', '')
     path = event.get('path', '')
+    # Derive role — old JWTs may have is_admin/is_partner but no role field
     role = user.get('role', 'client')
+    if user.get('is_admin'):
+        role = 'admin'
+    elif user.get('is_partner'):
+        role = 'partner'
     is_client_user = role == 'client'
     is_partner_user = role == 'partner'
 
