@@ -1,9 +1,9 @@
 # XO CAPTURE - PROJECT STATUS
 
-**Date:** March 3, 2026
+**Date:** March 5, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.55)
+**Status:** Deployed & Operational (v1.56)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2544,6 +2544,16 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Frontend results heading updated to "7/14/21 Day Action Plan"
 - Pain point priority now front-loads the 7-day phase
 - Existing results still render correctly (frontend displays phase labels dynamically)
+
+**v1.56 — Partner View vs Client View (role separation)**
+- Frontend-only conditional rendering based on existing `isAdmin` flag
+- **Admin (Google OAuth):** All screens, all buttons, "Partner Workspace" subtitle, founder quotes, Download Prototype Spec + Send to Streamline
+- **Client (email/password):** Welcome + Sources + Results only in sidebar. No Enrich, Skills, Configuration, or Branding screens
+- Header subtitle shows "Partner Workspace" for admins, company name or "My Workspace" for clients
+- Welcome Step 3 for clients: results status indicator (Awaiting Analysis / Analysis in Progress / Results Ready) replaces Skills + Enrich buttons
+- Founder quotes hidden for client users
+- ResultsScreen: Download Prototype Spec and Send to Streamline buttons hidden for clients
+- Screen access guards prevent non-admin navigation to admin-only screens with auto-redirect fallback
 
 **v1.55 — Narrower sidebar layout**
 - Sidebar width reduced from 280px to 220px so main content stays visible

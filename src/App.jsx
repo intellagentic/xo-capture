@@ -998,6 +998,13 @@ export default function App() {
     setShowSidebar(false)
   }
 
+  // Redirect non-admin users away from admin-only screens
+  useEffect(() => {
+    if (!isAdmin && ['enrich', 'skills', 'configuration', 'branding'].includes(currentScreen)) {
+      setCurrentScreen('upload')
+    }
+  }, [currentScreen, isAdmin])
+
   // Create or update client when company info is saved
   const handleClientCreate = async (data) => {
     try {
@@ -1234,9 +1241,9 @@ export default function App() {
               {[
                 { screen: 'upload', icon: Home, label: 'Welcome' },
                 { screen: 'sources', icon: FolderOpen, label: 'Sources' },
-                { screen: 'enrich', icon: Sparkles, label: 'Enrich' },
+                ...(isAdmin ? [{ screen: 'enrich', icon: Sparkles, label: 'Enrich' }] : []),
                 { screen: 'results', icon: FileText, label: 'Results' },
-                { screen: 'skills', icon: Database, label: 'Skills' },
+                ...(isAdmin ? [{ screen: 'skills', icon: Database, label: 'Skills' }] : []),
               ].map(({ screen, icon: Icon, label }) => (
                 <button
                   key={screen}
@@ -1266,28 +1273,30 @@ export default function App() {
                 background: 'rgba(255, 255, 255, 0.1)',
                 margin: '0.5rem 0.875rem'
               }} />
-              <button
-                onClick={() => navigateTo('configuration')}
-                style={{
-                  width: '100%',
-                  background: currentScreen === 'configuration' ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
-                  border: 'none',
-                  borderLeft: currentScreen === 'configuration' ? '3px solid #dc2626' : '3px solid transparent',
-                  color: currentScreen === 'configuration' ? '#dc2626' : '#ffffff',
-                  padding: '0.6rem 0.875rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.6rem',
-                  cursor: 'pointer',
-                  fontSize: '0.8rem',
-                  fontWeight: 500,
-                  transition: 'all 0.2s'
-                }}
-              >
-                <Settings size={17} style={{ flexShrink: 0 }} />
-                Configuration
-              </button>
-              {currentScreen !== 'dashboard' && clientId && (
+              {isAdmin && (
+                <button
+                  onClick={() => navigateTo('configuration')}
+                  style={{
+                    width: '100%',
+                    background: currentScreen === 'configuration' ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
+                    border: 'none',
+                    borderLeft: currentScreen === 'configuration' ? '3px solid #dc2626' : '3px solid transparent',
+                    color: currentScreen === 'configuration' ? '#dc2626' : '#ffffff',
+                    padding: '0.6rem 0.875rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <Settings size={17} style={{ flexShrink: 0 }} />
+                  Configuration
+                </button>
+              )}
+              {isAdmin && currentScreen !== 'dashboard' && clientId && (
                 <button
                   onClick={() => navigateTo('branding')}
                   style={{
@@ -1403,7 +1412,7 @@ export default function App() {
               <div>
                 <img src={companyData.logoUrl} alt={companyData.name} style={{ height: '44px', maxWidth: '200px', objectFit: 'contain' }} />
                 <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                  Client Workspace
+                  {isAdmin ? 'Partner Workspace' : (companyData.name || 'My Workspace')}
                 </div>
               </div>
             ) : (
@@ -1425,7 +1434,7 @@ export default function App() {
                     {companyData.name || 'New Client'}
                   </div>
                   <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.125rem' }}>
-                    Client Workspace
+                    {isAdmin ? 'Partner Workspace' : (companyData.name || 'My Workspace')}
                   </div>
                 </div>
               </>
@@ -1452,6 +1461,7 @@ export default function App() {
             onOpenCompanyModal={() => setShowCompanyModal(true)}
             configButtons={configButtons}
             onNavigate={navigateTo}
+            isAdmin={isAdmin}
           />
         )}
         {currentScreen === 'sources' && (
@@ -1461,17 +1471,17 @@ export default function App() {
             onNavigate={navigateTo}
           />
         )}
-        {currentScreen === 'enrich' && (
+        {currentScreen === 'enrich' && isAdmin && (
           <EnrichScreen
             clientId={clientId}
             onComplete={() => setCurrentScreen('results')}
             preferredModel={preferredModel}
           />
         )}
-        {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} />}
-        {currentScreen === 'skills' && <SkillsScreen clientId={clientId} isAdmin={isAdmin} />}
-        {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} />}
-        {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
+        {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} isAdmin={isAdmin} />}
+        {currentScreen === 'skills' && isAdmin && <SkillsScreen clientId={clientId} isAdmin={isAdmin} />}
+        {currentScreen === 'configuration' && isAdmin && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} />}
+        {currentScreen === 'branding' && isAdmin && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
       </main>
 
       {/* Company Information Modal */}
@@ -2287,7 +2297,7 @@ function BrandingScreen({ clientId, companyData, setCompanyData }) {
 // ============================================================
 // UPLOAD SCREEN
 // ============================================================
-function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onClientCreate, onComplete, onOpenCompanyModal, configButtons, onNavigate }) {
+function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onClientCreate, onComplete, onOpenCompanyModal, configButtons, onNavigate, isAdmin }) {
   const [error, setError] = useState(null)
   const [sourceCount, setSourceCount] = useState(0)
   const [activeCount, setActiveCount] = useState(0)
@@ -2310,6 +2320,23 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
   const [savedIndicator, setSavedIndicator] = useState(false)
   const [contactsExpanded, setContactsExpanded] = useState(false)
   const [addressesExpanded, setAddressesExpanded] = useState(false)
+
+  // Client-only: check enrichment/results status for Step 3
+  const [clientResultsStatus, setClientResultsStatus] = useState('checking') // 'checking' | 'none' | 'processing' | 'complete'
+  useEffect(() => {
+    if (isAdmin || !clientId) return
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/results/${clientId}`, { headers: getAuthHeaders() })
+        if (!res.ok) { setClientResultsStatus('none'); return }
+        const data = await res.json()
+        if (data.status === 'complete') setClientResultsStatus('complete')
+        else if (data.status === 'processing') setClientResultsStatus('processing')
+        else setClientResultsStatus('none')
+      } catch { setClientResultsStatus('none') }
+    }
+    checkStatus()
+  }, [isAdmin, clientId])
 
   // Sync form when companyData changes externally (e.g. client switch)
   useEffect(() => {
@@ -2915,43 +2942,88 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                   MBA-level analysis. Problems identified. Schema proposed. Action plan delivered.
                 </p>
 
-                {allStepsComplete ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <button
-                      onClick={() => onNavigate('skills')}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                        padding: '0.6rem', fontSize: '0.8rem', fontWeight: 600, width: '100%',
-                        background: '#3B82F6', color: 'white', border: 'none', borderRadius: '8px',
-                        cursor: 'pointer', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)', transition: 'all 0.2s'
-                      }}
-                    >
-                      <Database size={16} />
-                      Skills
-                    </button>
-                    <button
-                      onClick={onComplete}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                        padding: '0.75rem', fontSize: '0.9rem', fontWeight: 600, width: '100%',
-                        background: '#22c55e', color: 'white', border: 'none', borderRadius: '8px',
-                        cursor: 'pointer', boxShadow: '0 4px 12px rgba(34, 197, 94, 0.25)', transition: 'all 0.2s'
-                      }}
-                    >
-                      <Sparkles size={18} />
-                      Enrich
-                    </button>
-                  </div>
+                {isAdmin ? (
+                  allStepsComplete ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => onNavigate('skills')}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                          padding: '0.6rem', fontSize: '0.8rem', fontWeight: 600, width: '100%',
+                          background: '#3B82F6', color: 'white', border: 'none', borderRadius: '8px',
+                          cursor: 'pointer', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)', transition: 'all 0.2s'
+                        }}
+                      >
+                        <Database size={16} />
+                        Skills
+                      </button>
+                      <button
+                        onClick={onComplete}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                          padding: '0.75rem', fontSize: '0.9rem', fontWeight: 600, width: '100%',
+                          background: '#22c55e', color: 'white', border: 'none', borderRadius: '8px',
+                          cursor: 'pointer', boxShadow: '0 4px 12px rgba(34, 197, 94, 0.25)', transition: 'all 0.2s'
+                        }}
+                      >
+                        <Sparkles size={18} />
+                        Enrich
+                      </button>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic', textAlign: 'center' }}>
+                      Complete steps 1 & 2 →
+                    </p>
+                  )
                 ) : (
-                  <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic', textAlign: 'center' }}>
-                    Complete steps 1 & 2 →
-                  </p>
+                  /* Client view: results status indicator */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {clientResultsStatus === 'checking' && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.75rem' }}>
+                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', color: '#94a3b8' }} />
+                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Checking status...</span>
+                      </div>
+                    )}
+                    {clientResultsStatus === 'processing' && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                        padding: '0.75rem', background: 'rgba(234, 179, 8, 0.15)', borderRadius: '8px', border: '1px solid rgba(234, 179, 8, 0.3)'
+                      }}>
+                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', color: '#eab308' }} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#eab308' }}>Analysis in Progress</span>
+                      </div>
+                    )}
+                    {clientResultsStatus === 'complete' && (
+                      <button
+                        onClick={() => onNavigate('results')}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                          padding: '0.75rem', fontSize: '0.9rem', fontWeight: 600, width: '100%',
+                          background: '#22c55e', color: 'white', border: 'none', borderRadius: '8px',
+                          cursor: 'pointer', boxShadow: '0 4px 12px rgba(34, 197, 94, 0.25)', transition: 'all 0.2s'
+                        }}
+                      >
+                        <CheckCircle size={18} />
+                        Results Ready — View Results
+                      </button>
+                    )}
+                    {clientResultsStatus === 'none' && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                        padding: '0.75rem', background: 'rgba(148, 163, 184, 0.1)', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.2)'
+                      }}>
+                        <Clock size={16} style={{ color: '#94a3b8' }} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8' }}>Awaiting Analysis</span>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Founder Quotes */}
+          {/* Founder Quotes — admin only */}
+          {isAdmin && (
           <div style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
@@ -2992,6 +3064,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               </p>
             </div>
           </div>
+          )}
 
         </div>
       </div>
@@ -5817,7 +5890,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
 // ============================================================
 // RESULTS SCREEN
 // ============================================================
-function ResultsScreen({ setShowModal, clientId }) {
+function ResultsScreen({ setShowModal, clientId, isAdmin }) {
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -6063,7 +6136,7 @@ function ResultsScreen({ setShowModal, clientId }) {
             <h2>Analysis Results</h2>
             <span className="badge-count green">Complete</span>
           </div>
-          {displayResults.status === 'complete' && displayResults.summary && displayResults.summary !== 'Analysis failed' && (
+          {isAdmin && displayResults.status === 'complete' && displayResults.summary && displayResults.summary !== 'Analysis failed' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {streamlineStatus === 'sent' && (
                 <span style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 500 }}>Sent to Streamline</span>
