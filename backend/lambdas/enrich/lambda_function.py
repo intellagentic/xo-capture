@@ -1179,6 +1179,17 @@ Provide your analysis in structured, technical format. Follow these formatting r
    - One paragraph: what to do first, what it will cost, what outcome to expect
    - Be direct -- this is the slide the CEO reads
 
+7. CLIENT SUMMARY (XO Summary for Client)
+   - A concise, client-ready summary that could be shared directly with the client
+   - Open with: "Based on the information provided, XO has identified the following opportunities for [Company Name]:"
+   - 3-5 bullet points, each a clear value proposition framed as a business outcome
+   - Use plain business language -- no technical jargon, no architecture, no tools
+   - NEVER include cost estimates, pricing, timelines, or build specifications
+   - NEVER reference internal tools, frameworks, or technology stack
+   - Frame everything as business outcomes and operational improvements
+   - Close with a forward-looking statement about next steps
+   - Keep under one page (150-250 words)
+
 OUTPUT FORMAT:
 Return ONLY valid JSON in this exact structure. The "summary", "architecture_diagram", and "bottom_line" fields contain plain text. Schema "columns" use table format. All text fields can include newline characters (\\n) for formatting:
 {{
@@ -1222,6 +1233,7 @@ Return ONLY valid JSON in this exact structure. The "summary", "architecture_dia
     }}
   ],
   "bottom_line": "Direct summary: what to do first, what it costs, what to expect...",
+  "client_summary": "Based on the information provided, XO has identified the following opportunities for [Company Name]:\\n\\n- First value proposition as a business outcome\\n- Second value proposition\\n- Third value proposition\\n\\nForward-looking closing statement about next steps.",
   "sources": [
     {{"type": "client_data", "reference": "filename or data source"}}
   ]

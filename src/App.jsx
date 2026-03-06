@@ -7047,6 +7047,40 @@ function ResultsScreen({ setShowModal, clientId, isAdmin }) {
         </div>
       </div>
 
+      {/* Client Summary */}
+      {displayResults.client_summary && (
+        <div className="panel" style={{ border: '2px solid #dc2626', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+            padding: '1rem 1.25rem',
+            display: 'flex', alignItems: 'center', gap: '0.625rem'
+          }}>
+            <Star size={20} style={{ color: '#ffffff' }} />
+            <h2 style={{ color: '#ffffff', margin: 0, fontSize: '1rem', fontWeight: 700, letterSpacing: '0.02em' }}>XO Summary for Client</h2>
+          </div>
+          <div style={{ padding: '1.5rem', background: 'var(--bg-primary)' }}>
+            {displayResults.client_summary.split('\n').filter(line => line.trim()).map((line, idx) => {
+              const trimmed = line.trim()
+              if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                return (
+                  <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '0.75rem', paddingLeft: '0.5rem' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#dc2626', marginTop: '0.5rem', flexShrink: 0 }} />
+                    <p style={{ fontSize: '0.95rem', lineHeight: 1.7, color: 'var(--text-primary)', margin: 0 }}>
+                      {trimmed.substring(2)}
+                    </p>
+                  </div>
+                )
+              }
+              return (
+                <p key={idx} style={{ fontSize: '0.95rem', lineHeight: 1.7, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
+                  {trimmed}
+                </p>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Executive Summary */}
       <div className="panel">
         <div className="panel-header">
