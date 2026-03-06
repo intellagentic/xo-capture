@@ -3,7 +3,7 @@
 **Date:** March 5, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.56)
+**Status:** Deployed & Operational (v1.57)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2544,6 +2544,12 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Frontend results heading updated to "7/14/21 Day Action Plan"
 - Pain point priority now front-loads the 7-day phase
 - Existing results still render correctly (frontend displays phase labels dynamically)
+
+**v1.57 — Compact dashboard, tighter UI, Results breathing room**
+- Dashboard: replaced card grid with compact single-row list layout (24px icons, inline industry pill, source count, status badge, date) — scales to 20+ clients
+- Global font sizes: body base 13px, section headers 15px, sub-labels 12px, action buttons 13px (Results screen unchanged)
+- Welcome step cards: reduced padding (0.875rem → 0.625rem), step circles (40px → 32px), inter-card gap (0.75rem → 0.5rem), smaller buttons — all 3 cards fit on screen without scrolling
+- Results screen: added 2rem left/right padding for breathing room, no font/spacing changes
 
 **v1.56 — Partner vs Client view + branding rename**
 - All screens (Enrich, Skills, Configuration, Branding) available to both admin and client roles

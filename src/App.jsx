@@ -652,91 +652,73 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin }) {
       )}
 
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-        gap: '1rem'
+        background: 'var(--bg-card, #ffffff)',
+        border: '1px solid var(--border-color, #e5e7eb)',
+        borderRadius: '10px',
+        overflow: 'hidden'
       }}>
-        {filteredClients.map(client => (
+        {filteredClients.map((client, idx) => (
           <div
             key={client.id}
             onClick={() => onSelectClient(client)}
             style={{
-              background: 'var(--bg-primary, #ffffff)',
-              border: '1px solid var(--border-color, #e5e7eb)',
-              borderRadius: '12px',
-              padding: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.6rem 1rem',
               cursor: 'pointer',
-              transition: 'all 0.2s',
-              position: 'relative'
+              transition: 'background 0.15s',
+              borderTop: idx > 0 ? '1px solid var(--border-color, #e5e7eb)' : 'none'
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = '#dc2626'
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(220,38,38,0.1)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-color, #e5e7eb)'
-              e.currentTarget.style.boxShadow = 'none'
-            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-card-alt, #fafafa)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                {client.icon_url ? (
-                  <img src={client.icon_url} alt="" style={{ width: '32px', height: '32px', objectFit: 'contain', borderRadius: '8px', flexShrink: 0 }} />
-                ) : (
-                  <div style={{
-                    width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0,
-                    background: 'var(--bg-secondary, #f3f4f6)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.875rem', fontWeight: 700, color: '#dc2626'
-                  }}>
-                    {(client.company_name || '?')[0].toUpperCase()}
-                  </div>
-                )}
-                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                  {client.company_name}
-                </h3>
+            {client.icon_url ? (
+              <img src={client.icon_url} alt="" style={{ width: '24px', height: '24px', objectFit: 'contain', borderRadius: '6px', flexShrink: 0 }} />
+            ) : (
+              <div style={{
+                width: '24px', height: '24px', borderRadius: '6px', flexShrink: 0,
+                background: 'var(--bg-secondary, #f3f4f6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.7rem', fontWeight: 700, color: '#dc2626'
+              }}>
+                {(client.company_name || '?')[0].toUpperCase()}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setDeleteConfirmClient(client) }}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem',
-                    color: 'var(--text-muted, #9ca3af)', borderRadius: '4px', display: 'flex'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted, #9ca3af)'}
-                  title="Delete client"
-                >
-                  <Trash2 size={15} />
-                </button>
-                <ChevronRight size={16} style={{ color: 'var(--text-muted, #9ca3af)', marginTop: '1px' }} />
-              </div>
-            </div>
-
+            )}
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', flex: '1 1 0', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {client.company_name}
+            </span>
             {client.industry && (
               <span style={{
-                display: 'inline-block', padding: '2px 10px', borderRadius: '9999px',
-                fontSize: '0.75rem', fontWeight: 500,
-                background: 'var(--bg-secondary, #f3f4f6)',
-                color: 'var(--text-muted, #6b7280)',
-                marginBottom: '0.75rem'
+                padding: '1px 8px', borderRadius: '9999px', fontSize: '0.6875rem', fontWeight: 500,
+                background: 'var(--bg-secondary, #f3f4f6)', color: 'var(--text-muted, #6b7280)',
+                whiteSpace: 'nowrap', flexShrink: 0
               }}>
                 {client.industry}
               </span>
             )}
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted, #6b7280)' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <FolderOpen size={14} /> {client.source_count} source{client.source_count !== 1 ? 's' : ''}
-              </span>
-              {enrichmentBadge(client.enrichment_status)}
-            </div>
-
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <FolderOpen size={12} /> {client.source_count}
+            </span>
+            {enrichmentBadge(client.enrichment_status)}
             {client.enrichment_date && (
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted, #9ca3af)', marginTop: '0.5rem' }}>
-                Last enriched: {new Date(client.enrichment_date).toLocaleDateString()}
-              </p>
+              <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted, #9ca3af)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                {new Date(client.enrichment_date).toLocaleDateString()}
+              </span>
             )}
+            <button
+              onClick={(e) => { e.stopPropagation(); setDeleteConfirmClient(client) }}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem',
+                color: 'var(--text-muted, #9ca3af)', borderRadius: '4px', display: 'flex', flexShrink: 0
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted, #9ca3af)'}
+              title="Delete client"
+            >
+              <Trash2 size={13} />
+            </button>
+            <ChevronRight size={14} style={{ color: 'var(--text-muted, #9ca3af)', flexShrink: 0 }} />
           </div>
         ))}
       </div>
@@ -2735,39 +2717,39 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
         </div>
 
         {/* RIGHT COLUMN — Workflow Cards */}
-        <div className="workspace-col-right" style={{ flex: '1 1 0', minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div className="workspace-col-right" style={{ flex: '1 1 0', minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
 
           {/* Card 1: Domain Expertise */}
           <div style={{
             background: '#1a1a2e',
-            borderRadius: '12px',
-            padding: '0.875rem',
+            borderRadius: '10px',
+            padding: '0.625rem 0.75rem',
             border: step1Complete ? '2px solid #dc2626' : '2px solid transparent',
             transition: 'all 0.3s',
             display: 'flex',
             flexDirection: 'column'
           }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
               <div style={{
-                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
                 background: step1Complete ? '#dc2626' : 'rgba(220, 38, 38, 0.2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 border: '2px solid rgba(220, 38, 38, 0.3)', transition: 'all 0.3s'
               }}>
                 {step1Complete ? (
-                  <CheckCircle2 size={20} style={{ color: 'white' }} />
+                  <CheckCircle2 size={16} style={{ color: 'white' }} />
                 ) : (
-                  <span style={{ fontSize: '1rem', fontWeight: 700, color: '#dc2626' }}>1</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#dc2626' }}>1</span>
                 )}
               </div>
               <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'white', marginBottom: '0.15rem', letterSpacing: '-0.01em' }}>
+                <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'white', marginBottom: '0.1rem', letterSpacing: '-0.01em' }}>
                   DOMAIN EXPERTISE
                 </h3>
                 <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
                   The Filter
                 </p>
-                <p style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.5, marginBottom: '0.5rem' }}>
+                <p style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.4, marginBottom: '0.35rem' }}>
                   Tell us about your business. YOU are the filter.
                 </p>
 
@@ -2795,34 +2777,34 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
           {/* Card 2: Raw Data */}
           <div style={{
             background: '#1a1a2e',
-            borderRadius: '12px',
-            padding: '0.875rem',
+            borderRadius: '10px',
+            padding: '0.625rem 0.75rem',
             border: step2Complete ? '2px solid #dc2626' : '2px solid transparent',
             transition: 'all 0.3s',
             display: 'flex',
             flexDirection: 'column'
           }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
               <div style={{
-                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
                 background: step2Complete ? '#dc2626' : 'rgba(220, 38, 38, 0.2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 border: '2px solid rgba(220, 38, 38, 0.3)', transition: 'all 0.3s'
               }}>
                 {step2Complete ? (
-                  <CheckCircle2 size={20} style={{ color: 'white' }} />
+                  <CheckCircle2 size={16} style={{ color: 'white' }} />
                 ) : (
-                  <span style={{ fontSize: '1rem', fontWeight: 700, color: '#dc2626' }}>2</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#dc2626' }}>2</span>
                 )}
               </div>
               <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'white', marginBottom: '0.15rem', letterSpacing: '-0.01em' }}>
+                <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'white', marginBottom: '0.1rem', letterSpacing: '-0.01em' }}>
                   RAW DATA
                 </h3>
                 <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
                   The Noise
                 </p>
-                <p style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.5, marginBottom: '0.75rem' }}>
+                <p style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.4, marginBottom: '0.5rem' }}>
                   Upload documents, connect data sources.
                 </p>
 
@@ -2876,28 +2858,28 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
           {/* Card 3: Intellagentic Growth */}
           <div style={{
             background: allStepsComplete ? '#1a1a2e' : '#2a2a3e',
-            borderRadius: '12px',
-            padding: '0.875rem',
+            borderRadius: '10px',
+            padding: '0.625rem 0.75rem',
             border: allStepsComplete ? '2px solid transparent' : '2px solid rgba(100, 100, 100, 0.3)',
             transition: 'all 0.3s',
             display: 'flex',
             flexDirection: 'column'
           }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
               <div style={{
-                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
                 background: allStepsComplete ? 'rgba(220, 38, 38, 0.2)' : 'rgba(150, 150, 150, 0.3)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 border: `2px solid ${allStepsComplete ? 'rgba(220, 38, 38, 0.3)' : 'rgba(150, 150, 150, 0.4)'}`,
                 transition: 'all 0.3s'
               }}>
-                <span style={{ fontSize: '1rem', fontWeight: 700, color: allStepsComplete ? '#dc2626' : '#999' }}>3</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: allStepsComplete ? '#dc2626' : '#999' }}>3</span>
               </div>
               <div style={{ flex: 1 }}>
                 <h3 style={{
-                  fontSize: '1.125rem', fontWeight: 700,
+                  fontSize: '0.9375rem', fontWeight: 700,
                   color: allStepsComplete ? 'white' : 'rgba(255, 255, 255, 0.7)',
-                  marginBottom: '0.15rem', letterSpacing: '-0.01em'
+                  marginBottom: '0.1rem', letterSpacing: '-0.01em'
                 }}>
                   INTELLAGENTIC GROWTH
                 </h3>
@@ -2909,37 +2891,37 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                   The Output
                 </p>
                 <p style={{
-                  fontSize: '0.85rem',
+                  fontSize: '0.8rem',
                   color: allStepsComplete ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.65)',
-                  lineHeight: 1.5, marginBottom: '0.75rem'
+                  lineHeight: 1.4, marginBottom: '0.5rem'
                 }}>
                   MBA-level analysis. Problems identified. Schema proposed. Action plan delivered.
                 </p>
 
                 {allStepsComplete ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                     <button
                       onClick={() => onNavigate('skills')}
                       style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                        padding: '0.6rem', fontSize: '0.8rem', fontWeight: 600, width: '100%',
-                        background: '#3B82F6', color: 'white', border: 'none', borderRadius: '8px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                        padding: '0.45rem', fontSize: '0.75rem', fontWeight: 600, width: '100%',
+                        background: '#3B82F6', color: 'white', border: 'none', borderRadius: '7px',
                         cursor: 'pointer', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)', transition: 'all 0.2s'
                       }}
                     >
-                      <Database size={16} />
+                      <Database size={14} />
                       Skills
                     </button>
                     <button
                       onClick={onComplete}
                       style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                        padding: '0.75rem', fontSize: '0.9rem', fontWeight: 600, width: '100%',
-                        background: '#22c55e', color: 'white', border: 'none', borderRadius: '8px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                        padding: '0.55rem', fontSize: '0.8rem', fontWeight: 600, width: '100%',
+                        background: '#22c55e', color: 'white', border: 'none', borderRadius: '7px',
                         cursor: 'pointer', boxShadow: '0 4px 12px rgba(34, 197, 94, 0.25)', transition: 'all 0.2s'
                       }}
                     >
-                      <Sparkles size={18} />
+                      <Sparkles size={15} />
                       Enrich
                     </button>
                   </div>
@@ -6057,7 +6039,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin }) {
   }
 
   return (
-    <div style={{ display: 'grid', gap: '1rem' }}>
+    <div style={{ display: 'grid', gap: '1rem', padding: '0 2rem' }}>
       {/* Header */}
       <div className="panel">
         <div className="panel-header">
