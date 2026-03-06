@@ -116,14 +116,18 @@ def lambda_handler(event, context):
 
     method = event.get('httpMethod', '')
     path = event.get('path', '')
-    is_client_user = user.get('is_client', False) and not user.get('is_admin', False)
+    role = user.get('role', 'client')
+    is_client_user = role == 'client'
+    is_partner_user = role == 'partner'
 
-    # Partners routes — admin only
+    # Partners routes — admin only (partners can read list for reference)
     if '/partners' in path:
         if is_client_user:
             return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Access denied'})}
         if method == 'GET':
             return handle_list_partners(event, user)
+        elif not user.get('is_admin'):
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
         elif method == 'POST':
             return handle_create_partner(event, user)
         elif method == 'PUT':
@@ -155,7 +159,7 @@ def lambda_handler(event, context):
             return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Access denied'})}
         return handle_create_client(event, user)
     elif method == 'DELETE':
-        if is_client_user:
+        if is_client_user or is_partner_user:
             return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Access denied'})}
         return handle_delete_client(event, user)
     else:
@@ -562,6 +566,8 @@ def handle_list_clients(event, user):
         """
         if user.get('is_admin'):
             cur.execute(base_query + " ORDER BY c.updated_at DESC")
+        elif user.get('is_partner') and user.get('partner_id'):
+            cur.execute(base_query + " WHERE c.partner_id = %s ORDER BY c.updated_at DESC", (user['partner_id'],))
         elif user.get('is_client') and user.get('client_id'):
             cur.execute(base_query + " WHERE c.s3_folder = %s ORDER BY c.updated_at DESC", (user['client_id'],))
         else:
@@ -634,7 +640,7 @@ def handle_get_client(event, user):
             client_id = user['client_id']
 
         if client_id:
-            # Fetch specific client by s3_folder (admins + client users can see their client)
+            # Admins, client users (own client), and partners (own clients) get unscoped query
             if user.get('is_admin') or (user.get('is_client') and user.get('client_id') == client_id):
                 cur.execute("""
                     SELECT id, company_name, website_url, contact_name, contact_title,
@@ -645,6 +651,16 @@ def handle_get_client(event, user):
                            streamline_webhook_url, partner_id, COALESCE(intellagentic_lead, FALSE)
                     FROM clients WHERE s3_folder = %s
                 """, (client_id,))
+            elif user.get('is_partner') and user.get('partner_id'):
+                cur.execute("""
+                    SELECT id, company_name, website_url, contact_name, contact_title,
+                           contact_linkedin, industry, description, pain_point,
+                           s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
+                           COALESCE(streamline_webhook_enabled, FALSE),
+                           contact_email, contact_phone, contacts_json, addresses_json,
+                           streamline_webhook_url, partner_id, COALESCE(intellagentic_lead, FALSE)
+                    FROM clients WHERE s3_folder = %s AND partner_id = %s
+                """, (client_id, user['partner_id']))
             else:
                 cur.execute("""
                     SELECT id, company_name, website_url, contact_name, contact_title,
@@ -880,6 +896,13 @@ def handle_update_client(event, user):
                 WHERE s3_folder = %s
                 RETURNING id
             """, params)
+        elif user.get('is_partner') and user.get('partner_id'):
+            params.extend([client_id, user['partner_id']])
+            cur.execute(f"""
+                UPDATE clients SET {', '.join(set_fields)}
+                WHERE s3_folder = %s AND partner_id = %s
+                RETURNING id
+            """, params)
         else:
             params.extend([client_id, user['user_id']])
             cur.execute(f"""
@@ -1090,7 +1113,10 @@ def handle_create_client(event, user):
         conn = get_db_connection()
         cur = conn.cursor()
 
+        # Partners auto-assign their partner_id to new clients
         partner_id_val = body.get('partner_id')  # int or None
+        if user.get('is_partner') and user.get('partner_id'):
+            partner_id_val = user['partner_id']
         intellagentic_lead_val = bool(body.get('intellagentic_lead', False))
 
         cur.execute("""

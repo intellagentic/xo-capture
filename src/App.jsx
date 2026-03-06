@@ -659,7 +659,7 @@ function ShareLinkModal({ clientId, onClose }) {
 // ============================================================
 // DASHBOARD SCREEN — Admin multi-client view
 // ============================================================
-function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, partners }) {
+function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isPartner, partners }) {
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -811,7 +811,7 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, partners }) 
         <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {client.company_name}
         </span>
-        {client.partner_name && (
+        {isAdmin && client.partner_name && (
           <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted, #9ca3af)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             via {client.partner_name}
           </span>
@@ -844,20 +844,22 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, partners }) 
       >
         <ExternalLink size={13} />
       </button>
-      <button
-        data-hover-btn
-        onClick={(e) => { e.stopPropagation(); setDeleteConfirmClient(client) }}
-        style={{
-          background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem',
-          color: 'var(--text-muted, #9ca3af)', borderRadius: '4px', display: 'flex', flexShrink: 0,
-          opacity: 0, transition: 'opacity 0.15s'
-        }}
-        onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted, #9ca3af)'}
-        title="Delete client"
-      >
-        <Trash2 size={13} />
-      </button>
+      {isAdmin && (
+        <button
+          data-hover-btn
+          onClick={(e) => { e.stopPropagation(); setDeleteConfirmClient(client) }}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem',
+            color: 'var(--text-muted, #9ca3af)', borderRadius: '4px', display: 'flex', flexShrink: 0,
+            opacity: 0, transition: 'opacity 0.15s'
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted, #9ca3af)'}
+          title="Delete client"
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
       <ChevronRight size={14} style={{ color: 'var(--text-muted, #9ca3af)', flexShrink: 0 }} />
     </div>
   )
@@ -867,7 +869,7 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, partners }) 
       {/* Header row: title + search + new client */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.875rem' }}>
         <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-          All Clients <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b7280)', fontSize: '0.8125rem' }}>({filteredClients.length})</span>
+          {isPartner && !isAdmin ? 'My Clients' : 'All Clients'} <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b7280)', fontSize: '0.8125rem' }}>({filteredClients.length})</span>
         </h2>
         <div style={{ position: 'relative', flex: '0 1 220px' }}>
           <Search size={13} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #9ca3af)' }} />
@@ -884,20 +886,22 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, partners }) 
             }}
           />
         </div>
-        <select
-          value={filterPartner}
-          onChange={e => setFilterPartner(e.target.value)}
-          style={{
-            padding: '0.3rem 0.5rem', fontSize: '0.75rem',
-            border: '1px solid var(--border-color, #d1d5db)', borderRadius: '6px',
-            background: 'var(--bg-input, #ffffff)', color: 'var(--text-primary)',
-            outline: 'none', flex: '0 0 auto'
-          }}
-        >
-          <option value="">All Partners</option>
-          <option value="direct">Direct (Intellagentic)</option>
-          {partners.map(p => <option key={p.id} value={String(p.id)}>{p.company || p.name}</option>)}
-        </select>
+        {isAdmin && (
+          <select
+            value={filterPartner}
+            onChange={e => setFilterPartner(e.target.value)}
+            style={{
+              padding: '0.3rem 0.5rem', fontSize: '0.75rem',
+              border: '1px solid var(--border-color, #d1d5db)', borderRadius: '6px',
+              background: 'var(--bg-input, #ffffff)', color: 'var(--text-primary)',
+              outline: 'none', flex: '0 0 auto'
+            }}
+          >
+            <option value="">All Partners</option>
+            <option value="direct">Direct (Intellagentic)</option>
+            {partners.map(p => <option key={p.id} value={String(p.id)}>{p.company || p.name}</option>)}
+          </select>
+        )}
         {industries.length > 0 && (
           <select
             value={filterIndustry}
@@ -1041,8 +1045,9 @@ export default function App() {
     initialAuth.user?.preferred_model || 'claude-sonnet-4-5-20250929'
   )
 
-  // Admin state
+  // Admin / Partner state
   const [isAdmin, setIsAdmin] = useState(initialAuth.user?.is_admin || false)
+  const [isPartner, setIsPartner] = useState(initialAuth.user?.is_partner || false)
 
   // Magic token URL handling — loading state
   const [magicTokenLoading, setMagicTokenLoading] = useState(() => {
@@ -1055,9 +1060,11 @@ export default function App() {
     setAuthToken(token)
     setIsLoggedIn(true)
     const admin = !!userData.is_admin
+    const partner = !!userData.is_partner
     setIsAdmin(admin)
+    setIsPartner(partner)
     if (userData.preferred_model) setPreferredModel(userData.preferred_model)
-    if (admin) {
+    if (admin || partner) {
       setCurrentScreen('dashboard')
     } else if (userData.is_client && userData.client_id) {
       setClientId(userData.client_id)
@@ -1084,6 +1091,7 @@ export default function App() {
     setAuthToken(null)
     setIsLoggedIn(false)
     setIsAdmin(false)
+    setIsPartner(false)
     setClientId(null)
     localStorage.removeItem('xo-token')
     localStorage.removeItem('xo-user')
@@ -1092,7 +1100,7 @@ export default function App() {
   }
 
   const [currentScreen, setCurrentScreen] = useState(() => {
-    return initialAuth.user?.is_admin ? 'dashboard' : 'upload'
+    return (initialAuth.user?.is_admin || initialAuth.user?.is_partner) ? 'dashboard' : 'upload'
   }) // dashboard | upload | enrich | results | skills | configuration
   const [showModal, setShowModal] = useState(false)
   const [showCompanyModal, setShowCompanyModal] = useState(false)
@@ -1154,6 +1162,7 @@ export default function App() {
           setAuthToken(data.token)
           setIsLoggedIn(true)
           setIsAdmin(false)
+          setIsPartner(false)
           if (data.user.client_id) {
             setClientId(data.user.client_id)
             localStorage.setItem('xo-client-id', data.user.client_id)
@@ -1420,7 +1429,7 @@ export default function App() {
               </h1>
               {currentScreen === 'dashboard' && (
                 <p style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  Client Dashboard
+                  {isPartner && !isAdmin ? 'Partner Dashboard' : 'Client Dashboard'}
                 </p>
               )}
             </div>
@@ -1490,7 +1499,7 @@ export default function App() {
 
             {/* Menu Items */}
             <nav style={{ flex: 1, padding: '0.5rem 0' }}>
-              {isAdmin && (
+              {(isAdmin || isPartner) && (
                 <>
                   <button
                     onClick={() => navigateTo('dashboard')}
@@ -1511,7 +1520,7 @@ export default function App() {
                     }}
                   >
                     <Building2 size={17} style={{ flexShrink: 0 }} />
-                    All Clients
+                    {isPartner && !isAdmin ? 'My Clients' : 'All Clients'}
                   </button>
                   <div style={{
                     height: '1px',
@@ -1693,7 +1702,7 @@ export default function App() {
               <div>
                 <img src={companyData.logoUrl} alt={companyData.name} style={{ height: '44px', maxWidth: '200px', objectFit: 'contain' }} />
                 <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                  {isAdmin ? 'Partner Workspace' : (companyData.name || 'My Workspace')}
+                  {(isAdmin || isPartner) ? 'Partner Workspace' : (companyData.name || 'My Workspace')}
                 </div>
               </div>
             ) : (
@@ -1715,12 +1724,12 @@ export default function App() {
                     {companyData.name || 'New Client'}
                   </div>
                   <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.125rem' }}>
-                    {isAdmin ? 'Partner Workspace' : (companyData.name || 'My Workspace')}
+                    {(isAdmin || isPartner) ? 'Partner Workspace' : (companyData.name || 'My Workspace')}
                   </div>
                 </div>
               </>
             )}
-            {isAdmin && clientId && (
+            {(isAdmin || isPartner) && clientId && (
               <button
                 onClick={() => setShowShareModal(true)}
                 style={{
@@ -1745,6 +1754,7 @@ export default function App() {
             onSelectClient={handleSelectClient}
             onCreateClient={handleCreateNewClient}
             isAdmin={isAdmin}
+            isPartner={isPartner}
             partners={partners}
           />
         )}

@@ -3,8 +3,8 @@ XO Platform - Auth Lambda
 Routes: POST /auth/login, POST /auth/register, POST /auth/reset-password, POST /auth/google,
         PUT /auth/preferences, POST /auth/token, POST/GET/DELETE /auth/magic-link
 
-Login auto-creates accounts: if the email doesn't exist, a new user is created.
-Google OAuth login restricted to allowed admin emails + client contact emails.
+Three-tier role system: admin, partner, client.
+Google OAuth checks: DB role first → client contacts fallback → denied.
 Magic links provide token-based client access.
 """
 
@@ -22,7 +22,8 @@ JWT_SECRET = os.environ.get('JWT_SECRET', '')
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://d36la414u58rw5.cloudfront.net')
 
-ALLOWED_EMAILS = [
+# Seed these emails as role='admin' on cold start
+ADMIN_SEED_EMAILS = [
     'alan.moore@intellagentic.io',
     'ken.scott@intellagentic.io',
     'rs@multiversant.com',
@@ -36,7 +37,7 @@ CORS_HEADERS = {
 }
 
 
-# ── Auto-migration: create client_tokens table ──
+# ── Auto-migration: client_tokens table ──
 def _run_token_migrations():
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -60,6 +61,28 @@ def _run_token_migrations():
         print(f"Token migration check (non-fatal): {e}")
 
 _run_token_migrations()
+
+
+# ── Auto-migration: add role + partner_id columns to users, seed admins ──
+def _run_role_migrations():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        # Add role column (default 'client')
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'client'")
+        # Add partner_id FK to users (links partner users to their partner record)
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL")
+        # Seed admin roles for known admin emails
+        for email in ADMIN_SEED_EMAILS:
+            cur.execute("UPDATE users SET role = 'admin' WHERE email = %s AND (role IS NULL OR role = 'client')", (email,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("Migration complete: users role + partner_id columns ensured, admins seeded")
+    except Exception as e:
+        print(f"Role migration check (non-fatal): {e}")
+
+_run_role_migrations()
 
 
 def lambda_handler(event, context):
@@ -90,27 +113,38 @@ def lambda_handler(event, context):
         return handle_login(event)
 
 
-def _make_token(user_id, email, name, is_admin=False, is_client=False, client_id=None):
+def _make_token(user_id, email, name, role='client', partner_id=None, client_id=None):
+    """Build JWT with role-based claims."""
     payload = {
         'user_id': str(user_id),
         'email': email,
         'name': name,
-        'is_admin': is_admin,
-        'is_client': is_client,
+        'role': role,
+        'is_admin': role == 'admin',
+        'is_partner': role == 'partner',
+        'is_client': role == 'client',
         'exp': datetime.now(timezone.utc) + timedelta(hours=24)
     }
+    if partner_id:
+        payload['partner_id'] = partner_id
     if client_id:
         payload['client_id'] = client_id
     return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
 
 
-def _success_response(user_id, email, name, preferred_model='claude-sonnet-4-5-20250929', status=200, is_admin=False, is_client=False, client_id=None):
-    token = _make_token(user_id, email, name, is_admin=is_admin, is_client=is_client, client_id=client_id)
+def _success_response(user_id, email, name, preferred_model='claude-sonnet-4-5-20250929',
+                      status=200, role='client', partner_id=None, client_id=None):
+    token = _make_token(user_id, email, name, role=role, partner_id=partner_id, client_id=client_id)
     user_data = {
         'id': str(user_id), 'email': email, 'name': name,
-        'preferred_model': preferred_model, 'is_admin': is_admin,
-        'is_client': is_client
+        'preferred_model': preferred_model,
+        'role': role,
+        'is_admin': role == 'admin',
+        'is_partner': role == 'partner',
+        'is_client': role == 'client',
     }
+    if partner_id:
+        user_data['partner_id'] = partner_id
     if client_id:
         user_data['client_id'] = client_id
     return {
@@ -120,25 +154,24 @@ def _success_response(user_id, email, name, preferred_model='claude-sonnet-4-5-2
     }
 
 
-def _upsert_client_user(conn, cur, email, name):
-    """Upsert a user record for a client login. Returns user_id."""
-    cur.execute(
-        "SELECT id FROM users WHERE email = %s", (email,)
-    )
+def _upsert_user(conn, cur, email, name, role='client', partner_id=None):
+    """Upsert a user record. Returns user_id."""
+    cur.execute("SELECT id FROM users WHERE email = %s", (email,))
     row = cur.fetchone()
     if row:
         return row[0]
     cur.execute(
-        "INSERT INTO users (email, password_hash, name) VALUES (%s, %s, %s) RETURNING id",
-        (email, 'client-token-no-password', name)
+        "INSERT INTO users (email, password_hash, name, role, partner_id) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+        (email, 'google-oauth-no-password', name, role, partner_id)
     )
     user_id = cur.fetchone()[0]
     conn.commit()
     return user_id
 
 
-def _verify_admin_jwt(event):
-    """Verify JWT from Authorization header and ensure is_admin. Returns payload or None."""
+def _verify_admin_or_partner_jwt(event, require_admin=False):
+    """Verify JWT from Authorization header. Returns payload or None.
+    If require_admin=True, only admins pass. Otherwise admins and partners pass."""
     headers = event.get('headers', {}) or {}
     auth_header = headers.get('Authorization') or headers.get('authorization', '')
     if not auth_header.startswith('Bearer '):
@@ -146,8 +179,12 @@ def _verify_admin_jwt(event):
     token = auth_header[7:]
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
-        if not payload.get('is_admin'):
+        role = payload.get('role', payload.get('is_admin') and 'admin' or 'client')
+        if require_admin and role != 'admin':
             return None
+        if role not in ('admin', 'partner'):
+            return None
+        payload['role'] = role
         return payload
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
@@ -193,7 +230,7 @@ def handle_validate_token(event):
         client_email = f"client-token-{s3_folder}@token"
         client_name = company_name or s3_folder
 
-        user_id = _upsert_client_user(conn, cur, client_email, client_name)
+        user_id = _upsert_user(conn, cur, client_email, client_name, role='client')
 
         cur.close()
         conn.close()
@@ -201,7 +238,7 @@ def handle_validate_token(event):
         print(f"Magic link login for client: {s3_folder}")
         return _success_response(
             user_id, client_email, client_name,
-            is_client=True, client_id=s3_folder
+            role='client', client_id=s3_folder
         )
 
     except Exception as e:
@@ -214,13 +251,13 @@ def handle_validate_token(event):
 
 
 # ============================================================
-# POST /auth/magic-link — Generate magic link (admin only)
+# POST /auth/magic-link — Generate magic link (admin or partner for own clients)
 # ============================================================
 def handle_create_magic_link(event):
     """POST /auth/magic-link - Generate a magic link for a client."""
-    admin = _verify_admin_jwt(event)
-    if not admin:
-        return {'statusCode': 401, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
+    caller = _verify_admin_or_partner_jwt(event)
+    if not caller:
+        return {'statusCode': 401, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin or partner access required'})}
 
     try:
         body = json.loads(event.get('body', '{}'))
@@ -236,8 +273,12 @@ def handle_create_magic_link(event):
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
 
-        # Look up client DB id from s3_folder
-        cur.execute("SELECT id FROM clients WHERE s3_folder = %s", (client_s3_folder,))
+        # Look up client — partners can only generate for their own clients
+        if caller.get('role') == 'partner':
+            cur.execute("SELECT id FROM clients WHERE s3_folder = %s AND partner_id = %s",
+                        (client_s3_folder, caller.get('partner_id')))
+        else:
+            cur.execute("SELECT id FROM clients WHERE s3_folder = %s", (client_s3_folder,))
         row = cur.fetchone()
         if not row:
             cur.close()
@@ -259,7 +300,7 @@ def handle_create_magic_link(event):
         cur.execute("""
             INSERT INTO client_tokens (token, client_id, expires_at, created_by)
             VALUES (%s, %s, %s, %s)
-        """, (new_token, db_client_id, expires_at, admin['user_id']))
+        """, (new_token, db_client_id, expires_at, caller['user_id']))
 
         conn.commit()
         cur.close()
@@ -288,13 +329,13 @@ def handle_create_magic_link(event):
 
 
 # ============================================================
-# GET /auth/magic-link?client_id=X — Get existing link (admin only)
+# GET /auth/magic-link?client_id=X — Get existing link (admin/partner)
 # ============================================================
 def handle_get_magic_link(event):
     """GET /auth/magic-link - Get existing magic link for a client."""
-    admin = _verify_admin_jwt(event)
-    if not admin:
-        return {'statusCode': 401, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
+    caller = _verify_admin_or_partner_jwt(event)
+    if not caller:
+        return {'statusCode': 401, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin or partner access required'})}
 
     try:
         params = event.get('queryStringParameters') or {}
@@ -310,7 +351,11 @@ def handle_get_magic_link(event):
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
 
-        cur.execute("SELECT id FROM clients WHERE s3_folder = %s", (client_s3_folder,))
+        if caller.get('role') == 'partner':
+            cur.execute("SELECT id FROM clients WHERE s3_folder = %s AND partner_id = %s",
+                        (client_s3_folder, caller.get('partner_id')))
+        else:
+            cur.execute("SELECT id FROM clients WHERE s3_folder = %s", (client_s3_folder,))
         row = cur.fetchone()
         if not row:
             cur.close()
@@ -358,13 +403,13 @@ def handle_get_magic_link(event):
 
 
 # ============================================================
-# DELETE /auth/magic-link?client_id=X — Revoke link (admin only)
+# DELETE /auth/magic-link?client_id=X — Revoke link (admin/partner)
 # ============================================================
 def handle_delete_magic_link(event):
     """DELETE /auth/magic-link - Revoke all magic links for a client."""
-    admin = _verify_admin_jwt(event)
-    if not admin:
-        return {'statusCode': 401, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
+    caller = _verify_admin_or_partner_jwt(event)
+    if not caller:
+        return {'statusCode': 401, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin or partner access required'})}
 
     try:
         params = event.get('queryStringParameters') or {}
@@ -380,7 +425,11 @@ def handle_delete_magic_link(event):
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
 
-        cur.execute("SELECT id FROM clients WHERE s3_folder = %s", (client_s3_folder,))
+        if caller.get('role') == 'partner':
+            cur.execute("SELECT id FROM clients WHERE s3_folder = %s AND partner_id = %s",
+                        (client_s3_folder, caller.get('partner_id')))
+        else:
+            cur.execute("SELECT id FROM clients WHERE s3_folder = %s", (client_s3_folder,))
         row = cur.fetchone()
         if not row:
             cur.close()
@@ -414,10 +463,11 @@ def handle_delete_magic_link(event):
 
 
 # ============================================================
-# POST /auth/google — Google OAuth login (admin + client contacts)
+# POST /auth/google — Google OAuth login (three-tier role check)
 # ============================================================
 def handle_google_login(event):
-    """POST /auth/google - Verify Google ID token and login/create user."""
+    """POST /auth/google - Verify Google ID token and login/create user.
+    Priority: DB role (admin/partner) → client contacts → denied."""
     try:
         body = json.loads(event.get('body', '{}'))
         credential = body.get('credential', '')
@@ -462,40 +512,45 @@ def handle_google_login(event):
         email = token_info.get('email', '').lower()
         name = token_info.get('name', '') or email.split('@')[0].replace('.', ' ').title()
 
-        # Check admin allowed list first
-        if email in ALLOWED_EMAILS:
-            # Upsert admin user in database
-            conn = psycopg2.connect(DATABASE_URL)
-            cur = conn.cursor()
-
-            cur.execute(
-                "SELECT id, email, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929') FROM users WHERE email = %s",
-                (email,)
-            )
-            row = cur.fetchone()
-
-            if row:
-                user_id, user_email, user_name, preferred_model = row
-                cur.close()
-                conn.close()
-                print(f"Google login successful (admin): {user_email}")
-                return _success_response(user_id, user_email, user_name, preferred_model, is_admin=True)
-            else:
-                cur.execute(
-                    "INSERT INTO users (email, password_hash, name) VALUES (%s, %s, %s) RETURNING id",
-                    (email, 'google-oauth-no-password', name)
-                )
-                user_id = cur.fetchone()[0]
-                conn.commit()
-                cur.close()
-                conn.close()
-                print(f"New Google OAuth admin account created: {email}")
-                return _success_response(user_id, email, name, status=201, is_admin=True)
-
-        # Not an admin — check if email matches any client contact
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
 
+        # Step 1: Check if user exists in DB with a role
+        cur.execute(
+            "SELECT id, email, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929'), COALESCE(role, 'client'), partner_id FROM users WHERE email = %s",
+            (email,)
+        )
+        user_row = cur.fetchone()
+
+        if user_row:
+            user_id, user_email, user_name, preferred_model, role, partner_id = user_row
+
+            if role == 'admin':
+                cur.close()
+                conn.close()
+                print(f"Google login successful (admin): {user_email}")
+                return _success_response(user_id, user_email, user_name, preferred_model, role='admin')
+
+            if role == 'partner':
+                cur.close()
+                conn.close()
+                print(f"Google login successful (partner): {user_email}, partner_id={partner_id}")
+                return _success_response(user_id, user_email, user_name, preferred_model, role='partner', partner_id=partner_id)
+
+            # role='client' in DB — still check client contacts below
+
+        # Step 2: Check if email is in ADMIN_SEED_EMAILS (in case user not yet in DB)
+        if email in ADMIN_SEED_EMAILS:
+            user_id = _upsert_user(conn, cur, email, name, role='admin')
+            # Also ensure role is set correctly for existing users
+            cur.execute("UPDATE users SET role = 'admin' WHERE id = %s", (user_id,))
+            conn.commit()
+            cur.close()
+            conn.close()
+            print(f"Google login successful (admin seed): {email}")
+            return _success_response(user_id, email, name, role='admin')
+
+        # Step 3: Check if email matches any client contact
         cur.execute("SELECT id, s3_folder, contacts_json, company_name FROM clients WHERE contacts_json IS NOT NULL")
         rows = cur.fetchall()
 
@@ -508,14 +563,13 @@ def handle_google_login(event):
             for contact in contacts:
                 contact_email = (contact.get('email') or '').lower().strip()
                 if contact_email and contact_email == email:
-                    # Match found — upsert user and return client JWT
-                    user_id = _upsert_client_user(conn, cur, email, name)
+                    user_id = _upsert_user(conn, cur, email, name, role='client')
                     cur.close()
                     conn.close()
                     print(f"Google login successful (client contact): {email} -> {s3_folder}")
                     return _success_response(
                         user_id, email, name,
-                        is_client=True, client_id=s3_folder
+                        role='client', client_id=s3_folder
                     )
 
         cur.close()
@@ -555,16 +609,15 @@ def handle_login(event):
         cur = conn.cursor()
 
         cur.execute(
-            "SELECT id, email, password_hash, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929') FROM users WHERE email = %s",
+            "SELECT id, email, password_hash, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929'), COALESCE(role, 'client'), partner_id FROM users WHERE email = %s",
             (email,)
         )
         row = cur.fetchone()
 
         if row:
-            # Existing user — verify password
             cur.close()
             conn.close()
-            user_id, user_email, password_hash, user_name, preferred_model = row
+            user_id, user_email, password_hash, user_name, preferred_model, role, partner_id = row
 
             if not bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
                 return {
@@ -573,11 +626,10 @@ def handle_login(event):
                     'body': json.dumps({'error': 'Invalid password'})
                 }
 
-            print(f"Login successful: {user_email}")
-            return _success_response(user_id, user_email, user_name, preferred_model)
+            print(f"Login successful: {user_email} (role={role})")
+            return _success_response(user_id, user_email, user_name, preferred_model, role=role, partner_id=partner_id)
 
         else:
-            # New user — create account
             if len(password) < 8:
                 cur.close()
                 conn.close()
@@ -591,7 +643,7 @@ def handle_login(event):
             password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
             cur.execute(
-                "INSERT INTO users (email, password_hash, name) VALUES (%s, %s, %s) RETURNING id",
+                "INSERT INTO users (email, password_hash, name, role) VALUES (%s, %s, %s, 'client') RETURNING id",
                 (email, password_hash, name)
             )
             user_id = cur.fetchone()[0]
@@ -652,7 +704,7 @@ def handle_register(event):
             }
 
         cur.execute(
-            "INSERT INTO users (email, password_hash, name) VALUES (%s, %s, %s) RETURNING id",
+            "INSERT INTO users (email, password_hash, name, role) VALUES (%s, %s, %s, 'client') RETURNING id",
             (email, password_hash, name)
         )
         user_id = cur.fetchone()[0]
@@ -730,7 +782,6 @@ def handle_reset_password(event):
 
 def handle_preferences(event):
     """PUT /auth/preferences - Update user preferences (requires auth)."""
-    # Verify JWT
     headers = event.get('headers', {}) or {}
     auth_header = headers.get('Authorization') or headers.get('authorization', '')
     if not auth_header.startswith('Bearer '):
