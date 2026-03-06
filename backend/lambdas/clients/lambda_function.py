@@ -116,9 +116,12 @@ def lambda_handler(event, context):
 
     method = event.get('httpMethod', '')
     path = event.get('path', '')
+    is_client_user = user.get('is_client', False) and not user.get('is_admin', False)
 
-    # Partners routes
+    # Partners routes — admin only
     if '/partners' in path:
+        if is_client_user:
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Access denied'})}
         if method == 'GET':
             return handle_list_partners(event, user)
         elif method == 'POST':
@@ -128,10 +131,12 @@ def lambda_handler(event, context):
         elif method == 'DELETE':
             return handle_delete_partner(event, user)
 
-    # Skills routes
+    # Skills routes — client users can read but not write
     if '/skills' in path:
         if method == 'GET':
             return handle_get_skills(event, user)
+        elif is_client_user:
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Access denied'})}
         elif method == 'POST':
             return handle_create_skill(event, user)
         elif method == 'PUT':
@@ -146,8 +151,12 @@ def lambda_handler(event, context):
     elif method == 'PUT':
         return handle_update_client(event, user)
     elif method == 'POST':
+        if is_client_user:
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Access denied'})}
         return handle_create_client(event, user)
     elif method == 'DELETE':
+        if is_client_user:
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Access denied'})}
         return handle_delete_client(event, user)
     else:
         return {
@@ -553,6 +562,8 @@ def handle_list_clients(event, user):
         """
         if user.get('is_admin'):
             cur.execute(base_query + " ORDER BY c.updated_at DESC")
+        elif user.get('is_client') and user.get('client_id'):
+            cur.execute(base_query + " WHERE c.s3_folder = %s ORDER BY c.updated_at DESC", (user['client_id'],))
         else:
             cur.execute(base_query + " WHERE c.user_id = %s ORDER BY c.updated_at DESC", (user['user_id'],))
 
@@ -618,9 +629,13 @@ def handle_get_client(event, user):
     cur = conn.cursor()
 
     try:
+        # Client-token users: force scope to their client
+        if user.get('is_client') and user.get('client_id'):
+            client_id = user['client_id']
+
         if client_id:
-            # Fetch specific client by s3_folder (admins can see any client)
-            if user.get('is_admin'):
+            # Fetch specific client by s3_folder (admins + client users can see their client)
+            if user.get('is_admin') or (user.get('is_client') and user.get('client_id') == client_id):
                 cur.execute("""
                     SELECT id, company_name, website_url, contact_name, contact_title,
                            contact_linkedin, industry, description, pain_point,
@@ -858,7 +873,7 @@ def handle_update_client(event, user):
             set_fields.append("intellagentic_lead = %s")
             params.append(bool(body['intellagentic_lead']))
 
-        if user.get('is_admin'):
+        if user.get('is_admin') or (user.get('is_client') and user.get('client_id') == client_id):
             params.append(client_id)
             cur.execute(f"""
                 UPDATE clients SET {', '.join(set_fields)}

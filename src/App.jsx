@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { X, Upload, Sparkles, FileText, Building2, FileText as FileIcon, Trash2, CheckCircle2, Music, Loader2, CheckCircle, Clock, AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Calendar, Globe, TrendingUp, Menu, Settings, Moon, Sun, GripVertical, Copy, Edit2, Plus, Home, Zap, Heart, Star, Send, Check, Save, User, Users, Bell, Search, Mail, Phone, MapPin, Play, ExternalLink, Package, LogOut, Lock, Eye, EyeOff, Cloud, FolderOpen, ChevronLeft, HardDrive, MoreVertical, ToggleLeft, ToggleRight, History, RefreshCw, Image, FileSpreadsheet, FileType, File, Download } from 'lucide-react'
+import { X, Upload, Sparkles, FileText, Building2, FileText as FileIcon, Trash2, CheckCircle2, Music, Loader2, CheckCircle, Clock, AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Calendar, Globe, TrendingUp, Menu, Settings, Moon, Sun, GripVertical, Copy, Edit2, Plus, Home, Zap, Heart, Star, Send, Check, Save, User, Users, Bell, Search, Mail, Phone, MapPin, Play, ExternalLink, Package, LogOut, Lock, Eye, EyeOff, Cloud, FolderOpen, ChevronLeft, HardDrive, MoreVertical, ToggleLeft, ToggleRight, History, RefreshCw, Image, FileSpreadsheet, FileType, File, Download, Link, Share2 } from 'lucide-react'
 import logoLight from './assets/logo-light.png'
 import logoDark from './assets/logo-dark.png'
 
@@ -479,6 +479,184 @@ function LoginScreen({ onLogin }) {
 
 
 // ============================================================
+// SHARE LINK MODAL — Magic link management for client access
+// ============================================================
+function ShareLinkModal({ clientId, onClose }) {
+  const [loading, setLoading] = useState(true)
+  const [linkData, setLinkData] = useState({ token: null, url: null, expires_at: null })
+  const [generating, setGenerating] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState('')
+
+  const fetchLink = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/auth/magic-link?client_id=${clientId}`, {
+        headers: getAuthHeaders()
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setLinkData(data)
+      } else {
+        setError('Failed to load link')
+      }
+    } catch {
+      setError('Connection failed')
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchLink() }, [clientId])
+
+  const generateLink = async () => {
+    setGenerating(true)
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/auth/magic-link`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ client_id: clientId })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setLinkData(data)
+      } else {
+        setError('Failed to generate link')
+      }
+    } catch {
+      setError('Connection failed')
+    }
+    setGenerating(false)
+  }
+
+  const revokeLink = async () => {
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/auth/magic-link?client_id=${clientId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      })
+      if (res.ok) {
+        setLinkData({ token: null, url: null, expires_at: null })
+      } else {
+        setError('Failed to revoke link')
+      }
+    } catch {
+      setError('Connection failed')
+    }
+  }
+
+  const copyLink = () => {
+    if (linkData.url) {
+      navigator.clipboard.writeText(linkData.url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+      <div style={{
+        position: 'relative', background: 'var(--bg-card, #fff)', borderRadius: '16px',
+        padding: '1.5rem', width: '90%', maxWidth: '480px',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Link size={18} /> Share Client Access
+          </h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #9ca3af)', padding: '0.25rem' }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+          Generate a magic link to share with this client. Anyone with the link can access the workspace — no login required.
+        </p>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '1rem' }}>
+            <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#dc2626' }} />
+          </div>
+        ) : (
+          <>
+            {error && (
+              <div style={{ padding: '0.5rem 0.75rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#dc2626', fontSize: '0.8125rem', marginBottom: '0.75rem' }}>
+                {error}
+              </div>
+            )}
+
+            {linkData.token ? (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  background: 'var(--bg-secondary, #f3f4f6)', borderRadius: '8px',
+                  padding: '0.625rem 0.75rem', marginBottom: '0.5rem'
+                }}>
+                  <input
+                    readOnly
+                    value={linkData.url}
+                    style={{
+                      flex: 1, background: 'none', border: 'none', fontSize: '0.75rem',
+                      color: 'var(--text-primary)', outline: 'none', fontFamily: 'monospace'
+                    }}
+                  />
+                  <button
+                    onClick={copyLink}
+                    style={{
+                      background: copied ? '#22c55e' : '#dc2626', border: 'none', borderRadius: '6px',
+                      color: 'white', padding: '0.35rem 0.75rem', fontSize: '0.75rem', fontWeight: 600,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem',
+                      transition: 'background 0.2s', whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
+                  </button>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #9ca3af)' }}>
+                  Expires: {linkData.expires_at ? new Date(linkData.expires_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Unknown'}
+                </div>
+              </div>
+            ) : (
+              <div style={{
+                padding: '1rem', textAlign: 'center', background: 'var(--bg-secondary, #f3f4f6)',
+                borderRadius: '8px', marginBottom: '1rem', color: 'var(--text-muted, #9ca3af)', fontSize: '0.8125rem'
+              }}>
+                No active link
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={generateLink}
+                disabled={generating}
+                className="action-btn red"
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                {generating ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Link size={14} />}
+                {linkData.token ? 'Regenerate' : 'Generate Link'}
+              </button>
+              {linkData.token && (
+                <button
+                  onClick={revokeLink}
+                  className="action-btn"
+                  style={{ color: '#ef4444' }}
+                >
+                  <Trash2 size={14} /> Revoke
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+
+// ============================================================
 // DASHBOARD SCREEN — Admin multi-client view
 // ============================================================
 function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, partners }) {
@@ -486,6 +664,7 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, partners }) 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [deleteConfirmClient, setDeleteConfirmClient] = useState(null)
+  const [shareLinkClient, setShareLinkClient] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterPartner, setFilterPartner] = useState('')
   const [filterIndustry, setFilterIndustry] = useState('')
@@ -609,13 +788,11 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, partners }) 
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = 'var(--bg-card-alt, #fafafa)'
-        const del = e.currentTarget.querySelector('[data-del]')
-        if (del) del.style.opacity = '1'
+        e.currentTarget.querySelectorAll('[data-hover-btn]').forEach(el => el.style.opacity = '1')
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = 'transparent'
-        const del = e.currentTarget.querySelector('[data-del]')
-        if (del) del.style.opacity = '0'
+        e.currentTarget.querySelectorAll('[data-hover-btn]').forEach(el => el.style.opacity = '0')
       }}
     >
       {client.icon_url ? (
@@ -654,7 +831,21 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, partners }) 
         </span>
       )}
       <button
-        data-del
+        data-hover-btn
+        onClick={(e) => { e.stopPropagation(); setShareLinkClient(client) }}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem',
+          color: 'var(--text-muted, #9ca3af)', borderRadius: '4px', display: 'flex', flexShrink: 0,
+          opacity: 0, transition: 'opacity 0.15s'
+        }}
+        onMouseEnter={e => e.currentTarget.style.color = '#3b82f6'}
+        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted, #9ca3af)'}
+        title="Share link"
+      >
+        <ExternalLink size={13} />
+      </button>
+      <button
+        data-hover-btn
         onClick={(e) => { e.stopPropagation(); setDeleteConfirmClient(client) }}
         style={{
           background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem',
@@ -760,6 +951,13 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, partners }) 
       )}
 
       {/* Delete Client Confirmation Modal */}
+      {shareLinkClient && (
+        <ShareLinkModal
+          clientId={shareLinkClient.client_id}
+          onClose={() => setShareLinkClient(null)}
+        />
+      )}
+
       {deleteConfirmClient && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -846,6 +1044,12 @@ export default function App() {
   // Admin state
   const [isAdmin, setIsAdmin] = useState(initialAuth.user?.is_admin || false)
 
+  // Magic token URL handling — loading state
+  const [magicTokenLoading, setMagicTokenLoading] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return !!params.get('token')
+  })
+
   const handleLogin = (userData, token) => {
     setUser(userData)
     setAuthToken(token)
@@ -853,7 +1057,13 @@ export default function App() {
     const admin = !!userData.is_admin
     setIsAdmin(admin)
     if (userData.preferred_model) setPreferredModel(userData.preferred_model)
-    if (admin) setCurrentScreen('dashboard')
+    if (admin) {
+      setCurrentScreen('dashboard')
+    } else if (userData.is_client && userData.client_id) {
+      setClientId(userData.client_id)
+      localStorage.setItem('xo-client-id', userData.client_id)
+      setCurrentScreen('upload')
+    }
   }
 
   const saveModelPreference = async (model) => {
@@ -886,6 +1096,7 @@ export default function App() {
   }) // dashboard | upload | enrich | results | skills | configuration
   const [showModal, setShowModal] = useState(false)
   const [showCompanyModal, setShowCompanyModal] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
   const [showSidebar, setShowSidebar] = useState(false)
   const [clientId, setClientId] = useState(() => localStorage.getItem('xo-client-id') || null)
   const [companyData, setCompanyData] = useState({
@@ -921,6 +1132,43 @@ export default function App() {
   useEffect(() => {
     if (clientId) localStorage.setItem('xo-client-id', clientId)
   }, [clientId])
+
+  // Magic token URL handling — validate on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const magicToken = params.get('token')
+    if (!magicToken) return
+
+    const validateToken = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: magicToken })
+        })
+        const data = await res.json()
+        if (res.ok && data.token) {
+          localStorage.setItem('xo-token', data.token)
+          localStorage.setItem('xo-user', JSON.stringify(data.user))
+          setUser(data.user)
+          setAuthToken(data.token)
+          setIsLoggedIn(true)
+          setIsAdmin(false)
+          if (data.user.client_id) {
+            setClientId(data.user.client_id)
+            localStorage.setItem('xo-client-id', data.user.client_id)
+          }
+          setCurrentScreen('upload')
+        }
+      } catch (err) {
+        console.error('Magic token validation failed:', err)
+      }
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname)
+      setMagicTokenLoading(false)
+    }
+    validateToken()
+  }, [])
 
   // Custom buttons state - synced with PostgreSQL via API
   const [configButtons, setConfigButtons] = useState(DEFAULT_BUTTONS)
@@ -1123,6 +1371,18 @@ export default function App() {
     if (currentScreen === 'dashboard') {
       setCurrentScreen('upload')
     }
+  }
+
+  // Magic token loading gate
+  if (magicTokenLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg-primary, #fff)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <Loader2 size={40} style={{ animation: 'spin 1s linear infinite', color: '#dc2626', margin: '0 auto 1rem' }} />
+          <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: '0.9375rem' }}>Validating access...</p>
+        </div>
+      </div>
+    )
   }
 
   // Auth gate
@@ -1450,7 +1710,7 @@ export default function App() {
                     {(companyData.name || '?')[0].toUpperCase()}
                   </div>
                 )}
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
                     {companyData.name || 'New Client'}
                   </div>
@@ -1459,6 +1719,22 @@ export default function App() {
                   </div>
                 </div>
               </>
+            )}
+            {isAdmin && clientId && (
+              <button
+                onClick={() => setShowShareModal(true)}
+                style={{
+                  background: 'none', border: '1px solid var(--border-color, #d1d5db)',
+                  borderRadius: '8px', padding: '0.4rem 0.75rem', cursor: 'pointer',
+                  color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 500,
+                  display: 'flex', alignItems: 'center', gap: '0.35rem',
+                  transition: 'all 0.2s', marginLeft: 'auto'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.color = '#dc2626' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color, #d1d5db)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+              >
+                <Share2 size={14} /> Share
+              </button>
             )}
           </div>
         )}
@@ -1523,6 +1799,13 @@ export default function App() {
           clientId={clientId}
           partners={partners}
           isAdmin={isAdmin}
+        />
+      )}
+
+      {showShareModal && clientId && (
+        <ShareLinkModal
+          clientId={clientId}
+          onClose={() => setShowShareModal(false)}
         />
       )}
     </div>
