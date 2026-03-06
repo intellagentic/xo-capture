@@ -22,6 +22,33 @@ function migrateContact(c) {
   }
 }
 
+// Error boundary to catch render crashes and show a useful message
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+  componentDidCatch(error, info) {
+    console.error('XO App crash:', error, info.componentStack)
+  }
+  render() {
+    if (this.state.hasError) {
+      return React.createElement('div', { style: { padding: '3rem', textAlign: 'center', fontFamily: 'system-ui' } },
+        React.createElement('h2', { style: { color: '#dc2626', marginBottom: '1rem' } }, 'Something went wrong'),
+        React.createElement('p', { style: { color: '#666', marginBottom: '1rem' } }, String(this.state.error)),
+        React.createElement('button', {
+          onClick: () => { this.setState({ hasError: false, error: null }); window.location.reload() },
+          style: { padding: '0.5rem 1.5rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem' }
+        }, 'Reload')
+      )
+    }
+    return this.props.children
+  }
+}
+
 // Auth helpers
 function getAuthHeaders() {
   const token = localStorage.getItem('xo-token')
@@ -773,32 +800,36 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isPartner, p
 
   // Group clients by partner for the grouped layout
   const groupedByPartner = useMemo(() => {
-    const groups = []
-    const partnerMap = {}
-    const unassigned = []
+    try {
+      const groups = []
+      const partnerMap = {}
+      const unassigned = []
+      const partnersList = partners || []
 
-    filteredClients.forEach(c => {
-      if (c.partner_id) {
-        if (!partnerMap[c.partner_id]) {
-          // Find partner info from partners prop
-          const partner = partners.find(p => String(p.id) === String(c.partner_id))
-          partnerMap[c.partner_id] = {
-            id: c.partner_id,
-            name: partner?.name || partner?.company || c.partner_name || 'Unknown Partner',
-            clients: []
+      ;(filteredClients || []).forEach(c => {
+        if (c.partner_id) {
+          if (!partnerMap[c.partner_id]) {
+            const partner = partnersList.find(p => String(p.id) === String(c.partner_id))
+            partnerMap[c.partner_id] = {
+              id: c.partner_id,
+              name: (partner && (partner.name || partner.company)) || c.partner_name || 'Unknown Partner',
+              clients: []
+            }
+            groups.push(partnerMap[c.partner_id])
           }
-          groups.push(partnerMap[c.partner_id])
+          partnerMap[c.partner_id].clients.push(c)
+        } else {
+          unassigned.push(c)
         }
-        partnerMap[c.partner_id].clients.push(c)
-      } else {
-        unassigned.push(c)
-      }
-    })
+      })
 
-    // Sort groups alphabetically by partner name
-    groups.sort((a, b) => a.name.localeCompare(b.name))
+      groups.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
 
-    return { groups, unassigned }
+      return { groups, unassigned }
+    } catch (err) {
+      console.error('groupedByPartner error:', err)
+      return { groups: [], unassigned: filteredClients || [] }
+    }
   }, [filteredClients, partners])
 
   const renderRow = (client) => (
@@ -1479,10 +1510,11 @@ export default function App() {
 
   // Auth gate
   if (!isLoggedIn) {
-    return <LoginScreen onLogin={handleLogin} />
+    return <ErrorBoundary><LoginScreen onLogin={handleLogin} /></ErrorBoundary>
   }
 
   return (
+    <ErrorBoundary>
     <div>
       {/* Header */}
       <header className="header">
@@ -1902,6 +1934,7 @@ export default function App() {
         />
       )}
     </div>
+    </ErrorBoundary>
   )
 }
 
