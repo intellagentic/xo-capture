@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { X, Upload, Sparkles, FileText, Building2, FileText as FileIcon, Trash2, CheckCircle2, Music, Loader2, CheckCircle, Clock, AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Calendar, Globe, TrendingUp, Menu, Settings, Moon, Sun, GripVertical, Copy, Edit2, Plus, Home, Zap, Heart, Star, Send, Check, Save, User, Bell, Search, Mail, Phone, MapPin, Play, ExternalLink, Package, LogOut, Lock, Eye, EyeOff, Cloud, FolderOpen, ChevronLeft, HardDrive, MoreVertical, ToggleLeft, ToggleRight, History, RefreshCw, Image, FileSpreadsheet, FileType, File } from 'lucide-react'
+import { X, Upload, Sparkles, FileText, Building2, FileText as FileIcon, Trash2, CheckCircle2, Music, Loader2, CheckCircle, Clock, AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Calendar, Globe, TrendingUp, Menu, Settings, Moon, Sun, GripVertical, Copy, Edit2, Plus, Home, Zap, Heart, Star, Send, Check, Save, User, Bell, Search, Mail, Phone, MapPin, Play, ExternalLink, Package, LogOut, Lock, Eye, EyeOff, Cloud, FolderOpen, ChevronLeft, HardDrive, MoreVertical, ToggleLeft, ToggleRight, History, RefreshCw, Image, FileSpreadsheet, FileType, File, Download } from 'lucide-react'
 import logoLight from './assets/logo-light.png'
 import logoDark from './assets/logo-dark.png'
 
@@ -4967,7 +4967,8 @@ const ICON_MAP = {
   X, Edit2, Save, Home, Settings, User, Bell, Search,
   Calendar, Mail, Phone, MapPin, Upload, Play,
   ExternalLink, FileText, Globe, Package, CheckCircle2,
-  Building2, Sparkles, Database, AlertCircle, AlertTriangle, TrendingUp, Clock
+  Building2, Sparkles, Database, AlertCircle, AlertTriangle, TrendingUp, Clock,
+  Download
 }
 
 const ICON_NAMES = Object.keys(ICON_MAP)
@@ -4986,7 +4987,8 @@ const COLORS = [
 
 const DEFAULT_BUTTONS = [
   { id: 1, label: 'Enrich', icon: 'Sparkles', color: '#22c55e', url: '/enrich' },
-  { id: 2, label: 'Skills', icon: 'Database', color: '#334155', url: '/skills' }
+  { id: 2, label: 'Skills', icon: 'Database', color: '#334155', url: '/skills' },
+  { id: 3, label: 'Rapid Prototype', icon: 'Download', color: '#dc2626', url: '/results' }
 ]
 
 // Internal route map for button navigation
@@ -5821,6 +5823,7 @@ function ResultsScreen({ setShowModal, clientId }) {
   const [expandedProblems, setExpandedProblems] = useState({})
   const [streamlineSending, setStreamlineSending] = useState(false)
   const [streamlineStatus, setStreamlineStatus] = useState(null) // null | 'sent' | 'error'
+  const [protoDownloading, setProtoDownloading] = useState(false)
 
   useEffect(() => {
     if (clientId) {
@@ -6066,6 +6069,41 @@ function ResultsScreen({ setShowModal, clientId }) {
               {streamlineStatus === 'error' && (
                 <span style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 500 }}>Failed to send</span>
               )}
+              <button
+                onClick={async () => {
+                  setProtoDownloading(true)
+                  try {
+                    const res = await fetch(`${API_BASE}/rapid-prototype/${clientId}`, { headers: getAuthHeaders() })
+                    if (!res.ok) throw new Error('Failed to generate spec')
+                    const blob = await res.blob()
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = 'PROTOTYPE-SPEC.md'
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    URL.revokeObjectURL(url)
+                  } catch (e) {
+                    console.error('Prototype spec download failed:', e)
+                  } finally {
+                    setProtoDownloading(false)
+                  }
+                }}
+                disabled={protoDownloading}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 14px',
+                  background: protoDownloading ? '#94a3b8' : '#dc2626',
+                  color: 'white', border: 'none', borderRadius: 8,
+                  cursor: protoDownloading ? 'not-allowed' : 'pointer',
+                  fontSize: '0.75rem', fontWeight: 600,
+                  transition: 'all .2s'
+                }}
+              >
+                {protoDownloading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
+                {protoDownloading ? 'Generating...' : 'Download Prototype Spec'}
+              </button>
               <button
                 onClick={sendToStreamline}
                 disabled={streamlineSending}

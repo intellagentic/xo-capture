@@ -3,7 +3,7 @@
 **Date:** March 3, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.53)
+**Status:** Deployed & Operational (v1.54)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2544,6 +2544,14 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Frontend results heading updated to "7/14/21 Day Action Plan"
 - Pain point priority now front-loads the 7-day phase
 - Existing results still render correctly (frontend displays phase labels dynamically)
+
+**v1.54 — Rapid Prototype Spec Generator**
+- New `xo-rapid-prototype` Lambda generates a Claude Code-ready markdown build spec from enrichment results + client metadata
+- "Download Prototype Spec" red button on Results screen (next to Send to Streamline) triggers .md file download
+- Spec includes: client context, problem analysis, features, database schema, seed data instructions, tech stack, UI layout, API endpoints, build sequence checklist
+- "Rapid Prototype" added as default configurable button (Download icon, red, routes to results)
+- Download icon added to ICON_MAP for configurable buttons
+- API Gateway: GET /rapid-prototype/{id} with CORS OPTIONS
 
 **v1.53 — Global System Skills (DB-managed, admin-editable)**
 - System skills (analysis-framework, output-format, authority-boundaries, enrichment-process) are now first-class DB entities
