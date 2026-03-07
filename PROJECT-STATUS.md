@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.64-hotfix)
+**Status:** Deployed & Operational (v1.65)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2644,6 +2644,11 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.65 — Add client_summary to Streamline webhook payload**
+- Enrich Lambda webhook now includes `client_summary` field (XO Summary for Client) alongside existing sections
+- Applies to both automatic post-enrichment webhook and manual "Send to Streamline" re-send
+- No frontend changes
 
 **v1.64-hotfix — Revert dashboard grouping to restore stable state**
 - Reverted v1.65 (dashboard grouped by Channel Partner) and v1.66 (ErrorBoundary) — both caused blank screen crash (React error #310)
