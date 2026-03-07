@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { X, Upload, Sparkles, FileText, Building2, FileText as FileIcon, Trash2, CheckCircle2, Music, Loader2, CheckCircle, Clock, AlertCircle, AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Database, Calendar, Globe, TrendingUp, Menu, Settings, Moon, Sun, GripVertical, Copy, Edit2, Plus, Home, Zap, Heart, Star, Send, Check, Save, User, Users, Bell, Search, Mail, Phone, MapPin, Play, ExternalLink, Package, LogOut, Lock, Eye, EyeOff, Cloud, FolderOpen, ChevronLeft, HardDrive, MoreVertical, ToggleLeft, ToggleRight, History, RefreshCw, Image, FileSpreadsheet, FileType, File, Download, Link, Share2 } from 'lucide-react'
 import logoLight from './assets/logo-light.png'
 import logoDark from './assets/logo-dark.png'
+import intellistackLogo from './assets/intellistack-logo.png'
 
 // ============================================================
 // XO PROTOTYPE - MAIN APP
@@ -7083,13 +7084,13 @@ function ResultsScreen({ setShowModal, clientId, isAdmin }) {
 
       {/* Streamline Applications */}
       {displayResults.streamline_applications && (
-        <div className="panel" style={{ border: '2px solid #7c3aed', borderRadius: '12px', overflow: 'hidden' }}>
+        <div className="panel" style={{ border: '2px solid #4b5563', borderRadius: '12px', overflow: 'hidden' }}>
           <div style={{
-            background: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)',
+            background: '#1a1a1a',
             padding: '1rem 1.25rem',
             display: 'flex', alignItems: 'center', gap: '0.625rem'
           }}>
-            <Zap size={20} style={{ color: '#ffffff' }} />
+            <img src={intellistackLogo} alt="Intellistack" style={{ height: '22px' }} />
             <h2 style={{ color: '#ffffff', margin: 0, fontSize: '1rem', fontWeight: 700, letterSpacing: '0.02em' }}>Potential Streamline Applications</h2>
           </div>
           <div style={{ padding: '1.5rem', background: 'var(--bg-primary)' }}>
@@ -7109,7 +7110,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin }) {
               if (labelMatch) {
                 return (
                   <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.35rem', paddingLeft: '0.75rem' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#7c3aed', minWidth: '90px', flexShrink: 0 }}>{labelMatch[1]}:</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: labelMatch[1] === 'Problem' ? '#ef4444' : labelMatch[1] === 'Workflow' ? '#3b82f6' : '#6b7280', minWidth: '90px', flexShrink: 0 }}>{labelMatch[1]}:</span>
                     <span style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)' }}>{labelMatch[2]}</span>
                   </div>
                 )
@@ -7118,7 +7119,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin }) {
               if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
                 return (
                   <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '0.5rem', paddingLeft: '0.5rem' }}>
-                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#7c3aed', marginTop: '0.5rem', flexShrink: 0 }} />
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4b5563', marginTop: '0.5rem', flexShrink: 0 }} />
                     <p style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)', margin: 0 }}>{trimmed.substring(2)}</p>
                   </div>
                 )
