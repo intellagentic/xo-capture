@@ -38,6 +38,7 @@ SYSTEM_SKILLS = [
     ('authority-boundaries', '_system/skills/authority-boundaries.md'),
     ('enrichment-process', '_system/skills/enrichment-process.md'),
     ('client-facing-summary', '_system/skills/client-facing-summary.md'),
+    ('streamline-applications', '_system/skills/streamline-applications.md'),
 ]
 
 def _run_skill_migrations():

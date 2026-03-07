@@ -7081,6 +7081,59 @@ function ResultsScreen({ setShowModal, clientId, isAdmin }) {
         </div>
       )}
 
+      {/* Streamline Applications */}
+      {displayResults.streamline_applications && (
+        <div className="panel" style={{ border: '2px solid #7c3aed', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)',
+            padding: '1rem 1.25rem',
+            display: 'flex', alignItems: 'center', gap: '0.625rem'
+          }}>
+            <Zap size={20} style={{ color: '#ffffff' }} />
+            <h2 style={{ color: '#ffffff', margin: 0, fontSize: '1rem', fontWeight: 700, letterSpacing: '0.02em' }}>Potential Streamline Applications</h2>
+          </div>
+          <div style={{ padding: '1.5rem', background: 'var(--bg-primary)' }}>
+            {displayResults.streamline_applications.split('\n').filter(line => line.trim()).map((line, idx) => {
+              const trimmed = line.trim()
+              // Bold headers like **1. Title**
+              const boldMatch = trimmed.match(/^\*\*(.+)\*\*$/)
+              if (boldMatch) {
+                return (
+                  <h3 key={idx} style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', margin: idx === 0 ? '0 0 0.5rem 0' : '1.25rem 0 0.5rem 0' }}>
+                    {boldMatch[1]}
+                  </h3>
+                )
+              }
+              // Labeled lines like "Problem: ...", "Workflow: ...", "Integrations: ...", "Outcome: ..."
+              const labelMatch = trimmed.match(/^(Problem|Workflow|Integrations|Outcome):\s*(.+)/)
+              if (labelMatch) {
+                return (
+                  <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.35rem', paddingLeft: '0.75rem' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#7c3aed', minWidth: '90px', flexShrink: 0 }}>{labelMatch[1]}:</span>
+                    <span style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)' }}>{labelMatch[2]}</span>
+                  </div>
+                )
+              }
+              // Bullet points
+              if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                return (
+                  <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '0.5rem', paddingLeft: '0.5rem' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#7c3aed', marginTop: '0.5rem', flexShrink: 0 }} />
+                    <p style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)', margin: 0 }}>{trimmed.substring(2)}</p>
+                  </div>
+                )
+              }
+              // Regular paragraphs
+              return (
+                <p key={idx} style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                  {trimmed}
+                </p>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Executive Summary */}
       <div className="panel">
         <div className="panel-header">

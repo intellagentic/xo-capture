@@ -1026,6 +1026,7 @@ def _send_streamline_webhook(company_name, contacts, model, analysis, source_fil
                 for phase in analysis.get("plan", [])
             },
             "client_summary": analysis.get("client_summary", ""),
+            "streamline_applications": analysis.get("streamline_applications", ""),
             "data_sources": analysis.get("sources", []),
             "source_files": source_files,
             "xo_results_url": "https://d36la414u58rw5.cloudfront.net",
@@ -1191,6 +1192,16 @@ Provide your analysis in structured, technical format. Follow these formatting r
    - Close with a forward-looking statement about next steps
    - Keep under one page (150-250 words)
 
+8. POTENTIAL STREAMLINE APPLICATIONS
+   - Evaluate the client's pain points, business context, and your analysis to identify 3-5 practical workflow automations using Intellistack Streamline
+   - Streamline steps: Forms, Documents, Collaboration, Sign, Notifications, Logic, Transform, Data Search, Deliver Data, Extract Data from Files, Incoming Webhook, Outbound Webhook
+   - Streamline integrations: Salesforce, Google Drive, Google Sheets, Google Calendar, Amazon S3, Dropbox, OneDrive, SharePoint, Excel Online, Slack, SendGrid, SMTP, SFTP, Twilio, Microsoft Outlook
+   - For each application: title, business problem (in their language), workflow steps used, integrations that apply, operational outcome
+   - Rank by ease of implementation and business impact -- low-hanging fruit first
+   - Use plain business language -- no technical jargon
+   - NEVER include cost estimates, pricing, or timelines
+   - Keep under 400 words total
+
 OUTPUT FORMAT:
 Return ONLY valid JSON in this exact structure. The "summary", "architecture_diagram", and "bottom_line" fields contain plain text. Schema "columns" use table format. All text fields can include newline characters (\\n) for formatting:
 {{
@@ -1235,6 +1246,7 @@ Return ONLY valid JSON in this exact structure. The "summary", "architecture_dia
   ],
   "bottom_line": "Direct summary: what to do first, what it costs, what to expect...",
   "client_summary": "Based on the information provided, XO has identified the following opportunities for [Company Name]:\\n\\n- First value proposition as a business outcome\\n- Second value proposition\\n- Third value proposition\\n\\nForward-looking closing statement about next steps.",
+  "streamline_applications": "Based on [Company Name]'s operational needs, Streamline can automate the following workflows:\\n\\n**1. [Application Title]**\\nProblem: [Business problem in their language]\\nWorkflow: [Steps used e.g. Forms → Logic → Documents → Sign → Notifications]\\nIntegrations: [e.g. Salesforce, Google Drive, Slack]\\nOutcome: [What changes day-to-day]\\n\\n**2. [Application Title]**\\n...\\n\\nThese applications are ordered by ease of implementation.",
   "sources": [
     {{"type": "client_data", "reference": "filename or data source"}}
   ]
