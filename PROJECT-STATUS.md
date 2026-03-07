@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.65)
+**Status:** Deployed & Operational (v1.66)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2644,6 +2644,16 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.66 — Streamline Applications: new system skill + Potential Streamline Applications on Results screen**
+- New system skill: `streamline-applications.md` — full reference of 12 Streamline workflow steps and 15 integrations
+- Instructs AI to identify 3-5 practical Streamline workflow applications ranked by ease of implementation and business impact
+- Each application includes: business problem, workflow steps used, applicable integrations, operational outcome
+- Enrich Lambda prompt updated with section 8 (POTENTIAL STREAMLINE APPLICATIONS) and `streamline_applications` field in JSON output
+- Results screen: new "Potential Streamline Applications" panel with purple gradient header (Zap icon), between Client Summary and Executive Summary
+- Parses bold headers, labeled fields (Problem/Workflow/Integrations/Outcome), bullets, and paragraphs
+- `streamline_applications` included in Streamline webhook payload
+- 6 system skills total: analysis-framework, output-format, authority-boundaries, enrichment-process, client-facing-summary, streamline-applications
 
 **v1.65 — Add client_summary to Streamline webhook payload**
 - Enrich Lambda webhook now includes `client_summary` field (XO Summary for Client) alongside existing sections
