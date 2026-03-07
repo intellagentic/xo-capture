@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.66)
+**Status:** Deployed & Operational (v1.67)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2650,8 +2650,10 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Instructs AI to identify 3-5 practical Streamline workflow applications ranked by ease of implementation and business impact
 - Each application includes: business problem, workflow steps used, applicable integrations, operational outcome
 - Enrich Lambda prompt updated with section 8 (POTENTIAL STREAMLINE APPLICATIONS) and `streamline_applications` field in JSON output
-- Results screen: new "Potential Streamline Applications" panel with purple gradient header (Zap icon), between Client Summary and Executive Summary
+- Results screen: new "Potential Streamline Applications" panel between Client Summary and Executive Summary
+- Black header (#1a1a1a) with white text and Intellistack logo (copied from surgical-trays assets)
 - Parses bold headers, labeled fields (Problem/Workflow/Integrations/Outcome), bullets, and paragraphs
+- Color-coded labels: Problem (red #ef4444), Workflow (blue #3b82f6 matching Send to Streamline button), Integrations/Outcome (gray #6b7280)
 - `streamline_applications` included in Streamline webhook payload
 - 6 system skills total: analysis-framework, output-format, authority-boundaries, enrichment-process, client-facing-summary, streamline-applications
 
