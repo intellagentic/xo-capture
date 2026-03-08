@@ -2662,7 +2662,8 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - `InvitePage` component: dark gradient background, XO Capture header, "Invitation" heading, tagline
 - Tagline split across two lines: "XO clears the path." / "You decide. Streamline Acts."
 - Live countdown timer to March 16, 2026 10:00 AM PST (4 red-tinted boxes: Days/Hrs/Min/Sec)
-- Glass-morphism form card with 4 inputs: First Name, Email, Phone (tel), Company (16px+ fonts, red focus borders)
+- Glass-morphism form card with 4 inputs: First Name, Email, Phone, Company (16px+ fonts, red focus borders)
+- Phone field is plain text input (type="tel") matching Organization Profile contacts format — no country code dropdown
 - All fields have proper autocomplete attributes for mobile autofill: given-name, email, tel, organization
 - Submit → `POST /invite` → creates client (S3 folders, client-config.md, default skill) + generates 30-day magic link (stored, not shown)
 - Confirmation screen: CheckCircle icon, "You're in.", "We'll send your access on March 16.", Intellagentic logo — no magic link displayed
