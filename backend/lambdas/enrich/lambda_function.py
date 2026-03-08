@@ -35,15 +35,26 @@ anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
 
 def _get_system_config_value(conn, key):
-    """Read a single value from system_config table."""
+    """Read a single value from system_config table. Opens own connection if conn is None."""
+    own_conn = False
     try:
+        if conn is None:
+            conn = get_db_connection()
+            own_conn = True
         cur = conn.cursor()
         cur.execute("SELECT config_value FROM system_config WHERE config_key = %s", (key,))
         row = cur.fetchone()
         cur.close()
+        if own_conn:
+            conn.close()
         return row[0] if row else ''
     except Exception as e:
         print(f"Failed to read system_config key '{key}' (non-fatal): {e}")
+        if own_conn and conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
         return ''
 
 
@@ -347,7 +358,15 @@ def _run_enrichment_pipeline(event):
         print(f"Analysis complete for client: {client_id}")
 
         # Fire webhook to Streamline (non-blocking — enrichment success is independent)
-        if streamline_webhook_enabled:
+        # Per-client toggle takes priority; fall back to system-level toggle
+        webhook_should_fire = streamline_webhook_enabled
+        if not webhook_should_fire:
+            sys_enabled = _get_system_config_value(None, 'streamline_webhook_enabled')
+            webhook_should_fire = sys_enabled == 'true'
+            if webhook_should_fire:
+                print("Using system-level streamline_webhook_enabled=true (no per-client override)")
+
+        if webhook_should_fire:
             _send_streamline_webhook(
                 company_name=company_name,
                 contacts=contacts,
@@ -360,7 +379,7 @@ def _run_enrichment_pipeline(event):
                 webhook_url=streamline_webhook_url
             )
         else:
-            print("Streamline webhook disabled for client")
+            print("Streamline webhook disabled (per-client OFF, system default OFF)")
 
         return {'status': 'complete', 'client_id': client_id}
 

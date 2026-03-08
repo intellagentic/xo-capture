@@ -6397,6 +6397,8 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
   const [webhookUrlSaving, setWebhookUrlSaving] = useState(false)
   const [webhookUrlSaved, setWebhookUrlSaved] = useState(false)
   // System-level webhook config (dashboard mode, admin only)
+  const [sysWebhookEnabled, setSysWebhookEnabled] = useState(false)
+  const [sysWebhookSaving, setSysWebhookSaving] = useState(false)
   const [sysInviteUrl, setSysInviteUrl] = useState('')
   const [sysInviteSaving, setSysInviteSaving] = useState(false)
   const [sysInviteSaved, setSysInviteSaved] = useState(false)
@@ -6423,6 +6425,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
           if (data) {
             setSysInviteUrl(data.invite_webhook_url || '')
             setSysEnrichmentUrl(data.enrichment_webhook_url || '')
+            setSysWebhookEnabled(data.streamline_webhook_enabled === 'true')
           }
         })
         .catch(() => {})
@@ -6493,6 +6496,23 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
       console.error('Failed to save webhook URL:', err)
     }
     setWebhookUrlSaving(false)
+  }
+
+  const toggleSysWebhook = async () => {
+    const newValue = !sysWebhookEnabled
+    setSysWebhookEnabled(newValue)
+    setSysWebhookSaving(true)
+    try {
+      await fetch(`${API_BASE}/system-config`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ config_key: 'streamline_webhook_enabled', config_value: String(newValue) })
+      })
+    } catch (err) {
+      console.error('Failed to save system webhook toggle:', err)
+      setSysWebhookEnabled(!newValue)
+    }
+    setSysWebhookSaving(false)
   }
 
   const saveSysConfig = async (key, value, setSaving, setSaved) => {
@@ -6634,6 +6654,46 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
                     borderRadius: 6, outline: 'none', boxSizing: 'border-box', wordBreak: 'break-all'
                   }}
                 />
+              </div>
+
+              {/* Send to Streamline toggle */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginTop: '0.75rem',
+                padding: '1rem',
+                background: C.surface,
+                borderRadius: 10,
+                border: `1px solid ${C.border}`
+              }}>
+                <div style={{ flex: 1, marginRight: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 500, color: C.text }}>
+                      Send to Streamline
+                    </span>
+                    {sysWebhookSaving && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: C.muted }} />}
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: C.muted, marginTop: 4, lineHeight: 1.4 }}>
+                    Automatically send enrichment results to Streamline when enrichment completes (default for all clients)
+                  </p>
+                </div>
+                <button
+                  onClick={toggleSysWebhook}
+                  disabled={sysWebhookSaving}
+                  style={{
+                    width: 52, height: 28, borderRadius: 14, border: 'none',
+                    background: sysWebhookEnabled ? '#dc2626' : '#e5e5e5',
+                    position: 'relative', cursor: sysWebhookSaving ? 'wait' : 'pointer',
+                    transition: 'all 0.2s', flexShrink: 0
+                  }}
+                >
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%', background: 'white',
+                    position: 'absolute', top: 3, left: sysWebhookEnabled ? 27 : 3,
+                    transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)'
+                  }} />
+                </button>
               </div>
 
               {/* Default Enrichment Webhook URL */}
