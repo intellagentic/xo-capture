@@ -2671,10 +2671,12 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Fires `invite_signup` webhook to Streamline with client name, contact, email, magic link URL
 - API Gateway: `/invite` resource with POST + OPTIONS methods → Lambda proxy to xo-clients
 - `STREAMLINE_WEBHOOK_URL` and `FRONTEND_URL` env vars added to clients Lambda
-- Intellagentic logo footer with copyright
 - CloudFront SPA routing handles `/invite` path (404 → index.html already configured)
 - Single-viewport layout: entire page fits without scrolling on laptop (1440x900) and mobile (375x812)
 - Tightened spacing: centered flex layout with gap, compact countdown boxes, reduced form/button padding
+- Tagline prominent: 17px near-white (#e0e0e0) with line break — "XO clears the path." / "You decide. Streamline Acts."
+- Submit button text: "I'm In"
+- Footer matches main app: © 2026 Intellagentic Limited. All rights reserved.
 
 **v1.66 — Streamline Applications: new system skill + Potential Streamline Applications on Results screen**
 - New system skill: `streamline-applications.md` — full reference of 12 Streamline workflow steps and 15 integrations

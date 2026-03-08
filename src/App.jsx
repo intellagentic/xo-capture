@@ -1141,11 +1141,12 @@ function InvitePage() {
       {/* Tagline */}
       <p style={{
         margin: 0,
-        fontSize: '13px',
-        color: '#888',
+        fontSize: '17px',
+        color: '#e0e0e0',
         letterSpacing: '2px',
         textAlign: 'center',
-        lineHeight: 1.6
+        lineHeight: 1.7,
+        fontWeight: 300
       }}>XO clears the path.<br />You decide. Streamline Acts.</p>
 
       {/* Countdown */}
@@ -1251,7 +1252,7 @@ function InvitePage() {
                 transition: 'background 0.2s'
               }}
             >
-              {submitting ? 'Processing...' : 'Show Me'}
+              {submitting ? 'Processing...' : "I'm In"}
             </button>
           </form>
         ) : (
@@ -1288,19 +1289,8 @@ function InvitePage() {
       </div>
 
       {/* Footer */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '4px',
-        marginTop: '4px'
-      }}>
-        <img
-          src={intellistackLogo}
-          alt="Intellagentic"
-          style={{ height: '20px', opacity: 0.4 }}
-        />
-        <span style={{ fontSize: '10px', color: '#444' }}>&copy; 2026 Intellagentic</span>
+      <div style={{ textAlign: 'center', marginTop: '4px' }}>
+        <span style={{ fontSize: '11px', color: '#808080' }}>&copy; 2026 Intellagentic Limited. All rights reserved.</span>
       </div>
     </div>
   )
