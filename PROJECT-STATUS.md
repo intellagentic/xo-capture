@@ -2663,17 +2663,17 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Tagline split across two lines: "XO clears the path." / "You decide. Streamline Acts."
 - "Your Second-in-Command" subtitle below countdown
 - Live countdown timer to March 16, 2026 10:00 AM PST (4 red-tinted boxes: Days/Hrs/Min/Sec)
-- Glass-morphism form card with 4 inputs: First Name, Email, Phone, Company (16px+ fonts, red focus borders)
-- Phone field is plain text input (type="tel") matching Organization Profile contacts format — no country code dropdown
-- All fields have proper autocomplete attributes for mobile autofill: given-name, email, tel, organization
+- Glass-morphism form card with 6 fields: First Name + Last Name (side-by-side row), Email, Phone, LinkedIn (optional, icon label), Company
+- All fields have proper autocomplete attributes: given-name, family-name, email, tel, url, organization
+- LinkedIn field: SVG icon label, placeholder "linkedin.com/in/yourprofile", optional
 - Submit → `POST /invite` → creates client (S3 folders, client-config.md, default skill) + generates 30-day magic link (stored, not shown)
 - Confirmation screen: CheckCircle icon, "You're in.", "We'll send your access on March 16.", Intellagentic logo — no magic link displayed
 - Idempotent: same email returns success (no duplicate clients)
 - Backend: `handle_invite()` in clients Lambda, routed before auth check
-- Phone number stored in `contact_phone` column and included in client-config.md
+- Phone number stored in `contact_phone`, LinkedIn in `contact_linkedin`, full name in `contact_name` — all included in client-config.md
 - Auto-migration: `source` column on clients table, `user_id` made nullable for invite clients
 - Dedicated invite webhook via `STREAMLINE_INVITE_WEBHOOK_URL` env var (separate from enrichment webhook)
-- Invite webhook payload: `invite_submission` event with first_name, email, phone, company_name, signup_date (no magic link)
+- Invite webhook payload: `invite_submission` event with first_name, last_name, email, phone, linkedin, company_name, signup_date
 - API Gateway: `/invite` resource with POST + OPTIONS methods → Lambda proxy to xo-clients
 - `STREAMLINE_INVITE_WEBHOOK_URL` and `FRONTEND_URL` env vars added to clients Lambda
 - CloudFront SPA routing handles `/invite` path (404 → index.html already configured)
