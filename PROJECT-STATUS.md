@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.69)
+**Status:** Deployed & Operational (v1.70)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2656,6 +2656,13 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.70 — Fix Enrich screen stage progress display**
+- Fixed bug where AI Analysis appeared to start before Transcribing Audio completed
+- Backend Lambda confirmed sequential — bug was in frontend `updateStageStatus()` display logic
+- Rewrote `updateStageStatus` with index-based logic: all stages before current → 'complete', current → active, all after → 'pending'
+- Old logic only marked prior stages complete if they were 'pending', so skipped stages (e.g. no audio files) or stages that were still 'active' could overlap visually
+- Added immediate `updateStageStatus('extracting', 'active')` call at enrichment start (was only set on first 3-second poll)
 
 **v1.69 — Organization Profile textarea sizing, workspace logo, copyright footer**
 - Organization Profile textareas (Current Business Description, Future Plans, Pain Points) set to `rows={4}` with `minHeight: 100px` across all 3 form instances (CompanyInfoModal, Partner Info modal, inline form)

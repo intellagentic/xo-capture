@@ -5178,6 +5178,7 @@ function EnrichScreen({ clientId, onComplete, preferredModel }) {
     setError(null)
     setJobStatus('processing')
     setCurrentStage('extracting')
+    updateStageStatus('extracting', 'active')
 
     try {
       // Trigger enrichment Lambda
@@ -5271,18 +5272,20 @@ function EnrichScreen({ clientId, onComplete, preferredModel }) {
   }
 
   const updateStageStatus = (stageId, status) => {
-    setStages(prev => prev.map(stage => {
-      if (stage.id === stageId) {
-        return { ...stage, status }
-      }
-      // Mark previous stages as complete
-      const stageIndex = prev.findIndex(s => s.id === stageId)
-      const currentIndex = prev.findIndex(s => s.id === stage.id)
-      if (currentIndex < stageIndex && stage.status === 'pending') {
-        return { ...stage, status: 'complete' }
-      }
-      return stage
-    }))
+    setStages(prev => {
+      const targetIndex = prev.findIndex(s => s.id === stageId)
+      return prev.map((stage, i) => {
+        if (i < targetIndex) {
+          // All prior stages are complete
+          return { ...stage, status: 'complete' }
+        }
+        if (i === targetIndex) {
+          return { ...stage, status }
+        }
+        // All later stages stay pending
+        return { ...stage, status: 'pending' }
+      })
+    })
   }
 
   return (
