@@ -1040,6 +1040,7 @@ function getInitialAuth() {
 function InvitePage() {
   const [firstName, setFirstName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -1066,7 +1067,7 @@ function InvitePage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!firstName.trim() || !email.trim() || !companyName.trim()) {
+    if (!firstName.trim() || !email.trim() || !phone.trim() || !companyName.trim()) {
       setError('All fields are required')
       return
     }
@@ -1079,6 +1080,7 @@ function InvitePage() {
         body: JSON.stringify({
           first_name: firstName.trim(),
           email: email.trim(),
+          phone: phone.trim(),
           company_name: companyName.trim()
         })
       })
@@ -1107,7 +1109,7 @@ function InvitePage() {
       color: '#e0e0e0',
       padding: '0 16px',
       boxSizing: 'border-box',
-      gap: '12px'
+      gap: '10px'
     }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1195,16 +1197,17 @@ function InvitePage() {
             background: 'rgba(255,255,255,0.03)',
             border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: '14px',
-            padding: '20px 22px',
+            padding: '18px 22px',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)'
           }}>
             {[
               { label: 'First Name', value: firstName, set: setFirstName, auto: 'given-name', type: 'text' },
               { label: 'Email', value: email, set: setEmail, auto: 'email', type: 'email' },
+              { label: 'Phone', value: phone, set: setPhone, auto: 'tel', type: 'tel' },
               { label: 'Company', value: companyName, set: setCompanyName, auto: 'organization', type: 'text' }
             ].map(({ label, value, set, auto, type }) => (
-              <div key={label} style={{ marginBottom: '10px' }}>
+              <div key={label} style={{ marginBottom: '8px' }}>
                 <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', letterSpacing: '1px' }}>{label}</label>
                 <input
                   type={type}
@@ -1214,7 +1217,7 @@ function InvitePage() {
                   required
                   style={{
                     width: '100%',
-                    padding: '11px 14px',
+                    padding: '10px 14px',
                     fontSize: '16px',
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.12)',
@@ -1260,30 +1263,15 @@ function InvitePage() {
             background: 'rgba(255,255,255,0.03)',
             border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: '14px',
-            padding: '28px 22px',
+            padding: '32px 22px',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
             textAlign: 'center'
           }}>
             <CheckCircle size={40} style={{ color: '#22c55e', marginBottom: '12px' }} />
-            <h2 style={{ fontSize: '22px', fontWeight: 600, color: '#fff', margin: '0 0 6px' }}>You're in.</h2>
-            <p style={{ color: '#888', fontSize: '14px', margin: '0 0 20px' }}>We'll be in touch.</p>
-
-            <a
-              href={result.magic_link_url}
-              style={{
-                display: 'inline-block',
-                padding: '12px 28px',
-                fontSize: '15px',
-                fontWeight: 600,
-                background: '#dc2626',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                textDecoration: 'none',
-                letterSpacing: '1px'
-              }}
-            >Launch XO Capture</a>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#fff', margin: '0 0 8px' }}>You're in.</h2>
+            <p style={{ color: '#aaa', fontSize: '15px', margin: '0 0 24px' }}>We'll send your access on March 16.</p>
+            <img src={intellistackLogo} alt="Intellagentic" style={{ height: '22px', opacity: 0.5 }} />
           </div>
         )}
       </div>

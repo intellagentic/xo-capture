@@ -16,6 +16,7 @@ from auth_helper import require_auth, get_db_connection, CORS_HEADERS
 s3_client = boto3.client('s3')
 BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data')
 STREAMLINE_WEBHOOK_URL = os.environ.get('STREAMLINE_WEBHOOK_URL', '')
+STREAMLINE_INVITE_WEBHOOK_URL = os.environ.get('STREAMLINE_INVITE_WEBHOOK_URL', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://xo.intellagentic.io')
 
 
@@ -1138,13 +1139,14 @@ def handle_invite(event):
         body = json.loads(event.get('body', '{}'))
         first_name = body.get('first_name', '').strip()
         email = body.get('email', '').strip()
+        phone = body.get('phone', '').strip()
         company_name = body.get('company_name', '').strip()
 
-        if not first_name or not email or not company_name:
+        if not first_name or not email or not phone or not company_name:
             return {
                 'statusCode': 400,
                 'headers': CORS_HEADERS,
-                'body': json.dumps({'error': 'first_name, email, and company_name are required'})
+                'body': json.dumps({'error': 'first_name, email, phone, and company_name are required'})
             }
 
         conn = get_db_connection()
@@ -1163,7 +1165,6 @@ def handle_invite(event):
         if existing:
             db_id, s3_folder, token = existing
             if token:
-                magic_link_url = f"{FRONTEND_URL}?token={token}"
                 cur.close()
                 conn.close()
                 return {
@@ -1171,7 +1172,6 @@ def handle_invite(event):
                     'headers': CORS_HEADERS,
                     'body': json.dumps({
                         'success': True,
-                        'magic_link_url': magic_link_url,
                         'company_name': company_name,
                         'existing': True
                     })
@@ -1192,7 +1192,7 @@ def handle_invite(event):
             # Client config
             config_md = generate_client_config(
                 company_name, '', first_name, '', '', '', '', '',
-                contact_email=email
+                contact_email=email, contact_phone=phone
             )
             s3_client.put_object(
                 Bucket=BUCKET_NAME, Key=f"{client_id}/client-config.md",
@@ -1206,10 +1206,10 @@ def handle_invite(event):
             cur.execute("""
                 INSERT INTO clients (
                     user_id, company_name, contact_name, contact_email,
-                    s3_folder, source
-                ) VALUES (NULL, %s, %s, %s, %s, 'invite')
+                    contact_phone, s3_folder, source
+                ) VALUES (NULL, %s, %s, %s, %s, %s, 'invite')
                 RETURNING id
-            """, (company_name, first_name, email, client_id))
+            """, (company_name, first_name, email, phone, client_id))
             db_client_id = cur.fetchone()[0]
 
             # Insert default skill into DB
@@ -1234,14 +1234,13 @@ def handle_invite(event):
         print(f"Invite signup: {company_name} ({email}) -> {client_id}")
 
         # Fire webhook asynchronously (best-effort)
-        _send_invite_webhook(company_name, first_name, email, magic_link_url)
+        _send_invite_webhook(company_name, first_name, email, phone)
 
         return {
             'statusCode': 200,
             'headers': CORS_HEADERS,
             'body': json.dumps({
                 'success': True,
-                'magic_link_url': magic_link_url,
                 'company_name': company_name
             })
         }
@@ -1255,23 +1254,23 @@ def handle_invite(event):
         }
 
 
-def _send_invite_webhook(company_name, first_name, email, magic_link_url):
-    """Best-effort POST to Streamline webhook for invite signups."""
-    if not STREAMLINE_WEBHOOK_URL:
-        print("No STREAMLINE_WEBHOOK_URL configured, skipping invite webhook")
+def _send_invite_webhook(company_name, first_name, email, phone):
+    """Best-effort POST to Streamline invite webhook."""
+    if not STREAMLINE_INVITE_WEBHOOK_URL:
+        print("No STREAMLINE_INVITE_WEBHOOK_URL configured, skipping invite webhook")
         return
     try:
         payload = json.dumps({
-            'event': 'invite_signup',
+            'event': 'invite_submission',
             'source': 'himss_2026',
-            'client_name': company_name,
-            'client_contact_first_name': first_name,
-            'client_email': email,
-            'magic_link_url': magic_link_url,
+            'first_name': first_name,
+            'email': email,
+            'phone': phone,
+            'company_name': company_name,
             'signup_date': datetime.now(timezone.utc).isoformat()
         }).encode('utf-8')
         req = urllib.request.Request(
-            STREAMLINE_WEBHOOK_URL,
+            STREAMLINE_INVITE_WEBHOOK_URL,
             data=payload,
             headers={'Content-Type': 'application/json'},
             method='POST'

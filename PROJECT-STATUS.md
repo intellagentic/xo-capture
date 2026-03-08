@@ -2662,15 +2662,18 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - `InvitePage` component: dark gradient background, XO Capture header, "Invitation" heading, tagline
 - Tagline split across two lines: "XO clears the path." / "You decide. Streamline Acts."
 - Live countdown timer to March 16, 2026 10:00 AM PST (4 red-tinted boxes: Days/Hrs/Min/Sec)
-- Glass-morphism form card with 3 inputs: First Name, Email, Company (16px+ fonts, red focus borders)
-- Submit → `POST /invite` → creates client (S3 folders, client-config.md, default skill) + generates 30-day magic link
-- Confirmation screen: CheckCircle icon, "You're in. We'll be in touch.", "Launch XO Capture" button (magic link URL)
-- Idempotent: same email returns existing magic link (no duplicate clients)
+- Glass-morphism form card with 4 inputs: First Name, Email, Phone (tel), Company (16px+ fonts, red focus borders)
+- All fields have proper autocomplete attributes for mobile autofill: given-name, email, tel, organization
+- Submit → `POST /invite` → creates client (S3 folders, client-config.md, default skill) + generates 30-day magic link (stored, not shown)
+- Confirmation screen: CheckCircle icon, "You're in.", "We'll send your access on March 16.", Intellagentic logo — no magic link displayed
+- Idempotent: same email returns success (no duplicate clients)
 - Backend: `handle_invite()` in clients Lambda, routed before auth check
+- Phone number stored in `contact_phone` column and included in client-config.md
 - Auto-migration: `source` column on clients table, `user_id` made nullable for invite clients
-- Fires `invite_signup` webhook to Streamline with client name, contact, email, magic link URL
+- Dedicated invite webhook via `STREAMLINE_INVITE_WEBHOOK_URL` env var (separate from enrichment webhook)
+- Invite webhook payload: `invite_submission` event with first_name, email, phone, company_name, signup_date (no magic link)
 - API Gateway: `/invite` resource with POST + OPTIONS methods → Lambda proxy to xo-clients
-- `STREAMLINE_WEBHOOK_URL` and `FRONTEND_URL` env vars added to clients Lambda
+- `STREAMLINE_INVITE_WEBHOOK_URL` and `FRONTEND_URL` env vars added to clients Lambda
 - CloudFront SPA routing handles `/invite` path (404 → index.html already configured)
 - Single-viewport layout: entire page fits without scrolling on laptop (1440x900) and mobile (375x812)
 - Tightened spacing: centered flex layout with gap, compact countdown boxes, reduced form/button padding
