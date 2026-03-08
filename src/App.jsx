@@ -1034,7 +1034,288 @@ function getInitialAuth() {
   return { loggedIn: false, user: null, token: null }
 }
 
+// ============================================================
+// INVITE LANDING PAGE — /invite (public, no auth)
+// ============================================================
+function InvitePage() {
+  const [firstName, setFirstName] = useState('')
+  const [email, setEmail] = useState('')
+  const [companyName, setCompanyName] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const [result, setResult] = useState(null)
+  const [countdown, setCountdown] = useState({ days: 0, hrs: 0, min: 0, sec: 0 })
+
+  // Countdown to March 16, 2026 10:00 AM PST
+  useEffect(() => {
+    const target = new Date('2026-03-16T18:00:00Z').getTime()
+    const update = () => {
+      const now = Date.now()
+      const diff = Math.max(0, target - now)
+      setCountdown({
+        days: Math.floor(diff / 86400000),
+        hrs: Math.floor((diff % 86400000) / 3600000),
+        min: Math.floor((diff % 3600000) / 60000),
+        sec: Math.floor((diff % 60000) / 1000)
+      })
+    }
+    update()
+    const id = setInterval(update, 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!firstName.trim() || !email.trim() || !companyName.trim()) {
+      setError('All fields are required')
+      return
+    }
+    setError('')
+    setSubmitting(true)
+    try {
+      const res = await fetch(`${API_BASE}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: firstName.trim(),
+          email: email.trim(),
+          company_name: companyName.trim()
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Something went wrong')
+      setResult(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const pad = (n) => String(n).padStart(2, '0')
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(180deg, #0a0a0f 0%, #1a1a2e 50%, #0a0a0f 100%)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      color: '#e0e0e0',
+      padding: '0 16px',
+      boxSizing: 'border-box'
+    }}>
+      {/* Header */}
+      <div style={{ marginTop: '48px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{
+          background: '#dc2626',
+          borderRadius: '8px',
+          width: '40px',
+          height: '40px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: 800,
+          fontSize: '20px',
+          color: '#fff',
+          letterSpacing: '-1px'
+        }}>XO</div>
+        <span style={{ fontSize: '22px', fontWeight: 600, color: '#fff', letterSpacing: '1px' }}>Capture</span>
+      </div>
+
+      {/* Title */}
+      <h1 style={{
+        marginTop: '32px',
+        fontSize: '42px',
+        fontWeight: 200,
+        letterSpacing: '6px',
+        textTransform: 'uppercase',
+        color: '#fff',
+        textAlign: 'center'
+      }}>Invitation</h1>
+
+      {/* Tagline */}
+      <p style={{
+        marginTop: '8px',
+        fontSize: '14px',
+        color: '#888',
+        letterSpacing: '2px',
+        textAlign: 'center',
+        maxWidth: '440px'
+      }}>XO clears the path. You decide. Streamline Acts.</p>
+
+      {/* Countdown */}
+      <div style={{
+        marginTop: '32px',
+        display: 'flex',
+        gap: '12px'
+      }}>
+        {[
+          { val: countdown.days, label: 'Days' },
+          { val: countdown.hrs, label: 'Hrs' },
+          { val: countdown.min, label: 'Min' },
+          { val: countdown.sec, label: 'Sec' }
+        ].map(({ val, label }) => (
+          <div key={label} style={{
+            background: 'rgba(220, 38, 38, 0.1)',
+            border: '1px solid rgba(220, 38, 38, 0.3)',
+            borderRadius: '10px',
+            width: '68px',
+            padding: '12px 0',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              fontSize: '28px',
+              fontWeight: 700,
+              fontFamily: '"SF Mono", "Fira Code", monospace',
+              color: '#fff'
+            }}>{pad(val)}</div>
+            <div style={{ fontSize: '10px', color: '#888', letterSpacing: '1px', marginTop: '4px' }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Subtle text */}
+      <p style={{
+        marginTop: '20px',
+        fontSize: '13px',
+        color: '#555',
+        letterSpacing: '3px',
+        fontStyle: 'italic'
+      }}>Something is coming.</p>
+
+      {/* Form or Confirmation */}
+      <div style={{
+        marginTop: '32px',
+        width: '100%',
+        maxWidth: '440px'
+      }}>
+        {!result ? (
+          <form onSubmit={handleSubmit} style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '16px',
+            padding: '32px 28px',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)'
+          }}>
+            {[
+              { label: 'First Name', value: firstName, set: setFirstName, auto: 'given-name', type: 'text' },
+              { label: 'Email', value: email, set: setEmail, auto: 'email', type: 'email' },
+              { label: 'Company', value: companyName, set: setCompanyName, auto: 'organization', type: 'text' }
+            ].map(({ label, value, set, auto, type }) => (
+              <div key={label} style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px', letterSpacing: '1px' }}>{label}</label>
+                <input
+                  type={type}
+                  value={value}
+                  onChange={e => set(e.target.value)}
+                  autoComplete={auto}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px',
+                    fontSize: '16px',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '10px',
+                    color: '#fff',
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                  onFocus={e => e.target.style.borderColor = 'rgba(220, 38, 38, 0.6)'}
+                  onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
+                />
+              </div>
+            ))}
+
+            {error && (
+              <div style={{ color: '#ef4444', fontSize: '13px', marginBottom: '12px' }}>{error}</div>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                width: '100%',
+                padding: '16px',
+                fontSize: '16px',
+                fontWeight: 600,
+                background: submitting ? '#991b1b' : '#dc2626',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                letterSpacing: '1px',
+                marginTop: '8px',
+                transition: 'background 0.2s'
+              }}
+            >
+              {submitting ? 'Processing...' : 'Show Me'}
+            </button>
+          </form>
+        ) : (
+          <div style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '16px',
+            padding: '40px 28px',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            textAlign: 'center'
+          }}>
+            <CheckCircle size={48} style={{ color: '#22c55e', marginBottom: '16px' }} />
+            <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#fff', margin: '0 0 8px' }}>You're in.</h2>
+            <p style={{ color: '#888', fontSize: '14px', margin: '0 0 28px' }}>We'll be in touch.</p>
+
+            <a
+              href={result.magic_link_url}
+              style={{
+                display: 'inline-block',
+                padding: '14px 32px',
+                fontSize: '15px',
+                fontWeight: 600,
+                background: '#dc2626',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '10px',
+                textDecoration: 'none',
+                letterSpacing: '1px'
+              }}
+            >Launch XO Capture</a>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        marginTop: 'auto',
+        paddingTop: '48px',
+        paddingBottom: '24px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '8px'
+      }}>
+        <img
+          src={intellistackLogo}
+          alt="Intellagentic"
+          style={{ height: '24px', opacity: 0.4 }}
+        />
+        <span style={{ fontSize: '11px', color: '#444' }}>&copy; 2026 Intellagentic</span>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
+  // Intercept /invite path — completely independent, no auth
+  if (window.location.pathname === '/invite') {
+    return <InvitePage />
+  }
+
   // Auth state -- restored from localStorage synchronously
   const [initialAuth] = useState(getInitialAuth)
   const [isLoggedIn, setIsLoggedIn] = useState(initialAuth.loggedIn)

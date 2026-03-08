@@ -7,12 +7,16 @@ import json
 import os
 import time
 import hashlib
+import secrets
 import boto3
-from datetime import datetime, timezone
+import urllib.request
+from datetime import datetime, timezone, timedelta
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS
 
 s3_client = boto3.client('s3')
 BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data')
+STREAMLINE_WEBHOOK_URL = os.environ.get('STREAMLINE_WEBHOOK_URL', '')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://xo.intellagentic.io')
 
 
 # ── Auto-migration: add streamline_webhook_url column if missing ──
@@ -109,6 +113,23 @@ def _run_partner_migrations():
 _run_partner_migrations()
 
 
+# ── Auto-migration: invite support (source column, nullable user_id) ──
+def _run_invite_migrations():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS source VARCHAR(50);")
+        cur.execute("ALTER TABLE clients ALTER COLUMN user_id DROP NOT NULL;")
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("Invite migration complete: source column + nullable user_id ensured")
+    except Exception as e:
+        print(f"Invite migration check (non-fatal): {e}")
+
+_run_invite_migrations()
+
+
 def lambda_handler(event, context):
     """
     Method router for /clients:
@@ -121,13 +142,18 @@ def lambda_handler(event, context):
     if event.get('httpMethod') == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': ''}
 
+    path = event.get('path', '')
+    method = event.get('httpMethod', '')
+
+    # Public invite endpoint — no auth required
+    if path.endswith('/invite') and method == 'POST':
+        return handle_invite(event)
+
     # Auth check
     user, err = require_auth(event)
     if err:
         return err
 
-    method = event.get('httpMethod', '')
-    path = event.get('path', '')
     # Derive role — old JWTs may have is_admin/is_partner but no role field
     role = user.get('role', 'client')
     if user.get('is_admin'):
@@ -1104,6 +1130,156 @@ def handle_delete_client(event, user):
             'headers': CORS_HEADERS,
             'body': json.dumps({'error': 'Internal server error', 'message': str(e)})
         }
+
+
+def handle_invite(event):
+    """POST /invite — Public invite signup (no auth). Creates client + magic link."""
+    try:
+        body = json.loads(event.get('body', '{}'))
+        first_name = body.get('first_name', '').strip()
+        email = body.get('email', '').strip()
+        company_name = body.get('company_name', '').strip()
+
+        if not first_name or not email or not company_name:
+            return {
+                'statusCode': 400,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'first_name, email, and company_name are required'})
+            }
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Check for existing invite by email
+        cur.execute("""
+            SELECT c.id, c.s3_folder, ct.token
+            FROM clients c
+            LEFT JOIN client_tokens ct ON ct.client_id = c.id AND ct.expires_at > NOW()
+            WHERE c.contact_email = %s AND c.source = 'invite'
+            LIMIT 1
+        """, (email,))
+        existing = cur.fetchone()
+
+        if existing:
+            db_id, s3_folder, token = existing
+            if token:
+                magic_link_url = f"{FRONTEND_URL}?token={token}"
+                cur.close()
+                conn.close()
+                return {
+                    'statusCode': 200,
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({
+                        'success': True,
+                        'magic_link_url': magic_link_url,
+                        'company_name': company_name,
+                        'existing': True
+                    })
+                }
+            # Token expired — generate new one below
+            db_client_id = db_id
+            client_id = s3_folder
+        else:
+            # Create new client
+            timestamp = str(int(time.time()))
+            name_hash = hashlib.md5(company_name.encode()).hexdigest()[:8]
+            client_id = f"client_{timestamp}_{name_hash}"
+
+            # S3 folders
+            for folder in [f"{client_id}/uploads/", f"{client_id}/extracted/", f"{client_id}/results/"]:
+                s3_client.put_object(Bucket=BUCKET_NAME, Key=folder, Body='')
+
+            # Client config
+            config_md = generate_client_config(
+                company_name, '', first_name, '', '', '', '', '',
+                contact_email=email
+            )
+            s3_client.put_object(
+                Bucket=BUCKET_NAME, Key=f"{client_id}/client-config.md",
+                Body=config_md, ContentType='text/markdown'
+            )
+
+            # Default skill
+            copy_default_skill(client_id)
+
+            # Insert client with user_id=NULL, source='invite'
+            cur.execute("""
+                INSERT INTO clients (
+                    user_id, company_name, contact_name, contact_email,
+                    s3_folder, source
+                ) VALUES (NULL, %s, %s, %s, %s, 'invite')
+                RETURNING id
+            """, (company_name, first_name, email, client_id))
+            db_client_id = cur.fetchone()[0]
+
+            # Insert default skill into DB
+            cur.execute("""
+                INSERT INTO skills (client_id, name, s3_key)
+                VALUES (%s, %s, %s)
+            """, (str(db_client_id), 'analysis-template', f"{client_id}/skills/analysis-template.md"))
+
+        # Generate magic link token
+        new_token = secrets.token_hex(32)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+        cur.execute("""
+            INSERT INTO client_tokens (token, client_id, expires_at, created_by)
+            VALUES (%s, %s, %s, NULL)
+        """, (new_token, db_client_id, expires_at))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        magic_link_url = f"{FRONTEND_URL}?token={new_token}"
+        print(f"Invite signup: {company_name} ({email}) -> {client_id}")
+
+        # Fire webhook asynchronously (best-effort)
+        _send_invite_webhook(company_name, first_name, email, magic_link_url)
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'success': True,
+                'magic_link_url': magic_link_url,
+                'company_name': company_name
+            })
+        }
+
+    except Exception as e:
+        print(f"Invite error: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Internal server error', 'message': str(e)})
+        }
+
+
+def _send_invite_webhook(company_name, first_name, email, magic_link_url):
+    """Best-effort POST to Streamline webhook for invite signups."""
+    if not STREAMLINE_WEBHOOK_URL:
+        print("No STREAMLINE_WEBHOOK_URL configured, skipping invite webhook")
+        return
+    try:
+        payload = json.dumps({
+            'event': 'invite_signup',
+            'source': 'himss_2026',
+            'client_name': company_name,
+            'client_contact_first_name': first_name,
+            'client_email': email,
+            'magic_link_url': magic_link_url,
+            'signup_date': datetime.now(timezone.utc).isoformat()
+        }).encode('utf-8')
+        req = urllib.request.Request(
+            STREAMLINE_WEBHOOK_URL,
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+            method='POST'
+        )
+        urllib.request.urlopen(req, timeout=5)
+        print(f"Invite webhook sent for {email}")
+    except Exception as e:
+        print(f"Invite webhook failed (non-fatal): {e}")
 
 
 def handle_create_client(event, user):
