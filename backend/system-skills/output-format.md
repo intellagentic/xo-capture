@@ -20,3 +20,16 @@
 7. **Source citations** -- Every claim must cite its source in parentheses: (customer_list.csv row 142), (billing_export.xlsx Sheet 2), (company website), (inferred from revenue data + industry benchmarks).
 
 8. **Bottom line** -- End with a direct, CEO-level summary. One paragraph. What to do first. What it will cost. What outcome to expect. No hedging.
+
+## XO + Streamline Architecture in Output
+
+9. **Proposed Architecture must include both layers** -- Every recommendation in the Proposed Architecture section must clearly separate the XO component from the Streamline component:
+   - **XO component**: What does the XO continuously monitor, detect, or surface? What patterns does it watch for? What decisions does it support? What alerts does it raise?
+   - **Streamline component**: What workflow does Streamline execute when triggered? What documents does it generate? What notifications does it send? What routing does it perform?
+
+10. **Problems section: XO + Streamline framing** -- Each problem's recommendation must state:
+    - What the XO does: monitors, detects, surfaces, recommends, predicts, watches
+    - What Streamline does: executes, generates, routes, notifies, collects, files
+    - Do NOT describe everything as a workflow. The XO is intelligence (it thinks). Streamline is action (it acts).
+
+11. **Action Plan: dual-layer items** -- Each action item in the 7/14/21 day plan should indicate whether it is an XO setup task (configuring monitoring, alerts, pattern detection) or a Streamline setup task (building workflows, templates, routing rules), or both.

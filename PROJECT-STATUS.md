@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.70)
+**Status:** Deployed & Operational (v1.71)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2656,6 +2656,15 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.71 — XO + Streamline dual-layer architecture in system skills**
+- Updated `analysis-framework.md` system skill to distinguish XO (intelligence layer) from Streamline (action layer)
+- XO capabilities: runtime monitoring, pattern detection, anomaly surfacing, decision support, predictive alerts, compliance watching, exception-based management
+- Streamline capabilities: workflow automation, document generation, notifications, form logic, e-signatures, task routing
+- Tagline embedded: "The XO clears the path. You give the Order. Streamline Acts."
+- Every recommendation now requires: Problem → XO monitors → Streamline executes → Outcome
+- Updated `output-format.md` with 3 new rules: Proposed Architecture must include both XO and Streamline components, Problems section must use XO verbs vs Streamline verbs, Action Plan items indicate XO vs Streamline setup tasks
+- Deployed to S3 (`_system/skills/`), Lambda package (bundled fallback), and redeployed `xo-enrich` Lambda
 
 **v1.70 — Fix Enrich screen stage progress display**
 - Fixed bug where AI Analysis appeared to start before Transcribing Audio completed
