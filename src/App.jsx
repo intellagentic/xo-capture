@@ -1074,6 +1074,8 @@ function InvitePage() {
   const [phoneNumber, setPhoneNumber] = useState('')
   const [linkedin, setLinkedin] = useState('')
   const [companyName, setCompanyName] = useState('')
+  const [leadSource, setLeadSource] = useState('HIMSS 2026')
+  const [leadSourceOther, setLeadSourceOther] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
@@ -1115,7 +1117,8 @@ function InvitePage() {
           email: email.trim(),
           phone: joinPhone(phoneCode, phoneNumber),
           linkedin: linkedin.trim(),
-          company_name: companyName.trim()
+          company_name: companyName.trim(),
+          lead_source: leadSource === 'Other' ? (leadSourceOther.trim() || 'Other') : leadSource
         })
       })
       const data = await res.json()
@@ -1313,6 +1316,32 @@ function InvitePage() {
               </div>
             ))}
 
+            {/* How did you hear about us? */}
+            <div style={{ marginBottom: '6px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#888', marginBottom: '2px', letterSpacing: '1px' }}>
+                How did you hear about us?
+              </label>
+              <select value={leadSource} onChange={e => setLeadSource(e.target.value)}
+                style={{
+                  width: '100%', padding: '8px 10px', fontSize: '16px',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: '6px', color: '#fff', outline: 'none', boxSizing: 'border-box'
+                }}>
+                {['HIMSS 2026', 'LinkedIn', 'Referral', 'Website', 'Other'].map(opt => (
+                  <option key={opt} value={opt} style={{ background: '#1a1a2e' }}>{opt}</option>
+                ))}
+              </select>
+              {leadSource === 'Other' && (
+                <input type="text" value={leadSourceOther} onChange={e => setLeadSourceOther(e.target.value)}
+                  placeholder="Please specify"
+                  style={{
+                    width: '100%', marginTop: '4px', padding: '8px 10px', fontSize: '16px',
+                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '6px', color: '#fff', outline: 'none', boxSizing: 'border-box'
+                  }} />
+              )}
+            </div>
+
             {error && (
               <div style={{ color: '#ef4444', fontSize: '12px', marginBottom: '4px' }}>{error}</div>
             )}
@@ -1402,9 +1431,11 @@ export default function App() {
     if (userData.preferred_model) setPreferredModel(userData.preferred_model)
     if (admin || partner) {
       setCurrentScreen('dashboard')
+      setInWorkspace(false)
     } else if (userData.is_client && userData.client_id) {
       setClientId(userData.client_id)
       localStorage.setItem('xo-client-id', userData.client_id)
+      setInWorkspace(true)
       setCurrentScreen('upload')
     }
   }
@@ -1438,6 +1469,9 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState(() => {
     return (initialAuth.user?.is_admin || initialAuth.user?.is_partner) ? 'dashboard' : 'upload'
   }) // dashboard | upload | enrich | results | skills | configuration
+  const [inWorkspace, setInWorkspace] = useState(() => {
+    return !(initialAuth.user?.is_admin || initialAuth.user?.is_partner)
+  })
   const [showModal, setShowModal] = useState(false)
   const [showCompanyModal, setShowCompanyModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
@@ -1676,6 +1710,7 @@ export default function App() {
 
   // Dashboard: select an existing client and enter workspace
   const handleSelectClient = async (client) => {
+    setInWorkspace(true)
     setClientId(client.client_id)
     localStorage.setItem('xo-client-id', client.client_id)
     // Fetch full company data
@@ -1848,7 +1883,7 @@ export default function App() {
               {(isAdmin || isPartner) && (
                 <>
                   <button
-                    onClick={() => navigateTo('dashboard')}
+                    onClick={() => { setInWorkspace(false); navigateTo('dashboard') }}
                     style={{
                       width: '100%',
                       background: currentScreen === 'dashboard' ? 'rgba(220, 38, 38, 0.2)' : 'transparent',
@@ -2037,7 +2072,7 @@ export default function App() {
       {/* Main Content */}
       <main className="main">
         {/* Client Identity Banner — shown when inside a workspace */}
-        {currentScreen !== 'dashboard' && currentScreen !== 'partners' && clientId && (
+        {currentScreen !== 'dashboard' && currentScreen !== 'partners' && inWorkspace && clientId && (
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -2134,7 +2169,7 @@ export default function App() {
         )}
         {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} isAdmin={isAdmin} />}
         {currentScreen === 'skills' && <SkillsScreen clientId={clientId} isAdmin={isAdmin} />}
-        {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} />}
+        {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} inWorkspace={inWorkspace} isAdmin={isAdmin} companyName={companyData.name} />}
         {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
         {currentScreen === 'partners' && isAdmin && <PartnersScreen partners={partners} setPartners={setPartners} />}
 
@@ -6350,7 +6385,8 @@ function SystemSkillsPanel({ C }) {
   )
 }
 
-function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferredModel, setPreferredModel, clientId }) {
+
+function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferredModel, setPreferredModel, clientId, inWorkspace, isAdmin, companyName }) {
   const isDark = theme === 'dark'
   const [editingId, setEditingId] = useState(null)
   const [draggedId, setDraggedId] = useState(null)
@@ -6360,19 +6396,33 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
   const [webhookUrl, setWebhookUrl] = useState('')
   const [webhookUrlSaving, setWebhookUrlSaving] = useState(false)
   const [webhookUrlSaved, setWebhookUrlSaved] = useState(false)
-  const [inviteWebhookUrl, setInviteWebhookUrl] = useState('')
-  const [inviteWebhookUrlSaving, setInviteWebhookUrlSaving] = useState(false)
-  const [inviteWebhookUrlSaved, setInviteWebhookUrlSaved] = useState(false)
+  // System-level webhook config (dashboard mode, admin only)
+  const [sysInviteUrl, setSysInviteUrl] = useState('')
+  const [sysInviteSaving, setSysInviteSaving] = useState(false)
+  const [sysInviteSaved, setSysInviteSaved] = useState(false)
+  const [sysEnrichmentUrl, setSysEnrichmentUrl] = useState('')
+  const [sysEnrichmentSaving, setSysEnrichmentSaving] = useState(false)
+  const [sysEnrichmentSaved, setSysEnrichmentSaved] = useState(false)
 
   useEffect(() => {
-    if (clientId) {
+    if (inWorkspace && clientId) {
       fetch(`${API_BASE}/clients?client_id=${clientId}`, { headers: getAuthHeaders() })
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (data) {
             setWebhookEnabled(!!data.streamline_webhook_enabled)
             setWebhookUrl(data.streamline_webhook_url || '')
-            setInviteWebhookUrl(data.invite_webhook_url || '')
+          }
+        })
+        .catch(() => {})
+        .finally(() => setWebhookLoaded(true))
+    } else if (!inWorkspace && isAdmin) {
+      fetch(`${API_BASE}/system-config`, { headers: getAuthHeaders() })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            setSysInviteUrl(data.invite_webhook_url || '')
+            setSysEnrichmentUrl(data.enrichment_webhook_url || '')
           }
         })
         .catch(() => {})
@@ -6380,7 +6430,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
     } else {
       setWebhookLoaded(true)
     }
-  }, [clientId])
+  }, [clientId, inWorkspace, isAdmin])
 
   const toggleWebhook = async () => {
     if (!clientId) return
@@ -6445,35 +6495,21 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
     setWebhookUrlSaving(false)
   }
 
-  const saveInviteWebhookUrl = async () => {
-    if (!clientId) return
-    setInviteWebhookUrlSaving(true)
-    setInviteWebhookUrlSaved(false)
+  const saveSysConfig = async (key, value, setSaving, setSaved) => {
+    setSaving(true)
+    setSaved(false)
     try {
-      const getRes = await fetch(`${API_BASE}/clients?client_id=${clientId}`, { headers: getAuthHeaders() })
-      if (getRes.ok) {
-        const current = await getRes.json()
-        await fetch(`${API_BASE}/clients`, {
-          method: 'PUT',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            client_id: clientId,
-            company_name: current.company_name,
-            website: current.website,
-            contacts: current.contacts || [],
-            industry: current.industry,
-            description: current.description,
-            painPoint: current.painPoint,
-            invite_webhook_url: inviteWebhookUrl
-          })
-        })
-        setInviteWebhookUrlSaved(true)
-        setTimeout(() => setInviteWebhookUrlSaved(false), 2000)
-      }
+      await fetch(`${API_BASE}/system-config`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ config_key: key, config_value: value })
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
     } catch (err) {
-      console.error('Failed to save invite webhook URL:', err)
+      console.error(`Failed to save ${key}:`, err)
     }
-    setInviteWebhookUrlSaving(false)
+    setSaving(false)
   }
 
   // Theme-aware colors matching reference C object
@@ -6548,10 +6584,96 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
         <div className="panel-header">
           <div className="panel-header-left">
             <Settings size={20} className="icon-red" />
-            <h2>Configuration</h2>
+            <h2>{inWorkspace ? `Client Configuration` : 'System Configuration'}</h2>
           </div>
         </div>
+        {inWorkspace && companyName && (
+          <div style={{ padding: '0 1.25rem 1rem', fontSize: '0.8125rem', color: C.muted }}>
+            {companyName}
+          </div>
+        )}
       </div>
+
+      {/* ── System Configuration (dashboard mode, admin) ── */}
+      {!inWorkspace && isAdmin && (
+        <>
+          <div className="panel" style={{ marginTop: '1rem' }}>
+            <div className="panel-header">
+              <div className="panel-header-left">
+                <Send size={20} className="icon-red" />
+                <h2>Global Webhook URLs</h2>
+              </div>
+            </div>
+            <div style={{ padding: '1.25rem' }}>
+              <p style={{ fontSize: '0.75rem', color: C.muted, marginBottom: '0.75rem', lineHeight: 1.4 }}>
+                Default webhook URLs used when no per-client override is set.
+              </p>
+
+              {/* Invite Webhook URL */}
+              <div style={{
+                padding: '0.625rem 0.875rem',
+                background: `${C.muted}10`,
+                borderRadius: 8,
+                border: `1px solid ${C.border}`
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invite Webhook URL</span>
+                  {sysInviteSaving && <Loader2 size={12} style={{ animation: 'spin 1s linear infinite', color: C.muted }} />}
+                  {sysInviteSaved && <span style={{ fontSize: '0.65rem', color: '#22c55e', fontWeight: 600 }}>Saved</span>}
+                </div>
+                <input
+                  type="url"
+                  value={sysInviteUrl}
+                  onChange={e => setSysInviteUrl(e.target.value)}
+                  onBlur={() => saveSysConfig('invite_webhook_url', sysInviteUrl, setSysInviteSaving, setSysInviteSaved)}
+                  placeholder="https://hooks.example.com/invite-webhook"
+                  style={{
+                    width: '100%', marginTop: 4, padding: '0.5rem 0.625rem',
+                    fontSize: '0.8rem', fontFamily: 'monospace', color: C.text,
+                    background: C.surface, border: `1px solid ${C.border}`,
+                    borderRadius: 6, outline: 'none', boxSizing: 'border-box', wordBreak: 'break-all'
+                  }}
+                />
+              </div>
+
+              {/* Default Enrichment Webhook URL */}
+              <div style={{
+                marginTop: '0.5rem',
+                padding: '0.625rem 0.875rem',
+                background: `${C.muted}10`,
+                borderRadius: 8,
+                border: `1px solid ${C.border}`
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Default Enrichment Webhook URL</span>
+                  {sysEnrichmentSaving && <Loader2 size={12} style={{ animation: 'spin 1s linear infinite', color: C.muted }} />}
+                  {sysEnrichmentSaved && <span style={{ fontSize: '0.65rem', color: '#22c55e', fontWeight: 600 }}>Saved</span>}
+                </div>
+                <input
+                  type="url"
+                  value={sysEnrichmentUrl}
+                  onChange={e => setSysEnrichmentUrl(e.target.value)}
+                  onBlur={() => saveSysConfig('enrichment_webhook_url', sysEnrichmentUrl, setSysEnrichmentSaving, setSysEnrichmentSaved)}
+                  placeholder="https://hooks.example.com/webhook"
+                  style={{
+                    width: '100%', marginTop: 4, padding: '0.5rem 0.625rem',
+                    fontSize: '0.8rem', fontFamily: 'monospace', color: C.text,
+                    background: C.surface, border: `1px solid ${C.border}`,
+                    borderRadius: 6, outline: 'none', boxSizing: 'border-box', wordBreak: 'break-all'
+                  }}
+                />
+              </div>
+
+              <p style={{ fontSize: '0.7rem', color: C.muted, marginTop: '0.625rem', lineHeight: 1.4 }}>
+                Per-client enrichment URL (set in client Configuration) overrides the default above.
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Client Configuration (workspace mode) ── */}
+      {inWorkspace && (<>
 
       {/* Theme Toggle */}
       <div className="panel" style={{ marginTop: '1rem' }}>
@@ -6660,7 +6782,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
       {/* System Skills — dynamic from API */}
       <SystemSkillsPanel C={C} />
 
-      {/* Streamline Webhook Toggle */}
+      {/* Per-Client Streamline Webhook */}
       {clientId && (
         <div className="panel" style={{ marginTop: '1rem' }}>
           <div className="panel-header">
@@ -6694,27 +6816,16 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
                 onClick={toggleWebhook}
                 disabled={webhookSaving}
                 style={{
-                  width: 52,
-                  height: 28,
-                  borderRadius: 14,
-                  border: 'none',
+                  width: 52, height: 28, borderRadius: 14, border: 'none',
                   background: webhookEnabled ? '#dc2626' : '#e5e5e5',
-                  position: 'relative',
-                  cursor: webhookSaving ? 'wait' : 'pointer',
-                  transition: 'all 0.2s',
-                  flexShrink: 0
+                  position: 'relative', cursor: webhookSaving ? 'wait' : 'pointer',
+                  transition: 'all 0.2s', flexShrink: 0
                 }}
               >
                 <div style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: '50%',
-                  background: 'white',
-                  position: 'absolute',
-                  top: 3,
-                  left: webhookEnabled ? 27 : 3,
-                  transition: 'all 0.2s',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)'
+                  width: 22, height: 22, borderRadius: '50%', background: 'white',
+                  position: 'absolute', top: 3, left: webhookEnabled ? 27 : 3,
+                  transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)'
                 }} />
               </button>
             </div>
@@ -6726,7 +6837,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
               border: `1px solid ${C.border}`
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enrichment Webhook URL</span>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enrichment Webhook URL (override)</span>
                 {webhookUrlSaving && <Loader2 size={12} style={{ animation: 'spin 1s linear infinite', color: C.muted }} />}
                 {webhookUrlSaved && <span style={{ fontSize: '0.65rem', color: '#22c55e', fontWeight: 600 }}>Saved</span>}
               </div>
@@ -6735,59 +6846,17 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
                 value={webhookUrl}
                 onChange={e => setWebhookUrl(e.target.value)}
                 onBlur={saveWebhookUrl}
-                placeholder="https://hooks.example.com/webhook"
+                placeholder="Leave blank to use system default"
                 style={{
-                  width: '100%',
-                  marginTop: 4,
-                  padding: '0.5rem 0.625rem',
-                  fontSize: '0.8rem',
-                  fontFamily: 'monospace',
-                  color: C.text,
-                  background: C.surface,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 6,
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  wordBreak: 'break-all'
-                }}
-              />
-            </div>
-            <div style={{
-              marginTop: '0.5rem',
-              padding: '0.625rem 0.875rem',
-              background: `${C.muted}10`,
-              borderRadius: 8,
-              border: `1px solid ${C.border}`
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invite Webhook URL</span>
-                {inviteWebhookUrlSaving && <Loader2 size={12} style={{ animation: 'spin 1s linear infinite', color: C.muted }} />}
-                {inviteWebhookUrlSaved && <span style={{ fontSize: '0.65rem', color: '#22c55e', fontWeight: 600 }}>Saved</span>}
-              </div>
-              <input
-                type="url"
-                value={inviteWebhookUrl}
-                onChange={e => setInviteWebhookUrl(e.target.value)}
-                onBlur={saveInviteWebhookUrl}
-                placeholder="https://hooks.example.com/invite-webhook"
-                style={{
-                  width: '100%',
-                  marginTop: 4,
-                  padding: '0.5rem 0.625rem',
-                  fontSize: '0.8rem',
-                  fontFamily: 'monospace',
-                  color: C.text,
-                  background: C.surface,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 6,
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  wordBreak: 'break-all'
+                  width: '100%', marginTop: 4, padding: '0.5rem 0.625rem',
+                  fontSize: '0.8rem', fontFamily: 'monospace', color: C.text,
+                  background: C.surface, border: `1px solid ${C.border}`,
+                  borderRadius: 6, outline: 'none', boxSizing: 'border-box', wordBreak: 'break-all'
                 }}
               />
             </div>
             <p style={{ fontSize: '0.7rem', color: C.muted, marginTop: '0.625rem', lineHeight: 1.4 }}>
-              The "Send to Streamline" button on the Results screen works regardless of this toggle — it's a manual override.
+              Per-client URL overrides the system default. Leave blank to use the system webhook URL.
             </p>
           </div>
         </div>
@@ -7162,6 +7231,8 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
           </div>
         </div>
       </div>
+
+      </>)}
     </div>
   )
 }

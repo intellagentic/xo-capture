@@ -34,6 +34,19 @@ SYSTEM_SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sy
 anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
 
+def _get_system_config_value(conn, key):
+    """Read a single value from system_config table."""
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT config_value FROM system_config WHERE config_key = %s", (key,))
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else ''
+    except Exception as e:
+        print(f"Failed to read system_config key '{key}' (non-fatal): {e}")
+        return ''
+
+
 def lambda_handler(event, context):
     """
     Two-phase enrichment handler.
@@ -252,6 +265,8 @@ def _run_enrichment_pipeline(event):
                 pass
 
         streamline_webhook_url = row[15] or ''
+        if not streamline_webhook_url:
+            streamline_webhook_url = _get_system_config_value(conn, 'enrichment_webhook_url')
 
         # Load system skills from DB first, fall back to bundled files
         system_skills = load_system_skills_from_db(cur)
@@ -406,10 +421,10 @@ def _handle_send_to_streamline(event):
         """, (client_id, user['user_id']))
 
         row = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not row:
+            cur.close()
+            conn.close()
             return {
                 'statusCode': 404,
                 'headers': CORS_HEADERS,
@@ -450,6 +465,11 @@ def _handle_send_to_streamline(event):
                 pass
 
         manual_webhook_url = row[12] or ''
+        if not manual_webhook_url:
+            manual_webhook_url = _get_system_config_value(conn, 'enrichment_webhook_url')
+
+        cur.close()
+        conn.close()
 
         if not results_s3_key:
             return {

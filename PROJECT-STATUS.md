@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.73)
+**Status:** Deployed & Operational (v1.74)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -65,7 +65,8 @@
   |  db.t3.micro | xo-quickstart-db.xxxxx.rds.amazonaws.com |
   |                                                          |
   |  Tables: users, clients, uploads, enrichments,           |
-  |          skills, buttons, partners, client_tokens        |
+  |     skills, buttons, partners, client_tokens,            |
+  |     system_config                                        |
   +----------------------------------------------------------+
 ```
 
@@ -2656,6 +2657,19 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.74 — System Configuration: system_config table + dual-mode Configuration screen**
+- New `system_config` PostgreSQL table (config_key/config_value key-value store), auto-migrated on Lambda cold start
+- New `GET /system-config` and `PUT /system-config` API routes (admin-only) on xo-clients Lambda
+- API Gateway `/system-config` resource with GET, PUT, OPTIONS methods → xo-clients Lambda proxy
+- Configuration screen is now dual-mode based on `inWorkspace` state:
+  - **Dashboard (System Configuration):** Shows "System Configuration" header with Global Webhook URLs panel (Invite Webhook URL + Default Enrichment Webhook URL), both saving to `system_config` on blur
+  - **Client workspace (Client Configuration):** Shows "Client Configuration" header with client name, then per-client settings (theme, AI model, system skills, per-client webhook override URL + toggle, configurable buttons)
+- `inWorkspace` state tracks whether user is in a client workspace or on dashboard level
+- Invite webhook lookup in `handle_invite` now reads from `system_config` table instead of scanning clients table
+- xo-enrich Lambda: per-client `streamline_webhook_url` falls back to `system_config.enrichment_webhook_url` before env var
+- Removed standalone SystemSettingsScreen — unified into single ConfigurationScreen component
+- Deployed: xo-clients Lambda, xo-enrich Lambda, API Gateway, frontend
 
 **v1.73 — Invite Webhook URL: per-client configuration**
 - New `invite_webhook_url VARCHAR(1000)` column on clients table, auto-migrated on Lambda cold start

@@ -10,6 +10,7 @@ import hashlib
 import secrets
 import boto3
 import urllib.request
+import urllib.error
 from datetime import datetime, timezone, timedelta
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS
 
@@ -132,6 +133,29 @@ def _run_invite_migrations():
 _run_invite_migrations()
 
 
+# ── Auto-migration: system_config key/value table ──
+def _run_system_config_migration():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS system_config (
+                id SERIAL PRIMARY KEY,
+                config_key VARCHAR(255) UNIQUE NOT NULL,
+                config_value TEXT,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("Migration complete: system_config table ensured")
+    except Exception as e:
+        print(f"system_config migration check (non-fatal): {e}")
+
+_run_system_config_migration()
+
+
 def lambda_handler(event, context):
     """
     Method router for /clients:
@@ -164,6 +188,15 @@ def lambda_handler(event, context):
         role = 'partner'
     is_client_user = role == 'client'
     is_partner_user = role == 'partner'
+
+    # System config routes — admin only
+    if '/system-config' in path:
+        if not user.get('is_admin'):
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
+        if method == 'GET':
+            return handle_get_system_config(event, user)
+        elif method == 'PUT':
+            return handle_update_system_config(event, user)
 
     # Partners routes — admin only (partners can read list for reference)
     if '/partners' in path:
@@ -1139,6 +1172,60 @@ def handle_delete_client(event, user):
         }
 
 
+def handle_get_system_config(event, user):
+    """GET /system-config — Return all system config key/value pairs."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT config_key, config_value FROM system_config")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        config = {row[0]: row[1] or '' for row in rows}
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps(config)
+        }
+    except Exception as e:
+        print(f"Error fetching system config: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'Internal server error', 'message': str(e)})}
+
+
+def handle_update_system_config(event, user):
+    """PUT /system-config — Upsert a system config key/value pair."""
+    try:
+        body = json.loads(event.get('body', '{}'))
+        config_key = body.get('config_key', '').strip()
+        config_value = body.get('config_value', '').strip()
+
+        if not config_key:
+            return {'statusCode': 400, 'headers': CORS_HEADERS,
+                    'body': json.dumps({'error': 'config_key is required'})}
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO system_config (config_key, config_value, updated_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = NOW()
+        """, (config_key, config_value))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'status': 'saved', 'config_key': config_key})
+        }
+    except Exception as e:
+        print(f"Error updating system config: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'Internal server error', 'message': str(e)})}
+
+
 def handle_invite(event):
     """POST /invite — Public invite signup (no auth). Creates client + magic link."""
     try:
@@ -1149,6 +1236,7 @@ def handle_invite(event):
         phone = body.get('phone', '').strip()
         linkedin = body.get('linkedin', '').strip()
         company_name = body.get('company_name', '').strip()
+        lead_source = body.get('lead_source', '').strip()
         contact_name = f"{first_name} {last_name}".strip()
 
         if not first_name or not email or not phone or not company_name:
@@ -1163,7 +1251,7 @@ def handle_invite(event):
 
         # Check for existing invite by email
         cur.execute("""
-            SELECT c.id, c.s3_folder, ct.token, c.invite_webhook_url
+            SELECT c.id, c.s3_folder, ct.token
             FROM clients c
             LEFT JOIN client_tokens ct ON ct.client_id = c.id AND ct.expires_at > NOW()
             WHERE c.contact_email = %s AND c.source = 'invite'
@@ -1172,12 +1260,21 @@ def handle_invite(event):
         existing = cur.fetchone()
 
         if existing:
-            db_id, s3_folder, token, client_invite_url = existing
+            db_id, s3_folder, token = existing
             if token:
+                # Look up invite webhook URL from system_config
+                sys_invite_url = ''
+                try:
+                    cur.execute("SELECT config_value FROM system_config WHERE config_key = 'invite_webhook_url'")
+                    sys_row = cur.fetchone()
+                    if sys_row:
+                        sys_invite_url = sys_row[0] or ''
+                except Exception:
+                    pass
                 cur.close()
                 conn.close()
                 print(f"Invite signup (existing): {company_name} ({email})")
-                _send_invite_webhook(company_name, first_name, last_name, email, phone, linkedin, webhook_url=client_invite_url or '')
+                _send_invite_webhook(company_name, first_name, last_name, email, phone, linkedin, lead_source=lead_source, webhook_url=sys_invite_url)
                 return {
                     'statusCode': 200,
                     'headers': CORS_HEADERS,
@@ -1244,8 +1341,22 @@ def handle_invite(event):
         magic_link_url = f"{FRONTEND_URL}?token={new_token}"
         print(f"Invite signup: {company_name} ({email}) -> {client_id}")
 
-        # Fire webhook asynchronously (best-effort)
-        _send_invite_webhook(company_name, first_name, last_name, email, phone, linkedin)
+        # Look up configured invite webhook URL from system_config
+        invite_url = ''
+        try:
+            wh_conn = get_db_connection()
+            wh_cur = wh_conn.cursor()
+            wh_cur.execute("SELECT config_value FROM system_config WHERE config_key = 'invite_webhook_url'")
+            wh_row = wh_cur.fetchone()
+            if wh_row:
+                invite_url = wh_row[0] or ''
+            wh_cur.close()
+            wh_conn.close()
+        except Exception as e:
+            print(f"Failed to look up invite webhook URL from system_config (non-fatal): {e}")
+
+        # Fire webhook (best-effort)
+        _send_invite_webhook(company_name, first_name, last_name, email, phone, linkedin, lead_source=lead_source, webhook_url=invite_url)
 
         return {
             'statusCode': 200,
@@ -1265,7 +1376,7 @@ def handle_invite(event):
         }
 
 
-def _send_invite_webhook(company_name, first_name, last_name, email, phone, linkedin, webhook_url=''):
+def _send_invite_webhook(company_name, first_name, last_name, email, phone, linkedin, lead_source='', webhook_url=''):
     """Best-effort POST to Streamline invite webhook. Uses per-client URL if provided, falls back to env var."""
     url = webhook_url or STREAMLINE_INVITE_WEBHOOK_URL
     if not url:
@@ -1281,6 +1392,7 @@ def _send_invite_webhook(company_name, first_name, last_name, email, phone, link
             'phone': phone,
             'linkedin': linkedin,
             'company_name': company_name,
+            'lead_source': lead_source,
             'signup_date': datetime.now(timezone.utc).isoformat()
         }).encode('utf-8')
         req = urllib.request.Request(
@@ -1289,8 +1401,11 @@ def _send_invite_webhook(company_name, first_name, last_name, email, phone, link
             headers={'Content-Type': 'application/json'},
             method='POST'
         )
-        urllib.request.urlopen(req, timeout=5)
-        print(f"Invite webhook sent for {email} to {url}")
+        resp = urllib.request.urlopen(req, timeout=5)
+        print(f"Invite webhook sent for {email} to {url} (HTTP {resp.status})")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode('utf-8', errors='replace')
+        print(f"Invite webhook failed (non-fatal): HTTP {e.code} - {body}")
     except Exception as e:
         print(f"Invite webhook failed (non-fatal): {e}")
 
