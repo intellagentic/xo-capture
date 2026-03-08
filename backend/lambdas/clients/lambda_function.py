@@ -1138,9 +1138,12 @@ def handle_invite(event):
     try:
         body = json.loads(event.get('body', '{}'))
         first_name = body.get('first_name', '').strip()
+        last_name = body.get('last_name', '').strip()
         email = body.get('email', '').strip()
         phone = body.get('phone', '').strip()
+        linkedin = body.get('linkedin', '').strip()
         company_name = body.get('company_name', '').strip()
+        contact_name = f"{first_name} {last_name}".strip()
 
         if not first_name or not email or not phone or not company_name:
             return {
@@ -1168,7 +1171,7 @@ def handle_invite(event):
                 cur.close()
                 conn.close()
                 print(f"Invite signup (existing): {company_name} ({email})")
-                _send_invite_webhook(company_name, first_name, email, phone)
+                _send_invite_webhook(company_name, first_name, last_name, email, phone, linkedin)
                 return {
                     'statusCode': 200,
                     'headers': CORS_HEADERS,
@@ -1193,7 +1196,7 @@ def handle_invite(event):
 
             # Client config
             config_md = generate_client_config(
-                company_name, '', first_name, '', '', '', '', '',
+                company_name, '', contact_name, '', linkedin, '', '', '',
                 contact_email=email, contact_phone=phone
             )
             s3_client.put_object(
@@ -1208,10 +1211,10 @@ def handle_invite(event):
             cur.execute("""
                 INSERT INTO clients (
                     user_id, company_name, contact_name, contact_email,
-                    contact_phone, s3_folder, source
-                ) VALUES (NULL, %s, %s, %s, %s, %s, 'invite')
+                    contact_phone, contact_linkedin, s3_folder, source
+                ) VALUES (NULL, %s, %s, %s, %s, %s, %s, 'invite')
                 RETURNING id
-            """, (company_name, first_name, email, phone, client_id))
+            """, (company_name, contact_name, email, phone, linkedin, client_id))
             db_client_id = cur.fetchone()[0]
 
             # Insert default skill into DB
@@ -1236,7 +1239,7 @@ def handle_invite(event):
         print(f"Invite signup: {company_name} ({email}) -> {client_id}")
 
         # Fire webhook asynchronously (best-effort)
-        _send_invite_webhook(company_name, first_name, email, phone)
+        _send_invite_webhook(company_name, first_name, last_name, email, phone, linkedin)
 
         return {
             'statusCode': 200,
@@ -1256,7 +1259,7 @@ def handle_invite(event):
         }
 
 
-def _send_invite_webhook(company_name, first_name, email, phone):
+def _send_invite_webhook(company_name, first_name, last_name, email, phone, linkedin):
     """Best-effort POST to Streamline invite webhook."""
     if not STREAMLINE_INVITE_WEBHOOK_URL:
         print("No STREAMLINE_INVITE_WEBHOOK_URL configured, skipping invite webhook")
@@ -1266,8 +1269,10 @@ def _send_invite_webhook(company_name, first_name, email, phone):
             'event': 'invite_submission',
             'source': 'himss_2026',
             'first_name': first_name,
+            'last_name': last_name,
             'email': email,
             'phone': phone,
+            'linkedin': linkedin,
             'company_name': company_name,
             'signup_date': datetime.now(timezone.utc).isoformat()
         }).encode('utf-8')

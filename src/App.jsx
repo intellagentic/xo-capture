@@ -1039,8 +1039,10 @@ function getInitialAuth() {
 // ============================================================
 function InvitePage() {
   const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [linkedin, setLinkedin] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -1079,8 +1081,10 @@ function InvitePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           first_name: firstName.trim(),
+          last_name: lastName.trim(),
           email: email.trim(),
           phone: phone.trim(),
+          linkedin: linkedin.trim(),
           company_name: companyName.trim()
         })
       })
@@ -1109,30 +1113,30 @@ function InvitePage() {
       color: '#e0e0e0',
       padding: '0 16px',
       boxSizing: 'border-box',
-      gap: '10px'
+      gap: '6px'
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <div style={{
           background: '#dc2626',
-          borderRadius: '7px',
-          width: '34px',
-          height: '34px',
+          borderRadius: '6px',
+          width: '30px',
+          height: '30px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           fontWeight: 800,
-          fontSize: '17px',
+          fontSize: '15px',
           color: '#fff',
           letterSpacing: '-1px'
         }}>XO</div>
-        <span style={{ fontSize: '20px', fontWeight: 600, color: '#fff', letterSpacing: '1px' }}>Capture</span>
+        <span style={{ fontSize: '18px', fontWeight: 600, color: '#fff', letterSpacing: '1px' }}>Capture</span>
       </div>
 
       {/* Title */}
       <h1 style={{
         margin: 0,
-        fontSize: '36px',
+        fontSize: '30px',
         fontWeight: 200,
         letterSpacing: '6px',
         textTransform: 'uppercase',
@@ -1143,16 +1147,16 @@ function InvitePage() {
       {/* Tagline */}
       <p style={{
         margin: 0,
-        fontSize: '17px',
+        fontSize: '14px',
         color: '#e0e0e0',
         letterSpacing: '2px',
         textAlign: 'center',
-        lineHeight: 1.7,
+        lineHeight: 1.6,
         fontWeight: 300
       }}>XO clears the path.<br />You decide. Streamline Acts.</p>
 
       {/* Countdown */}
-      <div style={{ display: 'flex', gap: '10px' }}>
+      <div style={{ display: 'flex', gap: '8px' }}>
         {[
           { val: countdown.days, label: 'Days' },
           { val: countdown.hrs, label: 'Hrs' },
@@ -1162,18 +1166,18 @@ function InvitePage() {
           <div key={label} style={{
             background: 'rgba(220, 38, 38, 0.1)',
             border: '1px solid rgba(220, 38, 38, 0.3)',
-            borderRadius: '8px',
-            width: '60px',
-            padding: '8px 0',
+            borderRadius: '6px',
+            width: '52px',
+            padding: '5px 0',
             textAlign: 'center'
           }}>
             <div style={{
-              fontSize: '24px',
+              fontSize: '20px',
               fontWeight: 700,
               fontFamily: '"SF Mono", "Fira Code", monospace',
               color: '#fff'
             }}>{pad(val)}</div>
-            <div style={{ fontSize: '9px', color: '#888', letterSpacing: '1px', marginTop: '2px' }}>{label}</div>
+            <div style={{ fontSize: '8px', color: '#888', letterSpacing: '1px', marginTop: '1px' }}>{label}</div>
           </div>
         ))}
       </div>
@@ -1181,7 +1185,7 @@ function InvitePage() {
       {/* Subtle text */}
       <p style={{
         margin: 0,
-        fontSize: '14px',
+        fontSize: '13px',
         color: '#c0c0c0',
         letterSpacing: '3px',
         fontStyle: 'italic'
@@ -1196,32 +1200,55 @@ function InvitePage() {
           <form onSubmit={handleSubmit} style={{
             background: 'rgba(255,255,255,0.03)',
             border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '14px',
-            padding: '18px 22px',
+            borderRadius: '12px',
+            padding: '14px 18px',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)'
           }}>
+            {/* First + Last Name row */}
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+              {[
+                { label: 'First Name', value: firstName, set: setFirstName, auto: 'given-name' },
+                { label: 'Last Name', value: lastName, set: setLastName, auto: 'family-name' }
+              ].map(({ label, value, set, auto }) => (
+                <div key={label} style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '10px', color: '#888', marginBottom: '2px', letterSpacing: '1px' }}>{label}</label>
+                  <input type="text" value={value} onChange={e => set(e.target.value)} autoComplete={auto} required
+                    style={{ width: '100%', padding: '8px 10px', fontSize: '16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', color: '#fff', outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box' }}
+                    onFocus={e => e.target.style.borderColor = 'rgba(220, 38, 38, 0.6)'}
+                    onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.12)'} />
+                </div>
+              ))}
+            </div>
+
+            {/* Email, Phone, LinkedIn, Company */}
             {[
-              { label: 'First Name', value: firstName, set: setFirstName, auto: 'given-name', type: 'text' },
-              { label: 'Email', value: email, set: setEmail, auto: 'email', type: 'email' },
-              { label: 'Phone', value: phone, set: setPhone, auto: 'tel', type: 'tel' },
-              { label: 'Company', value: companyName, set: setCompanyName, auto: 'organization', type: 'text' }
-            ].map(({ label, value, set, auto, type }) => (
-              <div key={label} style={{ marginBottom: '8px' }}>
-                <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', letterSpacing: '1px' }}>{label}</label>
+              { label: 'Email', value: email, set: setEmail, auto: 'email', type: 'email', req: true },
+              { label: 'Phone', value: phone, set: setPhone, auto: 'tel', type: 'tel', req: true },
+              { label: 'linkedin', value: linkedin, set: setLinkedin, auto: 'url', type: 'url', req: false, placeholder: 'linkedin.com/in/yourprofile' },
+              { label: 'Company', value: companyName, set: setCompanyName, auto: 'organization', type: 'text', req: true }
+            ].map(({ label, value, set, auto, type, req, placeholder }) => (
+              <div key={label} style={{ marginBottom: '6px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#888', marginBottom: '2px', letterSpacing: '1px' }}>
+                  {label === 'linkedin' ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#888"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                  ) : label}
+                  {!req && <span style={{ fontSize: '9px', color: '#666', fontStyle: 'italic' }}>(optional)</span>}
+                </label>
                 <input
                   type={type}
                   value={value}
                   onChange={e => set(e.target.value)}
                   autoComplete={auto}
-                  required
+                  required={req}
+                  placeholder={placeholder || ''}
                   style={{
                     width: '100%',
-                    padding: '10px 14px',
+                    padding: '8px 10px',
                     fontSize: '16px',
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '8px',
+                    borderRadius: '6px',
                     color: '#fff',
                     outline: 'none',
                     transition: 'border-color 0.2s',
@@ -1234,7 +1261,7 @@ function InvitePage() {
             ))}
 
             {error && (
-              <div style={{ color: '#ef4444', fontSize: '13px', marginBottom: '8px' }}>{error}</div>
+              <div style={{ color: '#ef4444', fontSize: '12px', marginBottom: '4px' }}>{error}</div>
             )}
 
             <button
@@ -1242,16 +1269,16 @@ function InvitePage() {
               disabled={submitting}
               style={{
                 width: '100%',
-                padding: '13px',
+                padding: '11px',
                 fontSize: '15px',
                 fontWeight: 600,
                 background: submitting ? '#991b1b' : '#dc2626',
                 color: '#fff',
                 border: 'none',
-                borderRadius: '8px',
+                borderRadius: '6px',
                 cursor: submitting ? 'not-allowed' : 'pointer',
                 letterSpacing: '1px',
-                marginTop: '4px',
+                marginTop: '2px',
                 transition: 'background 0.2s'
               }}
             >
@@ -1277,8 +1304,8 @@ function InvitePage() {
       </div>
 
       {/* Footer */}
-      <div style={{ textAlign: 'center', marginTop: '4px' }}>
-        <span style={{ fontSize: '11px', color: '#808080' }}>&copy; 2026 Intellagentic Limited. All rights reserved.</span>
+      <div style={{ textAlign: 'center', marginTop: '2px' }}>
+        <span style={{ fontSize: '10px', color: '#808080' }}>&copy; 2026 Intellagentic Limited. All rights reserved.</span>
       </div>
     </div>
   )
