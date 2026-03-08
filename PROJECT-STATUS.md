@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.68)
+**Status:** Deployed & Operational (v1.69)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2656,6 +2656,13 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.69 — Organization Profile textarea sizing, workspace logo, copyright footer**
+- Organization Profile textareas (Current Business Description, Future Plans, Pain Points) set to `rows={4}` with `minHeight: 100px` across all 3 form instances (CompanyInfoModal, Partner Info modal, inline form)
+- Client logo/icon in workspace header increased from 44px to 56px (logo, icon, and letter fallback) for better visibility
+- Copyright footer "© 2026 Intellagentic Limited. All rights reserved." verified on all screens
+- Added missing footer to LoginScreen (was the only screen without it)
+- All other screens (Dashboard, Welcome, Sources, Enrich, Results, Skills, Configuration, Branding, Partners, Invite) already had footer via fixed-position element
 
 **v1.68 — Invite Landing Page for HIMSS 2026**
 - New public `/invite` page — dark-themed, mobile-first landing page for conference signups (no auth required)

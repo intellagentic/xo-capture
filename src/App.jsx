@@ -474,6 +474,11 @@ function LoginScreen({ onLogin }) {
           )}
         </div>
       </div>
+
+      {/* Footer */}
+      <div style={{ textAlign: 'center', padding: '0.375rem 0', fontSize: '11px', color: '#808080' }}>
+        &copy; 2026 Intellagentic Limited. All rights reserved.
+      </div>
     </div>
   )
 }
@@ -1993,7 +1998,7 @@ export default function App() {
           }}>
             {companyData.logoUrl ? (
               <div>
-                <img src={companyData.logoUrl} alt={companyData.name} style={{ height: '44px', maxWidth: '200px', objectFit: 'contain' }} />
+                <img src={companyData.logoUrl} alt={companyData.name} style={{ height: '56px', maxWidth: '240px', objectFit: 'contain' }} />
                 <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
                   {(isAdmin || isPartner) ? 'Partner Workspace' : (companyData.name || 'My Workspace')}
                 </div>
@@ -2001,10 +2006,10 @@ export default function App() {
             ) : (
               <>
                 {companyData.iconUrl ? (
-                  <img src={companyData.iconUrl} alt="" style={{ width: '44px', height: '44px', objectFit: 'contain', borderRadius: '10px', flexShrink: 0 }} />
+                  <img src={companyData.iconUrl} alt="" style={{ width: '56px', height: '56px', objectFit: 'contain', borderRadius: '10px', flexShrink: 0 }} />
                 ) : (
                   <div style={{
-                    width: '44px', height: '44px', borderRadius: '10px', flexShrink: 0,
+                    width: '56px', height: '56px', borderRadius: '10px', flexShrink: 0,
                     background: '#1a1a2e',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '1.25rem', fontWeight: 700, color: '#dc2626'
@@ -2339,14 +2344,14 @@ function PartnersScreen({ partners, setPartners }) {
                 <div>
                   <label style={fieldLabelStyle}>Current Business Description</label>
                   <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-                    placeholder="Brief description of the business" rows={3} style={{ ...fieldStyle, resize: 'vertical' }} />
+                    placeholder="Brief description of the business" rows={4} style={{ ...fieldStyle, resize: 'vertical', minHeight: '100px' }} />
                 </div>
 
                 {/* Future Plans */}
                 <div>
                   <label style={fieldLabelStyle}>Future Plans</label>
                   <textarea value={form.futurePlans} onChange={e => setForm({ ...form, futurePlans: e.target.value })}
-                    placeholder="Where is the business heading? Growth plans, strategic goals..." rows={3} style={{ ...fieldStyle, resize: 'vertical' }} />
+                    placeholder="Where is the business heading? Growth plans, strategic goals..." rows={4} style={{ ...fieldStyle, resize: 'vertical', minHeight: '100px' }} />
                 </div>
 
                 {/* Pain Points */}
@@ -2361,7 +2366,7 @@ function PartnersScreen({ partners, setPartners }) {
                   {formPainPoints.map((point, idx) => (
                     <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                       <textarea value={point} onChange={e => setFormPainPoints(prev => prev.map((p, i) => i === idx ? e.target.value : p))}
-                        placeholder={`Pain point ${idx + 1}...`} rows={2} style={{ ...fieldStyle, flex: 1, resize: 'vertical' }} />
+                        placeholder={`Pain point ${idx + 1}...`} rows={4} style={{ ...fieldStyle, flex: 1, resize: 'vertical', minHeight: '100px' }} />
                       {formPainPoints.length > 1 && (
                         <button type="button" onClick={() => setFormPainPoints(prev => prev.filter((_, i) => i !== idx))}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0.5rem' }} title="Remove">
@@ -2988,7 +2993,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                 value={localData.description}
                 onChange={(e) => setLocalData({ ...localData, description: e.target.value })}
                 placeholder="Brief description of the business"
-                rows={3}
+                rows={4}
                 style={{
                   width: '100%',
                   padding: '0.625rem',
@@ -2996,7 +3001,8 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                   borderRadius: '8px',
                   fontSize: '0.875rem',
                   fontFamily: 'inherit',
-                  resize: 'vertical'
+                  resize: 'vertical',
+                  minHeight: '100px'
                 }}
               />
             </div>
@@ -3010,7 +3016,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                 value={localData.futurePlans || ''}
                 onChange={(e) => setLocalData({ ...localData, futurePlans: e.target.value })}
                 placeholder="Where is the business heading? Growth plans, strategic goals..."
-                rows={3}
+                rows={4}
                 style={{
                   width: '100%',
                   padding: '0.625rem',
@@ -3018,7 +3024,8 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                   borderRadius: '8px',
                   fontSize: '0.875rem',
                   fontFamily: 'inherit',
-                  resize: 'vertical'
+                  resize: 'vertical',
+                  minHeight: '100px'
                 }}
               />
             </div>
@@ -3048,7 +3055,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                     value={point}
                     onChange={(e) => setLocalPainPoints(prev => prev.map((p, i) => i === idx ? e.target.value : p))}
                     placeholder={`Pain point ${idx + 1}...`}
-                    rows={2}
+                    rows={4}
                     style={{
                       flex: 1,
                       padding: '0.625rem',
@@ -3056,7 +3063,8 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                       borderRadius: '8px',
                       fontSize: '0.875rem',
                       fontFamily: 'inherit',
-                      resize: 'vertical'
+                      resize: 'vertical',
+                      minHeight: '100px'
                     }}
                   />
                   {localPainPoints.length > 1 && (
@@ -3641,13 +3649,14 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               onBlur={autoSave}
               placeholder="Brief description of the business"
-              rows={2}
+              rows={4}
               style={{
                 width: '100%', padding: '0.5rem 0.625rem',
                 background: '#f9fafb',
                 border: '1px solid #d1d5db',
                 borderRadius: '6px', fontSize: '0.85rem', color: '#111827',
-                fontFamily: 'inherit', outline: 'none', resize: 'vertical'
+                fontFamily: 'inherit', outline: 'none', resize: 'vertical',
+                minHeight: '100px'
               }}
             />
           </div>
@@ -3662,13 +3671,14 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               onChange={(e) => setFormData({ ...formData, futurePlans: e.target.value })}
               onBlur={autoSave}
               placeholder="Where is the business heading? Growth plans, strategic goals..."
-              rows={2}
+              rows={4}
               style={{
                 width: '100%', padding: '0.5rem 0.625rem',
                 background: '#f9fafb',
                 border: '1px solid #d1d5db',
                 borderRadius: '6px', fontSize: '0.85rem', color: '#111827',
-                fontFamily: 'inherit', outline: 'none', resize: 'vertical'
+                fontFamily: 'inherit', outline: 'none', resize: 'vertical',
+                minHeight: '100px'
               }}
             />
           </div>
@@ -3699,13 +3709,14 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                   onChange={(e) => setFormPainPoints(prev => prev.map((p, i) => i === idx ? e.target.value : p))}
                   onBlur={autoSave}
                   placeholder={`Pain point ${idx + 1}...`}
-                  rows={1}
+                  rows={4}
                   style={{
                     flex: 1, padding: '0.5rem 0.625rem',
                     background: '#f9fafb',
                     border: '1px solid #d1d5db',
                     borderRadius: '6px', fontSize: '0.85rem', color: '#111827',
-                    fontFamily: 'inherit', outline: 'none', resize: 'vertical'
+                    fontFamily: 'inherit', outline: 'none', resize: 'vertical',
+                    minHeight: '100px'
                   }}
                 />
                 {formPainPoints.length > 1 && (
