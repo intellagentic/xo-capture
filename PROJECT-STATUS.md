@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.74)
+**Status:** Deployed & Operational (v1.75)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2657,6 +2657,12 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.75 — Verified system_config webhook flow end-to-end**
+- Verified save-on-blur: PUT `/system-config` writes to DB immediately, returns `{"status":"saved"}`, frontend shows 2-second "Saved" indicator
+- Verified no caching: `handle_invite` runs fresh `SELECT` from `system_config` on every invocation — no module-level or Lambda-warm cache
+- Live test: changed invite webhook URL from `httpbin.org/post` to `httpbin.org/anything`, submitted two invites — Lambda logs confirm each fired to the correct URL at time of submission
+- Both invite paths (new invite + existing-invite duplicate email) read from `system_config`
 
 **v1.74 — System Configuration: system_config table + dual-mode Configuration screen**
 - New `system_config` PostgreSQL table (config_key/config_value key-value store), auto-migrated on Lambda cold start
