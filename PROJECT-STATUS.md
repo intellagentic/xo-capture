@@ -2660,6 +2660,7 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 **v1.68 — Invite Landing Page for HIMSS 2026**
 - New public `/invite` page — dark-themed, mobile-first landing page for conference signups (no auth required)
 - `InvitePage` component: dark gradient background, XO Capture header, "Invitation" heading, tagline
+- Tagline split across two lines: "XO clears the path." / "You decide. Streamline Acts."
 - Live countdown timer to March 16, 2026 10:00 AM PST (4 red-tinted boxes: Days/Hrs/Min/Sec)
 - Glass-morphism form card with 3 inputs: First Name, Email, Company (16px+ fonts, red focus borders)
 - Submit → `POST /invite` → creates client (S3 folders, client-config.md, default skill) + generates 30-day magic link
@@ -2672,6 +2673,8 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - `STREAMLINE_WEBHOOK_URL` and `FRONTEND_URL` env vars added to clients Lambda
 - Intellagentic logo footer with copyright
 - CloudFront SPA routing handles `/invite` path (404 → index.html already configured)
+- Single-viewport layout: entire page fits without scrolling on laptop (1440x900) and mobile (375x812)
+- Tightened spacing: centered flex layout with gap, compact countdown boxes, reduced form/button padding
 
 **v1.66 — Streamline Applications: new system skill + Potential Streamline Applications on Results screen**
 - New system skill: `streamline-applications.md` — full reference of 12 Streamline workflow steps and 15 integrations
