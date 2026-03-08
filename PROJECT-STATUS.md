@@ -2661,6 +2661,7 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - New public `/invite` page — dark-themed, mobile-first landing page for conference signups (no auth required)
 - `InvitePage` component: dark gradient background, XO Capture header, "Invitation" heading, tagline
 - Tagline split across two lines: "XO clears the path." / "You decide. Streamline Acts."
+- "Your Second-in-Command" subtitle below countdown
 - Live countdown timer to March 16, 2026 10:00 AM PST (4 red-tinted boxes: Days/Hrs/Min/Sec)
 - Glass-morphism form card with 4 inputs: First Name, Email, Phone, Company (16px+ fonts, red focus borders)
 - Phone field is plain text input (type="tel") matching Organization Profile contacts format — no country code dropdown

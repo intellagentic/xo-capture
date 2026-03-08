@@ -1185,7 +1185,7 @@ function InvitePage() {
         color: '#555',
         letterSpacing: '3px',
         fontStyle: 'italic'
-      }}>Something is coming.</p>
+      }}>Your Second-in-Command</p>
 
       {/* Form or Confirmation */}
       <div style={{

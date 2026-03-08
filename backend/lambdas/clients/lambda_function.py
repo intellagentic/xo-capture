@@ -1167,6 +1167,8 @@ def handle_invite(event):
             if token:
                 cur.close()
                 conn.close()
+                print(f"Invite signup (existing): {company_name} ({email})")
+                _send_invite_webhook(company_name, first_name, email, phone)
                 return {
                     'statusCode': 200,
                     'headers': CORS_HEADERS,
