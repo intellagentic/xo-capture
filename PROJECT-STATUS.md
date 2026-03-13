@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.77)
+**Status:** Deployed & Operational (v1.78)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2657,6 +2657,19 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.78 — System vs Client Buttons (same pattern as Skills)**
+- Buttons table schema migrated: added `client_id` column (nullable, FK to clients), made `user_id` nullable
+- System buttons (`client_id IS NULL, user_id IS NULL`) appear on every client's Welcome screen before client-specific buttons
+- Client buttons (`client_id = X`) are per-workspace, configured from client Configuration screen
+- Buttons Lambda auto-migrates on cold start (adds column, drops NOT NULL, creates index)
+- GET /buttons supports `?scope=system`, `?scope=client&client_id=X`, `?client_id=X` (combined), and legacy (no params)
+- PUT /buttons/sync supports `{ scope: "system" }` (admin only), `{ client_id: X }`, and legacy (user-level)
+- System Configuration screen (dashboard, admin): full Configure Buttons editor with drag-and-drop reorder, inline edit (label, URL, color grid, icon grid), "+ Add Button", and live preview
+- Client Configuration screen (workspace): system buttons shown read-only with Lock icon + blue "System" badge; client buttons editable below with full editor; live preview shows both combined
+- Reusable `renderButtonEditor()` and `renderButtonPreview()` helpers shared between system and client config views
+- Frontend state: separate `systemButtons` + `configButtons` arrays; re-fetches client buttons on workspace entry
+- Deployed: xo-buttons Lambda + frontend
 
 **v1.77 — Reorder System Configuration: toggle below URL fields**
 - Moved "Send to Streamline" toggle below Default Enrichment Webhook URL (order: Invite URL → Enrichment URL → toggle)

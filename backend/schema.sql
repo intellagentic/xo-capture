@@ -182,3 +182,12 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS streamline_webhook_url VARCHAR(1000
 -- Make client_id nullable so system skills (client_id IS NULL) are global
 -- ============================================================
 ALTER TABLE skills ALTER COLUMN client_id DROP NOT NULL;
+
+-- ============================================================
+-- SYSTEM BUTTONS (migration)
+-- Add client_id for client-specific buttons; NULL = system button
+-- Make user_id nullable (system buttons have no owner user)
+-- ============================================================
+ALTER TABLE buttons ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id) ON DELETE CASCADE;
+ALTER TABLE buttons ALTER COLUMN user_id DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_buttons_client_id ON buttons(client_id);

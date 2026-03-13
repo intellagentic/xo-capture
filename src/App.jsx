@@ -1553,6 +1553,7 @@ export default function App() {
 
   // Custom buttons state - synced with PostgreSQL via API
   const [configButtons, setConfigButtons] = useState(DEFAULT_BUTTONS)
+  const [systemButtons, setSystemButtons] = useState([])
   const [buttonsLoaded, setButtonsLoaded] = useState(false)
 
   // Fetch buttons, client data, and partners from API after login
@@ -1580,13 +1581,29 @@ export default function App() {
 
   const fetchButtons = async () => {
     try {
-      const response = await fetch(`${API_BASE}/buttons`, {
-        headers: getAuthHeaders()
-      })
-      if (response.ok) {
-        const data = await response.json()
-        if (data.buttons && data.buttons.length > 0) {
-          setConfigButtons(data.buttons)
+      // Fetch system buttons
+      const sysRes = await fetch(`${API_BASE}/buttons?scope=system`, { headers: getAuthHeaders() })
+      if (sysRes.ok) {
+        const sysData = await sysRes.json()
+        setSystemButtons(sysData.buttons || [])
+      }
+      // Fetch client buttons if in workspace
+      if (clientId) {
+        const cliRes = await fetch(`${API_BASE}/buttons?scope=client&client_id=${clientId}`, { headers: getAuthHeaders() })
+        if (cliRes.ok) {
+          const cliData = await cliRes.json()
+          if (cliData.buttons && cliData.buttons.length > 0) {
+            setConfigButtons(cliData.buttons)
+          }
+        }
+      } else {
+        // Legacy: fetch user buttons
+        const response = await fetch(`${API_BASE}/buttons`, { headers: getAuthHeaders() })
+        if (response.ok) {
+          const data = await response.json()
+          if (data.buttons && data.buttons.length > 0) {
+            setConfigButtons(data.buttons)
+          }
         }
       }
     } catch (err) {
@@ -1637,15 +1654,48 @@ export default function App() {
   const saveButtons = async (newButtons) => {
     setConfigButtons(newButtons)
     try {
+      const payload = clientId
+        ? { client_id: clientId, buttons: newButtons }
+        : { buttons: newButtons }
       await fetch(`${API_BASE}/buttons/sync`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ buttons: newButtons })
+        body: JSON.stringify(payload)
       })
     } catch (err) {
       console.error('Failed to save buttons:', err)
     }
   }
+
+  const saveSystemButtons = async (newButtons) => {
+    setSystemButtons(newButtons)
+    try {
+      await fetch(`${API_BASE}/buttons/sync`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ scope: 'system', buttons: newButtons })
+      })
+    } catch (err) {
+      console.error('Failed to save system buttons:', err)
+    }
+  }
+
+  // Re-fetch client buttons when entering a workspace
+  useEffect(() => {
+    if (isLoggedIn && clientId) {
+      (async () => {
+        try {
+          const cliRes = await fetch(`${API_BASE}/buttons?scope=client&client_id=${clientId}`, { headers: getAuthHeaders() })
+          if (cliRes.ok) {
+            const cliData = await cliRes.json()
+            setConfigButtons(cliData.buttons && cliData.buttons.length > 0 ? cliData.buttons : DEFAULT_BUTTONS)
+          }
+        } catch (err) {
+          console.error('Failed to fetch client buttons:', err)
+        }
+      })()
+    }
+  }, [clientId])
 
   const navigateTo = (screen) => {
     setCurrentScreen(screen)
@@ -2149,6 +2199,7 @@ export default function App() {
             onComplete={() => setCurrentScreen('enrich')}
             onOpenCompanyModal={() => setShowCompanyModal(true)}
             configButtons={configButtons}
+            systemButtons={systemButtons}
             onNavigate={navigateTo}
             isAdmin={isAdmin}
           />
@@ -2169,7 +2220,7 @@ export default function App() {
         )}
         {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} isAdmin={isAdmin} />}
         {currentScreen === 'skills' && <SkillsScreen clientId={clientId} isAdmin={isAdmin} />}
-        {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} inWorkspace={inWorkspace} isAdmin={isAdmin} companyName={companyData.name} />}
+        {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} systemButtons={systemButtons} setSystemButtons={saveSystemButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} inWorkspace={inWorkspace} isAdmin={isAdmin} companyName={companyData.name} />}
         {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
         {currentScreen === 'partners' && isAdmin && <PartnersScreen partners={partners} setPartners={setPartners} />}
 
@@ -3528,7 +3579,7 @@ function BrandingScreen({ clientId, companyData, setCompanyData }) {
 // ============================================================
 // UPLOAD SCREEN
 // ============================================================
-function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onClientCreate, onComplete, onOpenCompanyModal, configButtons, onNavigate, isAdmin }) {
+function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onClientCreate, onComplete, onOpenCompanyModal, configButtons, systemButtons, onNavigate, isAdmin }) {
   const [error, setError] = useState(null)
   const [sourceCount, setSourceCount] = useState(0)
   const [activeCount, setActiveCount] = useState(0)
@@ -6386,10 +6437,12 @@ function SystemSkillsPanel({ C }) {
 }
 
 
-function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferredModel, setPreferredModel, clientId, inWorkspace, isAdmin, companyName }) {
+function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemButtons, setSystemButtons, preferredModel, setPreferredModel, clientId, inWorkspace, isAdmin, companyName }) {
   const isDark = theme === 'dark'
   const [editingId, setEditingId] = useState(null)
   const [draggedId, setDraggedId] = useState(null)
+  const [sysEditingId, setSysEditingId] = useState(null)
+  const [sysDraggedId, setSysDraggedId] = useState(null)
   const [webhookEnabled, setWebhookEnabled] = useState(false)
   const [webhookLoaded, setWebhookLoaded] = useState(false)
   const [webhookSaving, setWebhookSaving] = useState(false)
@@ -6584,6 +6637,199 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
 
   const handleDragEnd = () => setDraggedId(null)
 
+  // ── System Button Operations ─────────────────────────────
+  const addSysButton = () => {
+    const newBtn = { id: Date.now(), label: 'New Button', color: '#3b82f6', icon: 'Zap', url: '' }
+    setSystemButtons(prev => [...prev, newBtn])
+    setSysEditingId(newBtn.id)
+  }
+  const deleteSysButton = (id) => {
+    setSystemButtons(prev => prev.filter(b => b.id !== id))
+    if (sysEditingId === id) setSysEditingId(null)
+  }
+  const duplicateSysButton = (btn) => {
+    const newBtn = { ...btn, id: Date.now(), label: `${btn.label} (copy)` }
+    setSystemButtons(prev => [...prev, newBtn])
+  }
+  const updateSysButton = (id, field, value) => {
+    setSystemButtons(prev => prev.map(b => b.id === id ? { ...b, [field]: value } : b))
+  }
+  const handleSysDragStart = (id) => setSysDraggedId(id)
+  const handleSysDragOver = (e, targetId) => {
+    e.preventDefault()
+    if (!sysDraggedId || sysDraggedId === targetId) return
+    const draggedIdx = systemButtons.findIndex(b => b.id === sysDraggedId)
+    const targetIdx = systemButtons.findIndex(b => b.id === targetId)
+    const newButtons = [...systemButtons]
+    const [removed] = newButtons.splice(draggedIdx, 1)
+    newButtons.splice(targetIdx, 0, removed)
+    setSystemButtons(newButtons)
+  }
+  const handleSysDragEnd = () => setSysDraggedId(null)
+
+  // Helper to render a button editor panel (reused for system and client buttons)
+  const renderButtonEditor = (btnList, ops) => {
+    const { onAdd, onDelete, onDuplicate, onUpdate, onDragStart, onDragOver, onDragEnd, editId, setEditId, dragId, readOnly, showSystemBadge } = ops
+    return (
+      <div style={{ animation: 'fadeIn .5s .1s ease backwards' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            {readOnly ? 'System Buttons' : 'Configure Buttons'}
+          </h2>
+          {!readOnly && (
+            <button onClick={onAdd} className="btn-hover" style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none',
+              background: '#3b82f6', color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+              transition: 'all .2s', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
+            }}>
+              <Plus size={16} /> Add Button
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {btnList.map((btn, index) => {
+            const isEditing = editId === btn.id
+            const IconComp = ICON_MAP[btn.icon] || Zap
+            return (
+              <div key={btn.id} draggable={!readOnly}
+                onDragStart={() => !readOnly && onDragStart(btn.id)}
+                onDragOver={(e) => !readOnly && onDragOver(e, btn.id)}
+                onDragEnd={() => !readOnly && onDragEnd()}
+                className="card-hover"
+                style={{
+                  padding: 16, background: C.surface, border: `2px solid ${isEditing ? '#3b82f6' : C.border}`,
+                  borderRadius: 12, cursor: readOnly ? 'default' : 'grab', transition: 'all .2s',
+                  animation: `slideIn .3s ${index * 0.05}s ease backwards`,
+                  opacity: readOnly ? 0.8 : 1
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: isEditing ? 16 : 0 }}>
+                  {!readOnly && <GripVertical size={18} color={C.muted} style={{ cursor: 'grab' }} />}
+                  {readOnly && <Lock size={16} color={C.muted} />}
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: `${btn.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <IconComp size={18} color={btn.color} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{btn.label}</span>
+                      {showSystemBadge && (
+                        <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#3b82f6', background: 'rgba(59,130,246,0.1)', padding: '2px 8px', borderRadius: 999 }}>System</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+                      {COLORS.find(c => c.value === btn.color)?.name || 'Custom'} &bull; {btn.icon}
+                    </div>
+                    {btn.url && <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{btn.url}</div>}
+                  </div>
+                  {!readOnly && (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => setEditId(isEditing ? null : btn.id)} style={{
+                        width: 32, height: 32, borderRadius: 6, border: 'none',
+                        background: isEditing ? '#3b82f6' : `${C.muted}20`, color: isEditing ? 'white' : C.muted,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s'
+                      }}><Edit2 size={14} /></button>
+                      <button onClick={() => onDuplicate(btn)} style={{
+                        width: 32, height: 32, borderRadius: 6, border: 'none',
+                        background: `${C.muted}20`, color: C.muted, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s'
+                      }}><Copy size={14} /></button>
+                      <button onClick={() => onDelete(btn.id)} style={{
+                        width: 32, height: 32, borderRadius: 6, border: 'none',
+                        background: '#ef444420', color: '#ef4444', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s'
+                      }}><Trash2 size={14} /></button>
+                    </div>
+                  )}
+                </div>
+                {/* Inline Editing Panel */}
+                {isEditing && !readOnly && (
+                  <div style={{ paddingTop: 16, borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeIn .3s ease' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Label</label>
+                      <input type="text" value={btn.label} onChange={(e) => onUpdate(btn.id, 'label', e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>URL</label>
+                      <input type="text" value={btn.url || ''} onChange={(e) => onUpdate(btn.id, 'url', e.target.value)}
+                        placeholder="/enrich, /skills, or https://..."
+                        style={{ width: '100%', padding: '8px 12px', background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Color</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 8 }}>
+                        {COLORS.map((c) => (
+                          <button key={c.value} onClick={() => onUpdate(btn.id, 'color', c.value)} style={{
+                            height: 36, borderRadius: 8, border: btn.color === c.value ? `2px solid ${c.value}` : '2px solid transparent',
+                            background: `${c.value}30`, cursor: 'pointer', position: 'relative', transition: 'all .2s'
+                          }}>
+                            {btn.color === c.value && <Check size={16} color={c.value} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Icon</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
+                        {ICON_NAMES.map((iconName) => {
+                          const Icon = ICON_MAP[iconName]
+                          return (
+                            <button key={iconName} onClick={() => onUpdate(btn.id, 'icon', iconName)} style={{
+                              aspectRatio: '1', borderRadius: 8,
+                              border: btn.icon === iconName ? `2px solid ${btn.color}` : `1px solid ${C.border}`,
+                              background: btn.icon === iconName ? `${btn.color}20` : C.bg,
+                              color: btn.icon === iconName ? btn.color : C.muted,
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s'
+                            }}><Icon size={16} /></button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {btnList.length === 0 && !readOnly && (
+            <div style={{ padding: 32, textAlign: 'center', color: C.muted, background: C.surface, border: `2px solid ${C.border}`, borderRadius: 12 }}>
+              <Settings size={32} style={{ marginBottom: 8, opacity: 0.5 }} />
+              <p>No buttons configured. Click "+ Add Button" to get started.</p>
+            </div>
+          )}
+          {btnList.length === 0 && readOnly && (
+            <div style={{ padding: 16, textAlign: 'center', color: C.muted, fontSize: '0.8rem' }}>
+              No system buttons configured.
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Render live preview for buttons
+  const renderButtonPreview = (btnList, title) => (
+    <div style={{ animation: 'fadeIn .5s .2s ease backwards' }}>
+      <h2 style={{ fontSize: 16, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>{title || 'Live Preview'}</h2>
+      <div style={{ marginTop: 24, padding: 16, background: C.surface, border: `2px solid ${C.border}`, borderRadius: 16, minHeight: 200 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          {btnList.map((btn) => {
+            const IconComp = ICON_MAP[btn.icon] || Zap
+            return (
+              <button key={btn.id} className="btn-hover" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px',
+                background: btn.color, color: 'white', border: 'none', borderRadius: 10,
+                cursor: 'pointer', fontSize: 14, fontWeight: 500, boxShadow: `0 4px 12px ${btn.color}40`, transition: 'all .2s'
+              }}>
+                <IconComp size={18} />
+                {btn.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div>
       <style>{`
@@ -6729,6 +6975,25 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
               </p>
             </div>
           </div>
+
+          {/* ── System Buttons Config ── */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: window.innerWidth > 600 ? '1fr 1fr' : '1fr',
+            gap: 28,
+            marginTop: '1rem'
+          }}>
+            {renderButtonEditor(systemButtons || [], {
+              onAdd: addSysButton, onDelete: deleteSysButton, onDuplicate: duplicateSysButton,
+              onUpdate: updateSysButton, onDragStart: handleSysDragStart, onDragOver: handleSysDragOver,
+              onDragEnd: handleSysDragEnd, editId: sysEditingId, setEditId: setSysEditingId,
+              dragId: sysDraggedId, readOnly: false, showSystemBadge: true
+            })}
+            {renderButtonPreview(systemButtons || [], 'System Buttons Preview')}
+          </div>
+          <p style={{ fontSize: '0.7rem', color: C.muted, marginTop: '0.5rem', lineHeight: 1.4 }}>
+            System buttons appear on every client's Welcome screen before client-specific buttons.
+          </p>
         </>
       )}
 
@@ -6922,374 +7187,31 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, preferre
         </div>
       )}
 
-      {/* Configure Buttons & Live Preview -- Two Column */}
+      {/* System Buttons (read-only for non-admin, shown in client config) */}
+      {(systemButtons || []).length > 0 && (
+        <div style={{ marginTop: '1rem' }}>
+          {renderButtonEditor(systemButtons || [], {
+            onAdd: () => {}, onDelete: () => {}, onDuplicate: () => {}, onUpdate: () => {},
+            onDragStart: () => {}, onDragOver: () => {}, onDragEnd: () => {},
+            editId: null, setEditId: () => {}, dragId: null, readOnly: true, showSystemBadge: true
+          })}
+        </div>
+      )}
+
+      {/* Client Buttons — Configure & Live Preview */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: window.innerWidth > 600 ? '1fr 1fr' : '1fr',
         gap: 28,
         marginTop: '1rem'
       }}>
-        {/* ── LEFT: Button List Editor ── */}
-        <div style={{ animation: 'fadeIn .5s .1s ease backwards' }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 16,
-          }}>
-            <h2 style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: C.muted,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-            }}>
-              Configure Buttons
-            </h2>
-
-            <button
-              onClick={addButton}
-              className="btn-hover"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 16px', borderRadius: 8, border: 'none',
-                background: '#3b82f6', color: 'white',
-                cursor: 'pointer', fontSize: 13, fontWeight: 600,
-                transition: 'all .2s',
-                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-              }}
-            >
-              <Plus size={16} />
-              Add Button
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {buttons.map((btn, index) => {
-              const isEditing = editingId === btn.id
-              const IconComp = ICON_MAP[btn.icon] || Zap
-
-              return (
-                <div
-                  key={btn.id}
-                  draggable
-                  onDragStart={() => handleDragStart(btn.id)}
-                  onDragOver={(e) => handleDragOver(e, btn.id)}
-                  onDragEnd={handleDragEnd}
-                  className="card-hover"
-                  style={{
-                    padding: 16,
-                    background: C.surface,
-                    border: `2px solid ${isEditing ? '#3b82f6' : C.border}`,
-                    borderRadius: 12,
-                    cursor: 'grab',
-                    transition: 'all .2s',
-                    animation: `slideIn .3s ${index * 0.05}s ease backwards`,
-                  }}
-                >
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    marginBottom: isEditing ? 16 : 0,
-                  }}>
-                    <GripVertical size={18} color={C.muted} style={{ cursor: 'grab' }} />
-
-                    <div style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 8,
-                      background: `${btn.color}20`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <IconComp size={18} color={btn.color} />
-                    </div>
-
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontSize: 15,
-                        fontWeight: 600,
-                        color: C.text,
-                      }}>
-                        {btn.label}
-                      </div>
-                      <div style={{
-                        fontSize: 12,
-                        color: C.muted,
-                        marginTop: 2,
-                      }}>
-                        {COLORS.find(c => c.value === btn.color)?.name || 'Custom'} &bull; {btn.icon}
-                      </div>
-                      {btn.url && (
-                        <div style={{
-                          fontSize: 11,
-                          color: '#3b82f6',
-                          marginTop: 2,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {btn.url}
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        onClick={() => setEditingId(isEditing ? null : btn.id)}
-                        style={{
-                          width: 32, height: 32, borderRadius: 6, border: 'none',
-                          background: isEditing ? '#3b82f6' : `${C.muted}20`,
-                          color: isEditing ? 'white' : C.muted,
-                          cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all .2s',
-                        }}
-                      >
-                        <Edit2 size={14} />
-                      </button>
-
-                      <button
-                        onClick={() => duplicateButton(btn)}
-                        style={{
-                          width: 32, height: 32, borderRadius: 6, border: 'none',
-                          background: `${C.muted}20`, color: C.muted,
-                          cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all .2s',
-                        }}
-                      >
-                        <Copy size={14} />
-                      </button>
-
-                      <button
-                        onClick={() => deleteButton(btn.id)}
-                        style={{
-                          width: 32, height: 32, borderRadius: 6, border: 'none',
-                          background: '#ef444420', color: '#ef4444',
-                          cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all .2s',
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Inline Editing Panel */}
-                  {isEditing && (
-                    <div style={{
-                      paddingTop: 16,
-                      borderTop: `1px solid ${C.border}`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 12,
-                      animation: 'fadeIn .3s ease',
-                    }}>
-                      {/* Label Input */}
-                      <div>
-                        <label style={{
-                          display: 'block', fontSize: 11, fontWeight: 700,
-                          color: C.muted, textTransform: 'uppercase',
-                          letterSpacing: '0.05em', marginBottom: 6,
-                        }}>
-                          Label
-                        </label>
-                        <input
-                          type="text"
-                          value={btn.label}
-                          onChange={(e) => updateButton(btn.id, 'label', e.target.value)}
-                          style={{
-                            width: '100%', padding: '8px 12px',
-                            background: C.bg, color: C.text,
-                            border: `1px solid ${C.border}`,
-                            borderRadius: 8, fontSize: 14, outline: 'none',
-                          }}
-                        />
-                      </div>
-
-                      {/* URL Input */}
-                      <div>
-                        <label style={{
-                          display: 'block', fontSize: 11, fontWeight: 700,
-                          color: C.muted, textTransform: 'uppercase',
-                          letterSpacing: '0.05em', marginBottom: 6,
-                        }}>
-                          URL
-                        </label>
-                        <input
-                          type="text"
-                          value={btn.url || ''}
-                          onChange={(e) => updateButton(btn.id, 'url', e.target.value)}
-                          placeholder="/enrich, /skills, or https://..."
-                          style={{
-                            width: '100%', padding: '8px 12px',
-                            background: C.bg, color: C.text,
-                            border: `1px solid ${C.border}`,
-                            borderRadius: 8, fontSize: 14, outline: 'none',
-                          }}
-                        />
-                      </div>
-
-                      {/* Color Selector */}
-                      <div>
-                        <label style={{
-                          display: 'block', fontSize: 11, fontWeight: 700,
-                          color: C.muted, textTransform: 'uppercase',
-                          letterSpacing: '0.05em', marginBottom: 6,
-                        }}>
-                          Color
-                        </label>
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(8, 1fr)',
-                          gap: 8,
-                        }}>
-                          {COLORS.map((c) => (
-                            <button
-                              key={c.value}
-                              onClick={() => updateButton(btn.id, 'color', c.value)}
-                              style={{
-                                height: 36, borderRadius: 8,
-                                border: btn.color === c.value ? `2px solid ${c.value}` : '2px solid transparent',
-                                background: `${c.value}30`,
-                                cursor: 'pointer', position: 'relative',
-                                transition: 'all .2s',
-                              }}
-                            >
-                              {btn.color === c.value && (
-                                <Check
-                                  size={16}
-                                  color={c.value}
-                                  style={{
-                                    position: 'absolute',
-                                    top: '50%', left: '50%',
-                                    transform: 'translate(-50%, -50%)',
-                                  }}
-                                />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Icon Selector */}
-                      <div>
-                        <label style={{
-                          display: 'block', fontSize: 11, fontWeight: 700,
-                          color: C.muted, textTransform: 'uppercase',
-                          letterSpacing: '0.05em', marginBottom: 6,
-                        }}>
-                          Icon
-                        </label>
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(10, 1fr)',
-                          gap: 4,
-                        }}>
-                          {ICON_NAMES.map((iconName) => {
-                            const Icon = ICON_MAP[iconName]
-                            return (
-                              <button
-                                key={iconName}
-                                onClick={() => updateButton(btn.id, 'icon', iconName)}
-                                style={{
-                                  aspectRatio: '1',
-                                  borderRadius: 8,
-                                  border: btn.icon === iconName ? `2px solid ${btn.color}` : `1px solid ${C.border}`,
-                                  background: btn.icon === iconName ? `${btn.color}20` : C.bg,
-                                  color: btn.icon === iconName ? btn.color : C.muted,
-                                  cursor: 'pointer',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  transition: 'all .2s',
-                                }}
-                              >
-                                <Icon size={16} />
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-
-            {buttons.length === 0 && (
-              <div style={{
-                padding: 32, textAlign: 'center', color: C.muted,
-                background: C.surface, border: `2px solid ${C.border}`,
-                borderRadius: 12,
-              }}>
-                <Settings size={32} style={{ marginBottom: 8, opacity: 0.5 }} />
-                <p>No buttons configured. Click "+ Add Button" to get started.</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── RIGHT: Live Preview ── */}
-        <div style={{ animation: 'fadeIn .5s .2s ease backwards' }}>
-          <h2 style={{
-            fontSize: 16,
-            fontWeight: 700,
-            color: C.muted,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            marginBottom: 16,
-          }}>
-            Live Preview
-          </h2>
-
-          <div style={{
-            marginTop: 24,
-            padding: 16,
-            background: C.surface,
-            border: `2px solid ${C.border}`,
-            borderRadius: 16,
-            minHeight: 400,
-          }}>
-            <div style={{ marginBottom: 32 }}>
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 12,
-              }}>
-                {buttons.map((btn) => {
-                  const IconComp = ICON_MAP[btn.icon] || Zap
-                  return (
-                    <button
-                      key={btn.id}
-                      className="btn-hover"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '12px 24px',
-                        background: btn.color,
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 10,
-                        cursor: 'pointer',
-                        fontSize: 14,
-                        fontWeight: 500,
-                        boxShadow: `0 4px 12px ${btn.color}40`,
-                        transition: 'all .2s',
-                      }}
-                    >
-                      <IconComp size={18} />
-                      {btn.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+        {renderButtonEditor(buttons, {
+          onAdd: addButton, onDelete: deleteButton, onDuplicate: duplicateButton,
+          onUpdate: updateButton, onDragStart: handleDragStart, onDragOver: handleDragOver,
+          onDragEnd: handleDragEnd, editId: editingId, setEditId: setEditingId,
+          dragId: draggedId, readOnly: false, showSystemBadge: false
+        })}
+        {renderButtonPreview([...(systemButtons || []), ...buttons], 'Live Preview')}
       </div>
 
       </>)}
