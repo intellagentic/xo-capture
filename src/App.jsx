@@ -1081,9 +1081,9 @@ function InvitePage() {
   const [result, setResult] = useState(null)
   const [countdown, setCountdown] = useState({ days: 0, hrs: 0, min: 0, sec: 0 })
 
-  // Countdown to March 16, 2026 10:00 AM PST
+  // Countdown to March 23, 2026 12:00 PM PDT
   useEffect(() => {
-    const target = new Date('2026-03-16T18:00:00Z').getTime()
+    const target = new Date('2026-03-23T19:00:00Z').getTime()
     const update = () => {
       const now = Date.now()
       const diff = Math.max(0, target - now)
@@ -1379,7 +1379,7 @@ function InvitePage() {
           }}>
             <CheckCircle size={40} style={{ color: '#22c55e', marginBottom: '12px' }} />
             <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#fff', margin: '0 0 8px' }}>You're in.</h2>
-            <p style={{ color: '#aaa', fontSize: '15px', margin: '0 0 24px' }}>We'll send your access on March 16.</p>
+            <p style={{ color: '#aaa', fontSize: '15px', margin: '0 0 24px' }}>We'll send your access on March 23.</p>
             <img src={logoLight} alt="Intellagentic" style={{ height: '22px', opacity: 0.5 }} />
           </div>
         )}
