@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.79)
+**Status:** Deployed & Operational (v1.80)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2657,6 +2657,15 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.80 — Fix Paste Text Source "Add Source" button**
+- Bug: `new File()` was calling lucide-react's `File` icon (imported on line 2) instead of the browser's native `File` constructor, causing "Tn is not a constructor" error
+- Fix: changed to `globalThis.File` to bypass the shadowed import
+- Added S3 PUT response status check (was silently ignoring upload failures)
+- Added success confirmation: button turns green with checkmark + "Source Added!" for 3 seconds
+- Added inline error display with specific error message on failure
+- Added empty-label fallback (`'Text_Note'`) when sanitized label is empty
+- Deployed: frontend only
 
 **v1.79 — Invite countdown timer updated to March 23**
 - Changed countdown target from March 16, 2026 10:00 AM PST to March 23, 2026 12:00 PM PDT

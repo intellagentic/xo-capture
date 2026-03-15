@@ -4427,6 +4427,8 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
   const [textSourceLabel, setTextSourceLabel] = useState('')
   const [textSourceContent, setTextSourceContent] = useState('')
   const [textSourceSaving, setTextSourceSaving] = useState(false)
+  const [textSourceStatus, setTextSourceStatus] = useState(null) // 'saved' | 'error' | null
+  const [textSourceError, setTextSourceError] = useState('')
 
   // Google Drive state
   const [gdriveConnected, setGdriveConnected] = useState(false)
@@ -4535,12 +4537,15 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
   const addTextSource = async () => {
     if (!clientId || !textSourceContent.trim()) return
     setTextSourceSaving(true)
+    setTextSourceStatus(null)
+    setTextSourceError('')
     try {
-      const label = (textSourceLabel.trim() || 'Text Note').replace(/[^a-zA-Z0-9 _-]/g, '')
+      const label = (textSourceLabel.trim() || 'Text Note').replace(/[^a-zA-Z0-9 _-]/g, '') || 'Text_Note'
       const fileName = `${label.replace(/\s+/g, '_')}_${Date.now()}.txt`
       const blob = new Blob([textSourceContent], { type: 'text/plain' })
-      const file = new File([blob], fileName, { type: 'text/plain' })
+      const file = new globalThis.File([blob], fileName, { type: 'text/plain' })
 
+      // Step 1: Get presigned URL + create DB record
       const res = await fetch(`${API_BASE}/upload`, {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -4549,20 +4554,32 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
           files: [{ name: file.name, type: file.type, size: file.size }]
         })
       })
-      if (!res.ok) throw new Error('Failed to get upload URL')
-      const { upload_urls } = await res.json()
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `Upload request failed (${res.status})`)
+      }
+      const data = await res.json()
+      const uploadUrl = (data.upload_urls || [])[0]
+      if (!uploadUrl) throw new Error('No upload URL returned')
 
-      await fetch(upload_urls[0], {
+      // Step 2: Upload file content to S3
+      const s3Res = await fetch(uploadUrl, {
         method: 'PUT',
         body: file,
         headers: { 'Content-Type': 'text/plain' }
       })
+      if (!s3Res.ok) throw new Error(`S3 upload failed (${s3Res.status})`)
 
+      // Step 3: Refresh list and show success
       await fetchUploads()
       setTextSourceLabel('')
       setTextSourceContent('')
+      setTextSourceStatus('saved')
+      setTimeout(() => setTextSourceStatus(null), 3000)
     } catch (err) {
       console.error('Text source upload error:', err)
+      setTextSourceStatus('error')
+      setTextSourceError(err.message || 'Failed to save text source')
     }
     setTextSourceSaving(false)
   }
@@ -5182,17 +5199,22 @@ function SourcesScreen({ clientId, companyData, onNavigate }) {
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
                 width: '100%', padding: '0.6rem',
-                background: !textSourceContent.trim() ? 'var(--surface-secondary, rgba(0,0,0,0.05))' : '#dc2626',
-                color: !textSourceContent.trim() ? 'var(--text-muted)' : 'white',
-                border: !textSourceContent.trim() ? '1px solid var(--border-color)' : 'none',
+                background: textSourceStatus === 'saved' ? '#22c55e' : !textSourceContent.trim() ? 'var(--surface-secondary, rgba(0,0,0,0.05))' : '#dc2626',
+                color: textSourceStatus === 'saved' ? 'white' : !textSourceContent.trim() ? 'var(--text-muted)' : 'white',
+                border: !textSourceContent.trim() && textSourceStatus !== 'saved' ? '1px solid var(--border-color)' : 'none',
                 borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
                 cursor: !textSourceContent.trim() || textSourceSaving ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s'
               }}
             >
-              {textSourceSaving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={15} />}
-              {textSourceSaving ? 'Saving...' : 'Add Source'}
+              {textSourceSaving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : textSourceStatus === 'saved' ? <CheckCircle2 size={15} /> : <Plus size={15} />}
+              {textSourceSaving ? 'Saving...' : textSourceStatus === 'saved' ? 'Source Added!' : 'Add Source'}
             </button>
+            {textSourceStatus === 'error' && (
+              <p style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '0.375rem', textAlign: 'center' }}>
+                {textSourceError}
+              </p>
+            )}
           </div>
         </div>
       </div>
