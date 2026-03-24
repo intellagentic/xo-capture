@@ -21,7 +21,44 @@
   --scrollbar-track: #f0f0f0;
   --scrollbar-thumb: #c0c0c0;
   --scrollbar-hover: #a0a0a0;
+
+
+  /* Status Colors - Reserved */
+  --status-success: #00c853;
+  --status-warning: #ff9800;
+  --status-error: #d32f2f;
+  --status-info: #2196f3;
+  --status-disabled: #757575;
+  /* Action Colors */
+  --action-primary: #1976d2;
+  --action-primary-hover: #1565c0;
+  --action-primary-active: #0d47a1;
+  --action-secondary: #546e7a;
+  --action-destructive: #c62828;
+  /* Foundation */
+  --bg-navy: #1e3a5f;
 }
+
+.btn-primary {   background: var(--action-primary);   color: var(--text-primary);   border: none;   padding: 12px 24px;   border-radius: 6px;   font-size: 14px;   font-weight: 500;   cursor: pointer;   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);   transition: all 0.2s; }
+.btn-primary:hover {   background: var(--action-primary-hover);   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); }
+.btn-secondary {   background: transparent;   color: var(--text-secondary);   border: 1px solid var(--action-secondary);   padding: 12px 24px;   border-radius: 6px;   font-size: 14px;   font-weight: 500;   cursor: pointer;   transition: all 0.2s; }
+.btn-secondary:hover {   background: rgba(255, 255, 255, 0.1);   border-color: #607d8b; }
+
+.badge {   padding: 6px 12px;   border-radius: 4px;   font-size: 12px;   font-weight: 600;   text-transform: uppercase; }
+.badge-success {   background: var(--status-success);   color: var(--text-primary); }
+.badge-warning {   background: var(--status-warning);   color: var(--text-primary); }
+.badge-error {background: var(--status-error);color: var(--text-primary); }
+
+.text-red {
+  color: #dc2626;
+  font-weight: 600
+}
+
+.text-green {
+  color: #16a34a;
+  font-weight: 600
+}
+
 
 [data-theme="dark"] {
   --bg-body: #0d1117;

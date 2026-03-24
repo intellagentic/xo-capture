@@ -49,7 +49,7 @@ function joinPhone(countryCode, number) {
 
 // Auth helpers
 function getAuthHeaders() {
-  const token = localStorage.getItem('xo-token')
+  const token = sessionStorage.getItem('xo-token')
   return {
     'Content-Type': 'application/json',
     'Authorization': token ? `Bearer ${token}` : ''
@@ -137,8 +137,8 @@ function LoginScreen({ onLogin }) {
         return
       }
 
-      localStorage.setItem('xo-token', data.token)
-      localStorage.setItem('xo-user', JSON.stringify(data.user))
+      sessionStorage.setItem('xo-token', data.token)
+      sessionStorage.setItem('xo-user', JSON.stringify(data.user))
       onLogin(data.user, data.token)
     } catch (err) {
       setError('Connection failed. Please try again.')
@@ -171,8 +171,8 @@ function LoginScreen({ onLogin }) {
         return
       }
 
-      localStorage.setItem('xo-token', data.token)
-      localStorage.setItem('xo-user', JSON.stringify(data.user))
+      sessionStorage.setItem('xo-token', data.token)
+      sessionStorage.setItem('xo-user', JSON.stringify(data.user))
       onLogin(data.user, data.token)
     } catch (err) {
       setError('Connection failed. Please try again.')
@@ -1050,16 +1050,16 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isPartner, p
 // Restore session synchronously before first render
 function getInitialAuth() {
   try {
-    const token = localStorage.getItem('xo-token')
-    const savedUser = localStorage.getItem('xo-user')
+    const token = sessionStorage.getItem('xo-token')
+    const savedUser = sessionStorage.getItem('xo-user')
     if (token && savedUser && !isTokenExpired(token)) {
       return { loggedIn: true, user: JSON.parse(savedUser), token }
     }
   } catch {
-    // JSON parse or localStorage error -- fall through
+    // JSON parse or sessionStorage error -- fall through
   }
-  localStorage.removeItem('xo-token')
-  localStorage.removeItem('xo-user')
+  sessionStorage.removeItem('xo-token')
+  sessionStorage.removeItem('xo-user')
   return { loggedIn: false, user: null, token: null }
 }
 
@@ -1399,7 +1399,7 @@ export default function App() {
     return <InvitePage />
   }
 
-  // Auth state -- restored from localStorage synchronously
+  // Auth state -- restored from sessionStorage synchronously
   const [initialAuth] = useState(getInitialAuth)
   const [isLoggedIn, setIsLoggedIn] = useState(initialAuth.loggedIn)
   const [user, setUser] = useState(initialAuth.user)
@@ -1434,7 +1434,7 @@ export default function App() {
       setInWorkspace(false)
     } else if (userData.is_client && userData.client_id) {
       setClientId(userData.client_id)
-      localStorage.setItem('xo-client-id', userData.client_id)
+      sessionStorage.setItem('xo-client-id', userData.client_id)
       setInWorkspace(true)
       setCurrentScreen('upload')
     }
@@ -1460,9 +1460,9 @@ export default function App() {
     setIsAdmin(false)
     setIsPartner(false)
     setClientId(null)
-    localStorage.removeItem('xo-token')
-    localStorage.removeItem('xo-user')
-    localStorage.removeItem('xo-client-id')
+    sessionStorage.removeItem('xo-token')
+    sessionStorage.removeItem('xo-user')
+    sessionStorage.removeItem('xo-client-id')
     setCurrentScreen('upload')
   }
 
@@ -1476,7 +1476,7 @@ export default function App() {
   const [showCompanyModal, setShowCompanyModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [showSidebar, setShowSidebar] = useState(false)
-  const [clientId, setClientId] = useState(() => localStorage.getItem('xo-client-id') || null)
+  const [clientId, setClientId] = useState(() => sessionStorage.getItem('xo-client-id') || null)
   const [companyData, setCompanyData] = useState({
     name: '',
     website: '',
@@ -1494,23 +1494,23 @@ export default function App() {
   // Partners state (for admin partner management & dropdowns)
   const [partners, setPartners] = useState([])
 
-  // Theme state - persisted to localStorage
+  // Theme state - persisted to sessionStorage
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('xo-theme') || 'light'
+    return sessionStorage.getItem('xo-theme') || 'light'
   })
 
   useEffect(() => {
     document.body.setAttribute('data-theme', theme)
-    localStorage.setItem('xo-theme', theme)
+    sessionStorage.setItem('xo-theme', theme)
   }, [theme])
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light')
   }
 
-  // Persist clientId to localStorage
+  // Persist clientId to sessionStorage
   useEffect(() => {
-    if (clientId) localStorage.setItem('xo-client-id', clientId)
+    if (clientId) sessionStorage.setItem('xo-client-id', clientId)
   }, [clientId])
 
   // Magic token URL handling — validate on mount
@@ -1528,8 +1528,8 @@ export default function App() {
         })
         const data = await res.json()
         if (res.ok && data.token) {
-          localStorage.setItem('xo-token', data.token)
-          localStorage.setItem('xo-user', JSON.stringify(data.user))
+          sessionStorage.setItem('xo-token', data.token)
+          sessionStorage.setItem('xo-user', JSON.stringify(data.user))
           setUser(data.user)
           setAuthToken(data.token)
           setIsLoggedIn(true)
@@ -1537,7 +1537,7 @@ export default function App() {
           setIsPartner(false)
           if (data.user.client_id) {
             setClientId(data.user.client_id)
-            localStorage.setItem('xo-client-id', data.user.client_id)
+            sessionStorage.setItem('xo-client-id', data.user.client_id)
           }
           setCurrentScreen('upload')
         }
@@ -1762,7 +1762,7 @@ export default function App() {
   const handleSelectClient = async (client) => {
     setInWorkspace(true)
     setClientId(client.client_id)
-    localStorage.setItem('xo-client-id', client.client_id)
+    sessionStorage.setItem('xo-client-id', client.client_id)
     // Fetch full company data
     try {
       const res = await fetch(`${API_BASE}/clients?client_id=${client.client_id}`, { headers: getAuthHeaders() })
@@ -1799,7 +1799,7 @@ export default function App() {
   // Dashboard: create new client
   const handleCreateNewClient = () => {
     setClientId(null)
-    localStorage.removeItem('xo-client-id')
+    sessionStorage.removeItem('xo-client-id')
     setCompanyData({ name: '', website: '', contacts: [], addresses: [], industry: '', description: '', painPoint: '', futurePlans: '', painPoints: [], logoUrl: null, iconUrl: null, partner_id: null, intellagentic_lead: false })
 
     setShowCompanyModal(true)
@@ -4207,10 +4207,11 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                         {activeCount} active
                       </span>
                     </div>
+                    <div style={{display:"flex",justifyContent:"center",gap:"0.375rem"}}>
                     <button
                       onClick={() => onNavigate('sources')}
                       style={{
-                        width: '100%', padding: '0.5rem',
+                        padding: '0.5rem',
                         background: 'rgba(220, 38, 38, 0.15)',
                         border: '1px solid rgba(220, 38, 38, 0.3)',
                         borderRadius: '6px', color: '#dc2626',
@@ -4221,16 +4222,18 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                       <FolderOpen size={14} />
                       Manage Sources
                     </button>
+                    </div>
                   </div>
                 ) : (
-                  <button
+                  <div style={{display:"flex",justifyContent:"center",gap:"0.375rem"}}><button
                     onClick={() => onNavigate('sources')}
                     className="action-btn red"
-                    style={{ justifyContent: 'center', padding: '0.75rem', fontSize: '0.9rem', width: '100%' }}
+                    style={{ justifyContent: 'center', padding: '0.75rem', fontSize: '0.9rem' }}
                   >
                     <Upload size={18} />
                     Add Sources
                   </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -4280,25 +4283,25 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 </p>
 
                 {allStepsComplete ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                    <button
+                    <div style={{display:"flex",justifyContent:"center",gap:"0.375rem"}}>
+                    <button className={"action-btn btn-primary"}
                       onClick={() => onNavigate('skills')}
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
-                        padding: '0.45rem', fontSize: '0.75rem', fontWeight: 600, width: '100%',
-                        background: '#3B82F6', color: 'white', border: 'none', borderRadius: '7px',
+                        padding: '0.45rem', fontSize: '0.75rem', fontWeight: 600,
+                        color: 'white', border: 'none', borderRadius: '7px',
                         cursor: 'pointer', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25)', transition: 'all 0.2s'
                       }}
                     >
                       <Database size={14} />
                       Skills
                     </button>
-                    <button
+                    <button className={"action-btn btn-primary"}
                       onClick={onComplete}
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
-                        padding: '0.55rem', fontSize: '0.8rem', fontWeight: 600, width: '100%',
-                        background: '#22c55e', color: 'white', border: 'none', borderRadius: '7px',
+                        padding: '0.55rem', fontSize: '0.8rem', fontWeight: 600,
+                        color: 'white', border: 'none', borderRadius: '7px',
                         cursor: 'pointer', boxShadow: '0 4px 12px rgba(34, 197, 94, 0.25)', transition: 'all 0.2s'
                       }}
                     >

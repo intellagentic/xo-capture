@@ -10,12 +10,16 @@ Magic links provide token-based client access.
 
 import json
 import os
+import logging
 import secrets
 import bcrypt
 import jwt
 import urllib.request
 from datetime import datetime, timedelta, timezone
 import psycopg2
+
+logger = logging.getLogger('xo')
+logger.setLevel(logging.INFO)
 try:
     from crypto_helper import encrypt, decrypt, encrypt_json, decrypt_json, search_hash
 except ImportError:
@@ -101,6 +105,49 @@ def _run_role_migrations():
 _run_role_migrations()
 
 
+def _log_auth_activity(event, response):
+    """Log auth activity with user email from request body or JWT."""
+    method = event.get('httpMethod', 'UNKNOWN')
+    path = event.get('path', 'UNKNOWN')
+    status = response.get('statusCode', 0) if isinstance(response, dict) else 0
+
+    email = 'anonymous'
+    try:
+        body = json.loads(event.get('body', '{}') or '{}')
+        email = body.get('email', 'anonymous')
+    except Exception:
+        pass
+    if email == 'anonymous':
+        try:
+            headers = event.get('headers', {}) or {}
+            auth_header = headers.get('Authorization') or headers.get('authorization', '')
+            if auth_header.startswith('Bearer '):
+                payload = jwt.decode(auth_header[7:], JWT_SECRET, algorithms=['HS256'])
+                email = payload.get('email', 'unknown')
+        except Exception:
+            pass
+
+    result_summary = ''
+    try:
+        resp_body = response.get('body', '') if isinstance(response, dict) else ''
+        if resp_body and isinstance(resp_body, str):
+            body_json = json.loads(resp_body)
+            if 'error' in body_json:
+                result_summary = f"error={body_json['error']}"
+            elif 'user' in body_json:
+                result_summary = f"role={body_json['user'].get('role', 'unknown')}"
+            else:
+                keys = list(body_json.keys())[:4]
+                result_summary = f"keys={keys}"
+    except (json.JSONDecodeError, TypeError):
+        result_summary = 'non-json'
+
+    logger.info(
+        "API %s %s | user=%s | status=%s | %s",
+        method, path, email, status, result_summary
+    )
+
+
 def lambda_handler(event, context):
     if event.get('httpMethod') == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': ''}
@@ -109,24 +156,29 @@ def lambda_handler(event, context):
     method = event.get('httpMethod', '')
 
     if path.endswith('/auth/token') and method == 'POST':
-        return handle_validate_token(event)
+        response = handle_validate_token(event)
     elif path.endswith('/auth/magic-link'):
         if method == 'POST':
-            return handle_create_magic_link(event)
+            response = handle_create_magic_link(event)
         elif method == 'GET':
-            return handle_get_magic_link(event)
+            response = handle_get_magic_link(event)
         elif method == 'DELETE':
-            return handle_delete_magic_link(event)
+            response = handle_delete_magic_link(event)
+        else:
+            response = {'statusCode': 405, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Method not allowed'})}
     elif path.endswith('/auth/google'):
-        return handle_google_login(event)
+        response = handle_google_login(event)
     elif path.endswith('/auth/preferences'):
-        return handle_preferences(event)
+        response = handle_preferences(event)
     elif path.endswith('/auth/reset-password'):
-        return handle_reset_password(event)
+        response = handle_reset_password(event)
     elif path.endswith('/auth/register'):
-        return handle_register(event)
+        response = handle_register(event)
     else:
-        return handle_login(event)
+        response = handle_login(event)
+
+    _log_auth_activity(event, response)
+    return response
 
 
 def _make_token(user_id, email, name, role='client', partner_id=None, client_id=None):

@@ -12,7 +12,7 @@ import boto3
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone, timedelta
-from auth_helper import require_auth, get_db_connection, CORS_HEADERS
+from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
     from crypto_helper import (
         encrypt, decrypt, encrypt_json, decrypt_json, search_hash,
@@ -230,13 +230,22 @@ def lambda_handler(event, context):
 
     # Public invite endpoint — no auth required
     if path.endswith('/invite') and method == 'POST':
-        return handle_invite(event)
+        response = handle_invite(event)
+        log_activity(event, response)
+        return response
 
     # Auth check
     user, err = require_auth(event)
     if err:
+        log_activity(event, err)
         return err
 
+    response = _route_clients(event, user, path, method)
+    log_activity(event, response, user)
+    return response
+
+
+def _route_clients(event, user, path, method):
     # Derive role — old JWTs may have is_admin/is_partner but no role field
     role = user.get('role', 'client')
     if user.get('is_admin'):

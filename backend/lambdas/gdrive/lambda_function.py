@@ -18,7 +18,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-from auth_helper import require_auth, get_db_connection, CORS_HEADERS
+from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
     from crypto_helper import encrypt, decrypt, unwrap_client_key, encrypt_s3_bytes
 except ImportError:
@@ -53,19 +53,22 @@ def lambda_handler(event, context):
     method = event.get('httpMethod', '')
 
     if path.endswith('/gdrive/auth-url') and method == 'GET':
-        return handle_auth_url(event)
+        response = handle_auth_url(event)
     elif path.endswith('/gdrive/callback') and method == 'POST':
-        return handle_callback(event)
+        response = handle_callback(event)
     elif path.endswith('/gdrive/files') and method == 'GET':
-        return handle_list_files(event)
+        response = handle_list_files(event)
     elif path.endswith('/gdrive/import') and method == 'POST':
-        return handle_import(event)
+        response = handle_import(event)
     else:
-        return {
+        response = {
             'statusCode': 404,
             'headers': CORS_HEADERS,
             'body': json.dumps({'error': 'Not found'})
         }
+
+    log_activity(event, response)
+    return response
 
 
 def _make_flow():

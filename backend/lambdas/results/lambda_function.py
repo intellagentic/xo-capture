@@ -7,7 +7,7 @@ Checks enrichment status in DB, then reads from S3.
 import json
 import os
 import boto3
-from auth_helper import require_auth, get_db_connection, CORS_HEADERS
+from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
     from crypto_helper import unwrap_client_key, decrypt_s3_body
 except ImportError:
@@ -34,8 +34,15 @@ def lambda_handler(event, context):
     # Auth check
     user, err = require_auth(event)
     if err:
+        log_activity(event, err)
         return err
 
+    response = _handle_results(event, user)
+    log_activity(event, response, user)
+    return response
+
+
+def _handle_results(event, user):
     try:
         path_params = event.get('pathParameters', {})
         client_id = path_params.get('id', '').strip()
@@ -98,11 +105,11 @@ def lambda_handler(event, context):
             s3_key = f"{client_id}/results/analysis.json"
 
         try:
-            response = s3_client.get_object(
+            s3_response = s3_client.get_object(
                 Bucket=BUCKET_NAME,
                 Key=s3_key
             )
-            raw = response['Body'].read()
+            raw = s3_response['Body'].read()
             decrypted = decrypt_s3_body(ck, raw)
             results = json.loads(decrypted)
 

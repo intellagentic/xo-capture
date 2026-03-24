@@ -16,7 +16,7 @@ import json
 import os
 import boto3
 from datetime import datetime, timezone
-from auth_helper import require_auth, get_db_connection, CORS_HEADERS
+from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 
 s3_client = boto3.client('s3')
 BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data-mv')
@@ -33,55 +33,61 @@ def lambda_handler(event, context):
     # Auth check
     user, err = require_auth(event)
     if err:
+        log_activity(event, err)
         return err
 
     method = event.get('httpMethod', '')
     path = event.get('resource', '') or event.get('path', '')
 
+    response = None
     try:
         # POST /upload/branding (must check before generic /upload)
         if method == 'POST' and '/branding' in path:
-            return handle_branding_upload(event, user)
+            response = handle_branding_upload(event, user)
 
         # GET /upload/branding
-        if method == 'GET' and '/branding' in path:
-            return handle_branding_get(event, user)
+        elif method == 'GET' and '/branding' in path:
+            response = handle_branding_get(event, user)
 
         # POST /upload (original endpoint)
-        if method == 'POST' and '/upload' in path and '/uploads' not in path:
-            return handle_upload(event, user)
+        elif method == 'POST' and '/upload' in path and '/uploads' not in path:
+            response = handle_upload(event, user)
 
         # GET /uploads?client_id=X
-        if method == 'GET' and '/uploads' in path and '{id}' not in path:
-            return handle_list_uploads(event, user)
+        elif method == 'GET' and '/uploads' in path and '{id}' not in path:
+            response = handle_list_uploads(event, user)
 
         # DELETE /uploads/{id}
-        if method == 'DELETE' and '/uploads' in path:
-            return handle_delete_upload(event, user)
+        elif method == 'DELETE' and '/uploads' in path:
+            response = handle_delete_upload(event, user)
 
         # PUT /uploads/{id}/toggle
-        if method == 'PUT' and '/toggle' in path:
-            return handle_toggle_upload(event, user)
+        elif method == 'PUT' and '/toggle' in path:
+            response = handle_toggle_upload(event, user)
 
         # POST /uploads/{id}/replace
-        if method == 'POST' and '/replace' in path:
-            return handle_replace_upload(event, user)
+        elif method == 'POST' and '/replace' in path:
+            response = handle_replace_upload(event, user)
 
-        return {
-            'statusCode': 404,
-            'headers': CORS_HEADERS,
-            'body': json.dumps({'error': f'Unknown route: {method} {path}'})
-        }
+        else:
+            response = {
+                'statusCode': 404,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': f'Unknown route: {method} {path}'})
+            }
 
     except Exception as e:
         print(f"Error in upload lambda: {str(e)}")
         import traceback
         traceback.print_exc()
-        return {
+        response = {
             'statusCode': 500,
             'headers': CORS_HEADERS,
             'body': json.dumps({'error': 'Internal server error', 'message': str(e)})
         }
+
+    log_activity(event, response, user)
+    return response
 
 
 def _verify_client(cur, client_id, user_id, is_admin=False, is_client=False, user_client_id=None, is_partner=False, partner_id=None):

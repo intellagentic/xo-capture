@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.80)
+**Status:** Deployed & Operational (v1.81)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2657,6 +2657,27 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.81 — Encryption fixes, deploy hardening, API activity logging**
+
+**Encryption fixes (crypto_helper.py):**
+- Bug fix: `AES_MASTER_KEY` was cached at module import time — now reads from `os.environ` on every call so config changes take effect immediately
+- Bug fix: `unwrap_client_key()` returned garbage bytes when encryption was unavailable — encrypted keys (nonce+ciphertext) were blindly base64-decoded and used as client keys, causing silent decryption failures. Now detects encrypted vs raw keys by length (raw = exactly 32 bytes) and returns `None` when it can't unwrap
+- Bug fix: `unwrap_client_key()` didn't detect when master key decryption failed (returned input unchanged) — now returns `None` instead of proceeding with still-encrypted value
+- Added logging throughout: warnings for missing key/library, pass-through mode, unwrap failures; debug logs for individual decrypt attempts
+
+**Deploy hardening (deploy.sh):**
+- `AES_MASTER_KEY` now required as first argument: `./deploy.sh <AES_MASTER_KEY>`
+- Existing Lambda updates: merges `AES_MASTER_KEY` + `AES_ENCRYPTION_KEY` into existing env vars (preserves DATABASE_URL, JWT_SECRET, etc.)
+- New Lambda creates: includes `AES_MASTER_KEY` + `AES_ENCRYPTION_KEY` from the start
+- Added `aws lambda wait function-updated` between code and config updates to prevent race conditions
+
+**API activity logging (all 8 Lambdas):**
+- Added `log_activity()` to `auth_helper.py` — logs HTTP method, path, user email, status code, and result summary
+- All Lambda handlers now log every request: `API POST /auth/login | user=ken@example.com | status=200 | role=admin`
+- Auth lambda has custom `_log_auth_activity()` that extracts email from request body (login/register) or JWT
+- Failed auth (401) and errors (500) are logged with error details
+- Deployed: backend only
 
 **v1.80 — Fix Paste Text Source "Add Source" button**
 - Bug: `new File()` was calling lucide-react's `File` icon (imported on line 2) instead of the browser's native `File` constructor, causing "Tn is not a constructor" error

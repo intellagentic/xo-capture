@@ -6,8 +6,12 @@ Copy this file into each Lambda's deploy package.
 
 import os
 import json
+import logging
 import jwt
 import psycopg2
+
+logger = logging.getLogger('xo')
+logger.setLevel(logging.INFO)
 
 JWT_SECRET = os.environ.get('JWT_SECRET', '')
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
@@ -73,3 +77,48 @@ def require_auth(event):
         return None, error_response
 
     return user, None
+
+
+def log_activity(event, response, user=None):
+    """Log API activity: user, path, method, status code, result summary.
+    Call this at the end of lambda_handler before returning."""
+    method = event.get('httpMethod', 'UNKNOWN')
+    path = event.get('path', event.get('resource', 'UNKNOWN'))
+    status = response.get('statusCode', 0) if isinstance(response, dict) else 0
+
+    # Extract user email
+    email = 'anonymous'
+    if user:
+        email = user.get('email', 'unknown')
+    else:
+        # Try to extract from auth header without failing
+        try:
+            headers = event.get('headers', {}) or {}
+            auth_header = headers.get('Authorization') or headers.get('authorization', '')
+            if auth_header.startswith('Bearer '):
+                payload = jwt.decode(auth_header[7:], JWT_SECRET, algorithms=['HS256'])
+                email = payload.get('email', 'unknown')
+        except Exception:
+            pass
+
+    # Extract result summary from body
+    result_summary = ''
+    try:
+        body = response.get('body', '') if isinstance(response, dict) else ''
+        if body and isinstance(body, str):
+            body_json = json.loads(body)
+            if 'error' in body_json:
+                result_summary = f"error={body_json['error']}"
+            elif 'status' in body_json:
+                result_summary = f"status={body_json['status']}"
+            else:
+                # Summarize top-level keys
+                keys = list(body_json.keys())[:4]
+                result_summary = f"keys={keys}"
+    except (json.JSONDecodeError, TypeError):
+        result_summary = 'non-json'
+
+    logger.info(
+        "API %s %s | user=%s | status=%s | %s",
+        method, path, email, status, result_summary
+    )

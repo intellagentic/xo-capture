@@ -18,7 +18,7 @@ import io
 import csv
 from datetime import datetime, timezone
 from anthropic import Anthropic
-from auth_helper import require_auth, get_db_connection, CORS_HEADERS
+from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
     from crypto_helper import (
         decrypt, decrypt_json, unwrap_client_key,
@@ -101,13 +101,22 @@ def lambda_handler(event, context):
     # Route: POST /send-to-streamline
     resource = event.get('resource', '')
     if resource == '/send-to-streamline':
-        return _handle_send_to_streamline(event)
+        response = _handle_send_to_streamline(event)
+        log_activity(event, response)
+        return response
 
     # Auth check
     user, err = require_auth(event)
     if err:
+        log_activity(event, err)
         return err
 
+    response = _handle_enrich_request(event, user)
+    log_activity(event, response, user)
+    return response
+
+
+def _handle_enrich_request(event, user):
     conn = None
 
     try:

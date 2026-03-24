@@ -17,7 +17,7 @@ Query params for PUT body:
 """
 
 import json
-from auth_helper import require_auth, get_db_connection, CORS_HEADERS
+from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
     from crypto_helper import encrypt, decrypt
 except ImportError:
@@ -59,22 +59,26 @@ def lambda_handler(event, context):
     # Auth check
     user, err = require_auth(event)
     if err:
+        log_activity(event, err)
         return err
 
     method = event.get('httpMethod', '')
 
     if method == 'GET':
-        return handle_get(event, user)
+        response = handle_get(event, user)
     elif method == 'PUT':
-        return handle_sync(event, user)
+        response = handle_sync(event, user)
     elif method == 'DELETE':
-        return handle_delete(event, user)
+        response = handle_delete(event, user)
     else:
-        return {
+        response = {
             'statusCode': 405,
             'headers': CORS_HEADERS,
             'body': json.dumps({'error': 'Method not allowed'})
         }
+
+    log_activity(event, response, user)
+    return response
 
 
 def handle_get(event, user):

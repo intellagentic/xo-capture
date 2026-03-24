@@ -8,7 +8,7 @@ import json
 import os
 from datetime import datetime
 import boto3
-from auth_helper import require_auth, get_db_connection, CORS_HEADERS
+from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
     from crypto_helper import unwrap_client_key, decrypt_s3_body
 except ImportError:
@@ -35,8 +35,15 @@ def lambda_handler(event, context):
     # Auth check
     user, err = require_auth(event)
     if err:
+        log_activity(event, err)
         return err
 
+    response = _handle_prototype(event, user)
+    log_activity(event, response, user)
+    return response
+
+
+def _handle_prototype(event, user):
     try:
         path_params = event.get('pathParameters', {})
         client_id = path_params.get('id', '').strip()
