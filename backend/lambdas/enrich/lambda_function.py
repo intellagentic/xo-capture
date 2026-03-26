@@ -17,7 +17,6 @@ import boto3
 import io
 import csv
 from datetime import datetime, timezone
-from anthropic import Anthropic
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
     from crypto_helper import (
@@ -47,13 +46,20 @@ lambda_client = boto3.client('lambda')
 transcribe_client = boto3.client('transcribe')
 
 BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data-mv')
-ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
+BEDROCK_REGION = os.environ.get('BEDROCK_REGION', 'us-west-2')
 FUNCTION_NAME = os.environ.get('AWS_LAMBDA_FUNCTION_NAME', 'xo-enrich')
 STREAMLINE_WEBHOOK_URL = os.environ.get('STREAMLINE_WEBHOOK_URL', '')
 AUDIO_EXTENSIONS = {'mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'wma', 'mp4', 'webm'}
 SYSTEM_SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'system-skills')
 
-anthropic_client = Anthropic(api_key=ANTHROPIC_API_KEY)
+bedrock_client = boto3.client('bedrock-runtime', region_name=BEDROCK_REGION)
+
+# Map Anthropic model names to Bedrock model IDs
+BEDROCK_MODEL_MAP = {
+    'claude-opus-4-6': 'us.anthropic.claude-opus-4-6-20250514-v1:0',
+    'claude-sonnet-4-5-20250929': 'us.anthropic.claude-sonnet-4-5-20250514-v1:0',
+    'claude-haiku-4-5-20251001': 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+}
 
 
 def _get_system_config_value(conn, key):
@@ -1347,18 +1353,29 @@ Return ONLY valid JSON in this exact structure. The "summary", "architecture_dia
 Be specific. Use actual data from the documents. Think like a management consultant presenting to the CEO."""
 
     try:
-        message = anthropic_client.messages.create(
-            model=model,
-            max_tokens=16000,
-            temperature=0.7,
-            messages=[
+        bedrock_model_id = BEDROCK_MODEL_MAP.get(model, BEDROCK_MODEL_MAP['claude-sonnet-4-5-20250929'])
+        print(f"Invoking Bedrock model: {bedrock_model_id} (requested: {model})")
+
+        bedrock_body = json.dumps({
+            "anthropic_version": "bedrock-2023-10-16",
+            "max_tokens": 16000,
+            "temperature": 0.7,
+            "messages": [
                 {"role": "user", "content": prompt}
             ]
+        })
+
+        bedrock_response = bedrock_client.invoke_model(
+            modelId=bedrock_model_id,
+            contentType='application/json',
+            accept='application/json',
+            body=bedrock_body
         )
 
-        response_text = message.content[0].text
-        stop_reason = message.stop_reason
-        print(f"Claude response: {len(response_text)} chars, stop_reason={stop_reason}, model={model}")
+        response_body = json.loads(bedrock_response['body'].read())
+        response_text = response_body['content'][0]['text']
+        stop_reason = response_body.get('stop_reason', 'unknown')
+        print(f"Bedrock response: {len(response_text)} chars, stop_reason={stop_reason}, model={bedrock_model_id}")
 
         if '```json' in response_text:
             start = response_text.find('```json') + 7
@@ -1382,7 +1399,7 @@ Be specific. Use actual data from the documents. Think like a management consult
         return analysis
 
     except Exception as e:
-        print(f"Error calling Claude API: {str(e)}")
+        print(f"Error calling Bedrock API: {str(e)}")
         import traceback
         traceback.print_exc()
         return {

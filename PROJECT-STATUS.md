@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.87)
+**Status:** Deployed & Operational (v1.88)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2657,6 +2657,17 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.88 — Switch from Anthropic API to AWS Bedrock**
+
+- Replaced `anthropic` SDK with `boto3` Bedrock Runtime client in enrich Lambda
+- `bedrock_client.invoke_model()` replaces `anthropic_client.messages.create()`
+- Bedrock Messages API format: `anthropic_version: bedrock-2023-10-16`
+- Model mapping: `claude-opus-4-6` → `us.anthropic.claude-opus-4-6-20250514-v1:0`, `claude-sonnet-4-5-20250929` → `us.anthropic.claude-sonnet-4-5-20250514-v1:0`, `claude-haiku-4-5-20251001` → `us.anthropic.claude-haiku-4-5-20251001-v1:0`
+- Removed `anthropic==0.40.0` from requirements.txt (smaller deploy package)
+- No longer needs `ANTHROPIC_API_KEY` env var; new optional `BEDROCK_REGION` (default `us-west-2`)
+- Requires: Lambda IAM role needs `bedrock:InvokeModel` permission, Bedrock model access enabled in AWS console
+- Deployed: backend only
 
 **v1.87 — Collapsible sidebar with persistent icon strip**
 
