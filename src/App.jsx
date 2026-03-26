@@ -5901,6 +5901,10 @@ function SkillsScreen({ clientId, isAdmin }) {
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingSkill, setEditingSkill] = useState(null)
+  const [expandedId, setExpandedId] = useState(null)
+  const [inlineContent, setInlineContent] = useState('')
+  const [inlineSaving, setInlineSaving] = useState(false)
+  const [inlineDirty, setInlineDirty] = useState(false)
 
   useEffect(() => {
     fetchSkills()
@@ -5924,24 +5928,222 @@ function SkillsScreen({ clientId, isAdmin }) {
 
   const handleDelete = async (skill) => {
     if (!confirm(`Delete skill "${skill.name}"?`)) return
-
     try {
       const res = await fetch(`${API_BASE}/skills?skill_id=${skill.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Delete failed')
-      }
+      if (!res.ok) { const data = await res.json(); throw new Error(data.error || 'Delete failed') }
       setSkills(prev => prev.filter(s => s.id !== skill.id))
+      if (expandedId === skill.id) setExpandedId(null)
     } catch (err) {
       alert('Failed to delete skill: ' + err.message)
     }
   }
 
+  const toggleAccordion = (skill) => {
+    if (expandedId === skill.id) {
+      if (inlineDirty && !confirm('Discard unsaved changes?')) return
+      setExpandedId(null)
+      setInlineDirty(false)
+    } else {
+      if (inlineDirty && !confirm('Discard unsaved changes?')) return
+      setExpandedId(skill.id)
+      setInlineContent(skill.content || '')
+      setInlineDirty(false)
+    }
+  }
+
+  const handleInlineSave = async (skill) => {
+    setInlineSaving(true)
+    try {
+      const res = await fetch(`${API_BASE}/skills`, {
+        method: 'PUT',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill_id: skill.id, name: skill.name, content: inlineContent })
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Update failed') }
+      setSkills(prev => prev.map(s => s.id === skill.id ? { ...s, content: inlineContent } : s))
+      setInlineDirty(false)
+    } catch (err) {
+      alert('Failed to save: ' + err.message)
+    } finally {
+      setInlineSaving(false)
+    }
+  }
+
+  const exportAsMarkdown = (skill) => {
+    const blob = new Blob([skill.content || ''], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${skill.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportAsDocx = (skill) => {
+    // Build a simple .docx using HTML-in-docx approach (Office-compatible HTML file with .doc extension)
+    const content = skill.content || ''
+    const htmlLines = content.split('\n').map(line => {
+      if (line.startsWith('# ')) return `<h1>${line.slice(2)}</h1>`
+      if (line.startsWith('## ')) return `<h2>${line.slice(3)}</h2>`
+      if (line.startsWith('### ')) return `<h3>${line.slice(4)}</h3>`
+      if (line.startsWith('- ')) return `<li>${line.slice(2)}</li>`
+      if (line.trim() === '') return '<br/>'
+      return `<p>${line}</p>`
+    }).join('\n')
+    const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>${skill.name}</title>
+<style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.6;margin:1in;}h1{font-size:18pt;color:#1a1a2e;}h2{font-size:14pt;color:#333;border-bottom:1px solid #ddd;padding-bottom:4pt;}li{margin-left:0.25in;}</style>
+</head><body>${htmlLines}</body></html>`
+    const blob = new Blob([doc], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${skill.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.doc`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportAllAsMarkdown = () => {
+    const combined = skills.map(s => `# ${s.name}\n\n${s.content || ''}`).join('\n\n---\n\n')
+    const blob = new Blob([combined], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'skills-export.md'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const systemSkills = skills.filter(s => s.scope === 'system')
   const clientSkills = skills.filter(s => s.scope === 'client')
+
+  const canEdit = (skill) => skill.scope === 'client' || isAdmin
+
+  const renderSkillRow = (skill) => {
+    const isOpen = expandedId === skill.id
+    const isSystem = skill.scope === 'system'
+    const editable = canEdit(skill)
+
+    return (
+      <div key={skill.id} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+        {/* Accordion header */}
+        <div
+          onClick={() => toggleAccordion(skill)}
+          style={{
+            padding: '0.875rem 1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            background: isOpen ? 'var(--bg-secondary)' : 'transparent',
+            transition: 'background 0.15s'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+            <ChevronRight size={16} style={{
+              flexShrink: 0, color: 'var(--text-muted)',
+              transform: isOpen ? 'rotate(90deg)' : 'none',
+              transition: 'transform 0.2s'
+            }} />
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0, wordBreak: 'break-word' }}>
+              {skill.name}
+            </h3>
+            <span style={{
+              fontSize: '0.6rem', fontWeight: 700,
+              color: isSystem ? '#3b82f6' : 'var(--text-muted)',
+              background: isSystem ? 'rgba(59,130,246,0.1)' : 'var(--bg-secondary)',
+              padding: '2px 8px', borderRadius: 999, flexShrink: 0
+            }}>{isSystem ? 'System' : 'Client'}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => exportAsMarkdown(skill)} title="Export .md"
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.4rem' }}>
+              <FileText size={15} />
+            </button>
+            <button onClick={() => exportAsDocx(skill)} title="Export .doc"
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.4rem' }}>
+              <Download size={15} />
+            </button>
+            {editable && (
+              <button onClick={() => handleDelete(skill)} title="Delete"
+                style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: '0.4rem' }}>
+                <Trash2 size={15} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Accordion body — inline editor */}
+        {isOpen && (
+          <div style={{ borderTop: '1px solid var(--border-color)', padding: '1rem 1.25rem' }}>
+            {editable ? (
+              <>
+                <textarea
+                  value={inlineContent}
+                  onChange={e => { setInlineContent(e.target.value); setInlineDirty(true) }}
+                  style={{
+                    width: '100%',
+                    minHeight: '250px',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    fontSize: '0.8125rem',
+                    fontFamily: 'monospace',
+                    lineHeight: 1.6,
+                    resize: 'vertical',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)'
+                  }}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.75rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: inlineDirty ? '#f59e0b' : 'var(--text-muted)' }}>
+                    {inlineDirty ? 'Unsaved changes' : 'No changes'}
+                  </span>
+                  <button
+                    onClick={() => handleInlineSave(skill)}
+                    disabled={!inlineDirty || inlineSaving}
+                    style={{
+                      padding: '0.5rem 1.25rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      background: inlineDirty ? '#dc2626' : 'var(--bg-secondary)',
+                      color: inlineDirty ? 'white' : 'var(--text-muted)',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: inlineDirty ? 'pointer' : 'default',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    {inlineSaving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />}
+                    Save
+                  </button>
+                </div>
+              </>
+            ) : (
+              <pre style={{
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                fontSize: '0.8125rem',
+                fontFamily: 'monospace',
+                lineHeight: 1.6,
+                color: 'var(--text-secondary)',
+                margin: 0,
+                maxHeight: '400px',
+                overflow: 'auto'
+              }}>
+                {skill.content || 'No content'}
+              </pre>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="panel">
@@ -5951,14 +6153,27 @@ function SkillsScreen({ clientId, isAdmin }) {
           <h2>Skills</h2>
           <span className="badge-count blue">{skills.length}</span>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="action-btn red"
-          style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-        >
-          <Plus size={18} />
-          Add Skill
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {skills.length > 0 && (
+            <button
+              onClick={exportAllAsMarkdown}
+              className="action-btn"
+              style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
+              title="Export all skills as .md"
+            >
+              <Download size={16} />
+              Export All
+            </button>
+          )}
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="action-btn red"
+            style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+          >
+            <Plus size={18} />
+            Add Skill
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: '1.25rem' }}>
@@ -5984,58 +6199,11 @@ function SkillsScreen({ clientId, isAdmin }) {
             </p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gap: '0.75rem' }}>
-            {/* System Skills */}
-            {systemSkills.length > 0 && systemSkills.map((skill) => (
-              <div key={skill.id} style={{
-                padding: '1rem 1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                border: '1px solid var(--border-color)',
-                borderRadius: '8px'
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                    <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0, wordBreak: 'break-word' }}>
-                      {skill.name}
-                    </h3>
-                    <span style={{
-                      fontSize: '0.6rem', fontWeight: 700, color: '#3b82f6',
-                      background: 'rgba(59,130,246,0.1)', padding: '2px 8px', borderRadius: 999,
-                      flexShrink: 0
-                    }}>System</span>
-                  </div>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
-                    {skill.content ? skill.content.substring(0, 80).replace(/[#\n]/g, ' ').trim() + '...' : 'System skill'}
-                  </p>
-                </div>
-                {isAdmin && (
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button
-                      onClick={() => { setEditingSkill(skill); setShowAddModal(true) }}
-                      style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '0.5rem' }}
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(skill)}
-                      style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: '0.5rem' }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
+          <div style={{ display: 'grid', gap: '0.5rem' }}>
+            {systemSkills.map(renderSkillRow)}
 
-            {/* Divider between system and client skills */}
             {systemSkills.length > 0 && clientSkills.length > 0 && (
-              <div style={{
-                borderTop: '1px solid var(--border-color)',
-                margin: '0.25rem 0',
-                position: 'relative'
-              }}>
+              <div style={{ borderTop: '1px solid var(--border-color)', margin: '0.25rem 0', position: 'relative' }}>
                 <span style={{
                   position: 'absolute', top: '-0.5rem', left: '1rem',
                   background: 'var(--bg-primary)', padding: '0 0.5rem',
@@ -6044,47 +6212,7 @@ function SkillsScreen({ clientId, isAdmin }) {
               </div>
             )}
 
-            {/* Client Skills */}
-            {clientSkills.map((skill) => (
-              <div key={skill.id} style={{
-                padding: '1rem 1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                border: '1px solid var(--border-color)',
-                borderRadius: '8px'
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                    <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0, wordBreak: 'break-word' }}>
-                      {skill.name}
-                    </h3>
-                    <span style={{
-                      fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)',
-                      background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: 999,
-                      flexShrink: 0
-                    }}>Client</span>
-                  </div>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
-                    {skill.content ? skill.content.substring(0, 80).replace(/[#\n]/g, ' ').trim() + '...' : 'Client skill'}
-                  </p>
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button
-                    onClick={() => { setEditingSkill(skill); setShowAddModal(true) }}
-                    style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '0.5rem' }}
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(skill)}
-                    style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: '0.5rem' }}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
+            {clientSkills.map(renderSkillRow)}
           </div>
         )}
       </div>
