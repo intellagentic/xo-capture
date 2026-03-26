@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.91)
+**Status:** Deployed & Operational (v1.92)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2657,6 +2657,13 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Add Skill modal has scope selector for admins: "This client only" vs "System (all clients)"
 - Enrich Lambda reads system skills from DB first, falls back to bundled files if DB empty
 - Configuration screen system skills panel now dynamically fetches from API instead of hardcoded list
+
+**v1.92 — Export All Skills as .doc**
+
+- Added `exportAllAsDocx()`: combines all skills into a single `.doc` file with page breaks between skills
+- Office-compatible HTML with Word namespace, Calibri font, styled headings
+- Two separate export buttons in header: `.doc` (Download icon) and `.md` (FileText icon)
+- Deployed: frontend only
 
 **v1.91 — Skills concertina view with inline editor and export**
 

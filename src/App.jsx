@@ -6017,6 +6017,31 @@ function SkillsScreen({ clientId, isAdmin }) {
     URL.revokeObjectURL(url)
   }
 
+  const exportAllAsDocx = () => {
+    const htmlSections = skills.map(s => {
+      const lines = (s.content || '').split('\n').map(line => {
+        if (line.startsWith('# ')) return `<h1>${line.slice(2)}</h1>`
+        if (line.startsWith('## ')) return `<h2>${line.slice(3)}</h2>`
+        if (line.startsWith('### ')) return `<h3>${line.slice(4)}</h3>`
+        if (line.startsWith('- ')) return `<li>${line.slice(2)}</li>`
+        if (line.trim() === '') return '<br/>'
+        return `<p>${line}</p>`
+      }).join('\n')
+      return `<h1>${s.name}</h1>\n${lines}`
+    }).join('\n<hr style="page-break-after:always;"/>\n')
+    const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>Skills Export</title>
+<style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.6;margin:1in;}h1{font-size:18pt;color:#1a1a2e;}h2{font-size:14pt;color:#333;border-bottom:1px solid #ddd;padding-bottom:4pt;}li{margin-left:0.25in;}hr{border:none;border-top:2px solid #ccc;margin:24pt 0;}</style>
+</head><body>${htmlSections}</body></html>`
+    const blob = new Blob([doc], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'skills-export.doc'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const systemSkills = skills.filter(s => s.scope === 'system')
   const clientSkills = skills.filter(s => s.scope === 'client')
 
@@ -6155,15 +6180,26 @@ function SkillsScreen({ clientId, isAdmin }) {
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           {skills.length > 0 && (
-            <button
-              onClick={exportAllAsMarkdown}
-              className="action-btn"
-              style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
-              title="Export all skills as .md"
-            >
-              <Download size={16} />
-              Export All
-            </button>
+            <>
+              <button
+                onClick={exportAllAsDocx}
+                className="action-btn"
+                style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
+                title="Export all skills as .doc"
+              >
+                <Download size={16} />
+                .doc
+              </button>
+              <button
+                onClick={exportAllAsMarkdown}
+                className="action-btn"
+                style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
+                title="Export all skills as .md"
+              >
+                <FileText size={16} />
+                .md
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowAddModal(true)}
@@ -7905,13 +7941,15 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme }) 
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '1rem'
+                  gap: '1rem',
+                  backgroundColor:item.id==="whatwecando"?"black":"",
+                  color:item.id==="whatwecando"?"white":""
                 }}
             >
               <div style={{flex: 1}}>
                 <div style={{display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem'}}>
-                  {item.id==="whatwecando"?(theme==="dark"?<img src={intellistackLogo} alt="Intellistack" style={{ height: '22px' }} />:<img src={intellistackLogoDark} alt="Intellistack" style={{ height: '22px' }} />):<IconCompe size={20} className="icon-red" />}
-                  <h3 style={{fontSize: '0.95rem', fontWeight: 600, margin: 0}}>
+                  {item.id==="whatwecando"?<img src={intellistackLogo} alt="Intellistack" style={{ height: '22px' }} />:<IconCompe size={20} className="icon-red" />}
+                  <h3 style={{fontSize: '0.95rem', fontWeight: 600,color: item.id==="whatwecando"?"white":'var(--text-primary)', margin: 0}}>
                     {item.name}
                   </h3>
                   <span style={{
