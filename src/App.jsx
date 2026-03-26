@@ -244,7 +244,9 @@ function LoginScreen({ onLogin }) {
             </div>
           </div>
           <div className="header-right">
+            <div style={{cursor:"pointer"}} onClick={()=>{window.open("https://www.intellagentic.io","_blank")}}>
             <img src={logoLight} alt="Intellagentic" style={{ height: '26px' }} />
+            </div>
           </div>
         </div>
       </header>
@@ -2050,7 +2052,9 @@ export default function App() {
               </div>
             </div>
             <div className="header-right" style={{display: 'flex', alignItems: 'center'}}>
+              <div style={{cursor:"pointer"}} onClick={()=>{window.open("https://www.intellagentic.io","_blank")}}>
               <img src={logoLight} alt="Intellagentic" style={{ height: '26px' }} />
+              </div>
             </div>
           </div>
         </header>
@@ -7551,6 +7555,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme }) 
   const [streamlineSending, setStreamlineSending] = useState(false)
   const [streamlineStatus, setStreamlineStatus] = useState(null) // null | 'sent' | 'error'
   const [protoDownloading, setProtoDownloading] = useState(false)
+  const [currentClient,setCurrentClient]=useState(null)
   const [expandedResult,setExpandedResult]= useState({id:"executiveSummary",name:"Executive Summary",shortDescription:"Here is our understanding of your business",severity: 'high'});
   const [formattedResults,setFormattedResults] = useState([
     {id:"executiveSummary",icon:"TrendingUp",name:"Executive Summary",shortDescription:"Here is our understanding of your business",severity: 'high'},
@@ -7565,8 +7570,24 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme }) 
     {id:"bottomLine",icon:"Zap",name:"Bottom Line",shortDescription:"",severity: 'high'}
   ]);
 
+  const fetchClient = async (clientId)=>{
+    if(clientId) {
+      try {
+        const res = await fetch(`${API_BASE}/clients?client_id=${clientId}`, {headers: getAuthHeaders()})
+        if (res.ok) {
+          const data = await res.json();
+         setCurrentClient(data);
+          //console.log(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch client:', err)
+      }
+    }
+  }
+
   const toggleResult = (item) => {
-    setExpandedResult(item);
+    if(expandedResult === null || expandedResult !== item) setExpandedResult(item);
+    else setExpandedResult(null);
   }
 
   const toggleSummary = (item) => {
@@ -7577,6 +7598,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme }) 
   useEffect(() => {
     if (clientId) {
       fetchResults()
+      fetchClient(clientId);
     }
   }, [clientId])
 
@@ -7758,6 +7780,15 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme }) 
   displaySummary = displaySummary.replaceAll("\n","------");
   displaySummary = displaySummary.replaceAll(": ",": ------");
   displaySummary = displaySummary.replaceAll(". ",". ------");
+
+  const segmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
+  const segments = segmenter.segment(displayResults.summary);
+  let displayPhrases = [];
+  for (const segment of segments) {
+    let segmentText = segment.segment;
+    if(segmentText.trim()!=="") displayPhrases.push(segment.segment)
+  }
+
   if (loading) {
     return (
       <div className="panel">
@@ -7897,8 +7928,12 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme }) 
                 const IconComp = ICON_MAP[btn.icon] || Zap
                 return <button
                     key={"btn"+idx}
-                    onClick={()=>{if (btn.url && btn.url !== '#') window.open(btn.url, '_blank')
-                    else return;}}
+                    onClick={()=>{
+                      //let btnURL = btn.url+"?client='"+`${encodeURIComponent(JSON.stringify(currentClient))}`+"'&results='"+`${encodeURIComponent(JSON.stringify(displayResults))}`+"'"
+                      let btnURL=btn.url;
+                      if (btn.url && btn.url !== '#') window.open(btnURL, '_blank')
+                      else return;
+                    }}
                     disabled={streamlineSending}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6,
@@ -7981,8 +8016,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme }) 
                         <div style={{ padding: '1.25rem' }}>
                           <div style={{ fontSize: '0.95rem', lineHeight: 1.7, color: 'var(--text-primary)' }}>
                             {displayResults.summary!==null && displayResults.summary!==undefined?
-                                <div>{displaySummary.split("------").map((phrase)=>{
-                                  return <div>{phrase}</div>
+                                <div>{displayPhrases.map((phrase)=>{
+                                  return <div style={{display: "list-item",listStyleType: "disc",marginLeft: "1.5rem"}}>{phrase}</div>
                                 })}</div>:"Not analysed yet"}
                           </div>
                         </div>
