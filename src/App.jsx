@@ -1769,6 +1769,11 @@ export default function App() {
         })
         if (response.ok) {
           console.log('Client updated:', clientId)
+          setCompanyData(prev => ({
+            ...prev,
+            updated_at: new Date().toISOString(),
+            updated_by: user?.name || user?.email || ''
+          }))
         }
       } else {
         // Create new client
@@ -3614,13 +3619,14 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
     setFormAddresses(prev => prev.filter((_, i) => i !== index))
   }
 
-  // Autosave: called on blur from any form field
-  const autoSave = async () => {
-    if (!formData.name.trim()) return
+  // Autosave: called on blur from any form field, or with overrides for immediate-toggle fields
+  const autoSave = async (overrides) => {
+    const current = overrides ? { ...formData, ...overrides } : formData
+    if (!current.name.trim()) return
     setSaving(true)
     const filteredPainPoints = formPainPoints.filter(p => p.trim())
-    const saveData = { ...formData, contacts: formContacts, addresses: formAddresses, painPoints: filteredPainPoints }
-    setCompanyData(prev => ({ ...saveData, logoUrl: prev.logoUrl, iconUrl: prev.iconUrl }))
+    const saveData = { ...current, contacts: formContacts, addresses: formAddresses, painPoints: filteredPainPoints }
+    setCompanyData(prev => ({ ...prev, ...saveData }))
     if (onClientCreate) await onClientCreate(saveData)
     setSaving(false)
     setSavedIndicator(true)
@@ -3764,7 +3770,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                   Intellagentic Lead
                 </label>
                 <button
-                  onClick={() => { setFormData(prev => ({ ...prev, intellagentic_lead: !prev.intellagentic_lead })); setTimeout(autoSave, 50) }}
+                  onClick={() => { const next = !formData.intellagentic_lead; setFormData(prev => ({ ...prev, intellagentic_lead: next })); autoSave({ intellagentic_lead: next }) }}
                   style={{
                     width: '100%', padding: '0.5rem 0.625rem',
                     background: formData.intellagentic_lead ? 'rgba(220, 38, 38, 0.08)' : '#f9fafb',
@@ -3785,7 +3791,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 </label>
                 <select
                   value={formData.partner_id || ''}
-                  onChange={(e) => { setFormData(prev => ({ ...prev, partner_id: e.target.value ? parseInt(e.target.value) : null })); setTimeout(autoSave, 50) }}
+                  onChange={(e) => { const val = e.target.value ? parseInt(e.target.value) : null; setFormData(prev => ({ ...prev, partner_id: val })); autoSave({ partner_id: val }) }}
                   style={{
                     width: '100%', padding: '0.5rem 0.625rem',
                     background: '#f9fafb',
