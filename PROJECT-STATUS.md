@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.93)
+**Status:** Deployed & Operational (v1.94)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3006,6 +3006,26 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Frontend: `?token=` URL parameter auto-validates and enters workspace, `ShareLinkModal` component
 - Share buttons on dashboard rows (ExternalLink icon) and workspace header for admins
 - API Gateway: `/auth/token` (POST) and `/auth/magic-link` (GET/POST/DELETE) resources added
+
+**v1.94 — HubSpot Bi-directional Sync Lambda**
+- New Lambda `xo-hubspot-sync` (eu-west-2) for bi-directional sync between XO Capture and HubSpot CRM
+- HubSpot OAuth 2.1 with PKCE: `POST /hubspot/connect` initiates flow, `GET /hubspot/callback` exchanges tokens
+- All tokens (access, refresh) stored encrypted in system_config table via crypto_helper.encrypt()
+- Auto-refresh of expired access tokens with 60s buffer
+- API routes: connect, callback, status, sync (full), sync/push (single client), sync/pull (single company), mapping
+- XO → HubSpot push: company_name→name, website_url→website, industry→industry, description→description
+- Custom properties: xo_future_plans, xo_status, xo_source, xo_nda_signed, xo_nda_signed_at, xo_intellagentic_lead, xo_pain_points_json, xo_addresses_json
+- contacts_json → multiple HubSpot Contacts associated to the Company (not single flat fields)
+- addresses_json → xo_addresses_json custom property + standard HubSpot address fields from primary address
+- partner_id → Company-to-Company association with partner's HubSpot Company record
+- Enrichment results (summary, bottom_line) pushed as Notes on Company
+- HubSpot → XO pull: Companies with xo_record_type=client/partner → clients/partners tables, all new fields synced
+- Pull contacts: all associated HubSpot Contacts → contacts_json array on client record
+- Dedup: domain exact match first, company name fuzzy fallback, tracked via hubspot_company_id
+- DB migration: hubspot_company_id, hubspot_contact_id, hubspot_last_sync on clients; hubspot_company_id, hubspot_last_sync on partners
+- Schema additions in backend/schema.sql for HubSpot columns
+- Deploy script: backend/lambdas/hubspot-sync/deploy-hubspot.sh
+- 30 pytest regression tests covering OAuth flow, token refresh, push/pull sync, field mapping, dedup, partner associations, routing
 
 **Next Step:** Web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode).
 

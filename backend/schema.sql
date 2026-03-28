@@ -191,3 +191,21 @@ ALTER TABLE skills ALTER COLUMN client_id DROP NOT NULL;
 ALTER TABLE buttons ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id) ON DELETE CASCADE;
 ALTER TABLE buttons ALTER COLUMN user_id DROP NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_buttons_client_id ON buttons(client_id);
+
+-- ============================================================
+-- HUBSPOT SYNC (migration)
+-- Bi-directional sync tracking between XO Capture and HubSpot CRM
+-- ============================================================
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS hubspot_company_id VARCHAR(50);
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS hubspot_contact_id VARCHAR(50);
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS hubspot_last_sync TIMESTAMP;
+
+ALTER TABLE partners ADD COLUMN IF NOT EXISTS hubspot_company_id VARCHAR(50);
+ALTER TABLE partners ADD COLUMN IF NOT EXISTS hubspot_last_sync TIMESTAMP;
+
+-- system_config entries used by hubspot-sync Lambda:
+--   hubspot_access_token (encrypted)
+--   hubspot_refresh_token (encrypted)
+--   hubspot_token_expiry
+--   hubspot_last_full_sync
+--   hubspot_intellagentic_company_id (HubSpot ID for Intellagentic master Company)
