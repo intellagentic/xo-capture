@@ -8,6 +8,7 @@ import sys
 import json
 import time
 import pytest
+from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock, call
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
@@ -573,3 +574,266 @@ class TestRouting:
             assert_status(response, 400)
             body = parse_body(response)
             assert 'client_id' in body['error']
+
+    def test_conflicts_route(self, hubspot_module, mock_deps):
+        started, mock_conn, mock_cur = mock_deps
+        started['require_auth'].return_value = (ADMIN_USER, None)
+        mock_cur.fetchall.return_value = []
+
+        event = make_event(method='GET', path='/hubspot/conflicts')
+        response = hubspot_module.lambda_handler(event, None)
+        assert_status(response, 200)
+
+    def test_resolve_route(self, hubspot_module, mock_deps):
+        started, mock_conn, mock_cur = mock_deps
+        started['require_auth'].return_value = (ADMIN_USER, None)
+
+        event = make_event(method='POST', path='/hubspot/conflicts/resolve', body={'record_id': '', 'winner': 'xo'})
+        response = hubspot_module.lambda_handler(event, None)
+        assert_status(response, 400)  # missing record_id
+
+
+class TestSyncDirection:
+    """Test timestamp-based conflict resolution logic."""
+
+    def test_first_sync_returns_first_sync(self, hubspot_module):
+        result = hubspot_module._determine_sync_direction(
+            xo_updated_at=datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc),
+            hs_lastmodified=datetime(2026, 3, 28, 9, 0, tzinfo=timezone.utc),
+            last_sync=None
+        )
+        assert result == 'first_sync'
+
+    def test_xo_newer_returns_push(self, hubspot_module):
+        last_sync = datetime(2026, 3, 28, 8, 0, tzinfo=timezone.utc)
+        result = hubspot_module._determine_sync_direction(
+            xo_updated_at=datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc),
+            hs_lastmodified=datetime(2026, 3, 28, 7, 0, tzinfo=timezone.utc),
+            last_sync=last_sync
+        )
+        assert result == 'push'
+
+    def test_hs_newer_returns_pull(self, hubspot_module):
+        last_sync = datetime(2026, 3, 28, 8, 0, tzinfo=timezone.utc)
+        result = hubspot_module._determine_sync_direction(
+            xo_updated_at=datetime(2026, 3, 28, 7, 0, tzinfo=timezone.utc),
+            hs_lastmodified=datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc),
+            last_sync=last_sync
+        )
+        assert result == 'pull'
+
+    def test_both_changed_returns_conflict(self, hubspot_module):
+        last_sync = datetime(2026, 3, 28, 8, 0, tzinfo=timezone.utc)
+        result = hubspot_module._determine_sync_direction(
+            xo_updated_at=datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc),
+            hs_lastmodified=datetime(2026, 3, 28, 9, 0, tzinfo=timezone.utc),
+            last_sync=last_sync
+        )
+        assert result == 'conflict'
+
+    def test_neither_changed_returns_none(self, hubspot_module):
+        last_sync = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+        result = hubspot_module._determine_sync_direction(
+            xo_updated_at=datetime(2026, 3, 28, 7, 0, tzinfo=timezone.utc),
+            hs_lastmodified=datetime(2026, 3, 28, 7, 0, tzinfo=timezone.utc),
+            last_sync=last_sync
+        )
+        assert result == 'none'
+
+
+class TestConflictResolution:
+
+    def test_first_sync_hubspot_wins(self, hubspot_module, mock_deps):
+        """First sync (hubspot_last_sync is NULL) — HubSpot values overwrite XO."""
+        started, mock_conn, mock_cur = mock_deps
+
+        # Simulate: xo_id exists, hubspot_last_sync=NULL, updated_at exists
+        mock_cur.fetchone.return_value = (None, datetime(2026, 3, 28, 5, 0, tzinfo=timezone.utc))
+
+        hs_props = {
+            'name': 'HubSpot Name',
+            'website': 'https://hubspot.com',
+            'industry': 'Tech',
+            'description': 'From HubSpot',
+            'hs_lastmodifieddate': '2026-03-28T10:00:00.000Z',
+            'xo_status': 'active',
+        }
+
+        with patch.object(hubspot_module, '_log_sync') as mock_log, \
+             patch.object(hubspot_module, '_apply_hs_to_xo_update', return_value=['company_name', 'website_url']) as mock_apply:
+            result = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-1', 'xo-uuid-1', hs_props)
+            assert result is None  # No conflict
+            mock_apply.assert_called_once()
+            mock_log.assert_called_once()
+            # _log_sync(conn, record_type, record_id, hubspot_id, direction, ...)
+            assert mock_log.call_args[0][4] == 'pull'
+
+    def test_ongoing_sync_xo_wins_when_newer(self, hubspot_module, mock_deps):
+        """XO updated after last sync, HubSpot not — XO wins, no pull applied."""
+        started, mock_conn, mock_cur = mock_deps
+
+        last_sync = datetime(2026, 3, 28, 8, 0, tzinfo=timezone.utc)
+        xo_updated = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+        mock_cur.fetchone.return_value = (last_sync, xo_updated)
+
+        hs_props = {
+            'name': 'Old HubSpot',
+            'hs_lastmodifieddate': '2026-03-28T07:00:00.000Z',
+        }
+
+        with patch.object(hubspot_module, '_log_sync') as mock_log:
+            result = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-2', 'xo-uuid-2', hs_props)
+            assert result is None
+            mock_log.assert_called_once()
+            assert mock_log.call_args[0][4] == 'push'  # direction param index 4
+
+    def test_ongoing_sync_hs_wins_when_newer(self, hubspot_module, mock_deps):
+        """HubSpot updated after last sync, XO not — HubSpot wins."""
+        started, mock_conn, mock_cur = mock_deps
+
+        last_sync = datetime(2026, 3, 28, 8, 0, tzinfo=timezone.utc)
+        xo_updated = datetime(2026, 3, 28, 7, 0, tzinfo=timezone.utc)
+        mock_cur.fetchone.return_value = (last_sync, xo_updated)
+
+        hs_props = {
+            'name': 'Newer HubSpot',
+            'website': 'https://new.com',
+            'hs_lastmodifieddate': '2026-03-28T10:00:00.000Z',
+            'industry': '',
+            'description': '',
+        }
+
+        with patch.object(hubspot_module, '_log_sync') as mock_log, \
+             patch.object(hubspot_module, '_apply_hs_to_xo_update', return_value=['company_name']) as mock_apply:
+            result = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-3', 'xo-uuid-3', hs_props)
+            assert result is None
+            mock_apply.assert_called_once()
+
+    def test_true_conflict_not_overwritten(self, hubspot_module, mock_deps):
+        """Both sides changed — conflict logged, neither side overwritten."""
+        started, mock_conn, mock_cur = mock_deps
+
+        last_sync = datetime(2026, 3, 28, 8, 0, tzinfo=timezone.utc)
+        xo_updated = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+
+        # First call: (last_sync, updated_at), Second call: XO record for comparison
+        mock_cur.fetchone.side_effect = [
+            (last_sync, xo_updated),
+            ('XO Company', 'https://xo.com', 'XO Industry', 'XO Desc', 'XO Plans',
+             'active', 'manual', '', '', None),
+        ]
+
+        hs_props = {
+            'name': 'HS Company',
+            'website': 'https://hs.com',
+            'industry': 'HS Industry',
+            'description': 'HS Desc',
+            'hs_lastmodifieddate': '2026-03-28T09:00:00.000Z',
+            'xo_future_plans': '',
+            'xo_status': 'active',
+            'xo_source': 'manual',
+            'xo_pain_points_json': '',
+            'xo_addresses_json': '',
+        }
+
+        with patch.object(hubspot_module, '_log_sync') as mock_log, \
+             patch.object(hubspot_module, 'unwrap_client_key', return_value=None):
+            result = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-4', 'xo-uuid-4', hs_props)
+
+            # Should return a conflict dict
+            assert result is not None
+            assert result['record_type'] == 'client'
+            assert result['record_id'] == 'xo-uuid-4'
+            assert len(result['conflicting_fields']) > 0
+            assert 'company_name' in result['conflicting_fields']
+
+            # _log_sync called with direction='conflict' (param index 4)
+            mock_log.assert_called_once()
+            assert mock_log.call_args[0][4] == 'conflict'
+
+    def test_resolve_conflict_endpoint_requires_params(self, hubspot_module, mock_deps):
+        started, mock_conn, mock_cur = mock_deps
+        started['require_auth'].return_value = (ADMIN_USER, None)
+
+        # Missing winner
+        event = make_event(method='POST', path='/hubspot/conflicts/resolve',
+                           body={'record_id': 'uuid-1'})
+        response = hubspot_module.lambda_handler(event, None)
+        assert_status(response, 400)
+
+        # Invalid winner
+        event = make_event(method='POST', path='/hubspot/conflicts/resolve',
+                           body={'record_id': 'uuid-1', 'winner': 'neither'})
+        response = hubspot_module.lambda_handler(event, None)
+        assert_status(response, 400)
+
+    def test_resolve_conflict_not_found(self, hubspot_module, mock_deps):
+        started, mock_conn, mock_cur = mock_deps
+        started['require_auth'].return_value = (ADMIN_USER, None)
+        mock_cur.fetchone.return_value = None
+
+        event = make_event(method='POST', path='/hubspot/conflicts/resolve',
+                           body={'record_id': 'no-such-id', 'winner': 'xo'})
+        response = hubspot_module.lambda_handler(event, None)
+        assert_status(response, 404)
+
+    def test_get_conflicts_empty(self, hubspot_module, mock_deps):
+        started, mock_conn, mock_cur = mock_deps
+        started['require_auth'].return_value = (ADMIN_USER, None)
+        mock_cur.fetchall.return_value = []
+
+        event = make_event(method='GET', path='/hubspot/conflicts')
+        response = hubspot_module.lambda_handler(event, None)
+        assert_status(response, 200)
+        body = parse_body(response)
+        assert body['conflicts'] == []
+
+
+class TestSyncLogging:
+
+    def test_log_sync_writes_entry(self, hubspot_module, mock_deps):
+        started, mock_conn, mock_cur = mock_deps
+
+        hubspot_module._log_sync(
+            mock_conn, 'client', 'uuid-1', 'hs-1', 'pull',
+            fields_updated=['company_name', 'website_url'],
+            details='Test log entry'
+        )
+
+        mock_cur.execute.assert_called_once()
+        call_args = mock_cur.execute.call_args
+        assert 'hubspot_sync_log' in call_args[0][0]
+        params = call_args[0][1]
+        assert params[0] == 'client'
+        assert params[1] == 'uuid-1'
+        assert params[3] == 'pull'
+        assert 'company_name' in params[4]  # fields_updated JSON
+
+    def test_detect_field_conflicts(self, hubspot_module):
+        xo_record = {
+            'company_name': 'XO Name',
+            'website_url': 'https://same.com',
+            'industry': 'Tech',
+            'description': '',
+            'future_plans': '',
+            'status': 'active',
+            'source': '',
+            'pain_points_json': '',
+            'addresses_json': '',
+        }
+        hs_props = {
+            'name': 'HS Name',
+            'website': 'https://same.com',
+            'industry': 'Tech',
+            'description': 'New desc',
+            'xo_future_plans': '',
+            'xo_status': 'active',
+            'xo_source': '',
+            'xo_pain_points_json': '',
+            'xo_addresses_json': '',
+        }
+        conflicts = hubspot_module._detect_field_conflicts(xo_record, hs_props)
+        assert 'company_name' in conflicts
+        assert 'description' in conflicts
+        assert 'website_url' not in conflicts  # same value
+        assert 'industry' not in conflicts  # same value

@@ -209,3 +209,22 @@ ALTER TABLE partners ADD COLUMN IF NOT EXISTS hubspot_last_sync TIMESTAMP;
 --   hubspot_token_expiry
 --   hubspot_last_full_sync
 --   hubspot_intellagentic_company_id (HubSpot ID for Intellagentic master Company)
+
+-- ============================================================
+-- HUBSPOT SYNC LOG (migration)
+-- Tracks every sync action and conflicts for review
+-- ============================================================
+CREATE TABLE IF NOT EXISTS hubspot_sync_log (
+    id SERIAL PRIMARY KEY,
+    record_type VARCHAR(20) NOT NULL,
+    record_id UUID,
+    hubspot_id VARCHAR(50),
+    sync_direction VARCHAR(10) NOT NULL,
+    fields_updated TEXT,
+    fields_skipped TEXT,
+    details TEXT,
+    synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_hubspot_sync_log_direction ON hubspot_sync_log(sync_direction);
+CREATE INDEX IF NOT EXISTS idx_hubspot_sync_log_record ON hubspot_sync_log(record_type, record_id);

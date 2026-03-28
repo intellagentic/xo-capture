@@ -87,10 +87,24 @@ def _run_hubspot_migrations():
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Sync log table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS hubspot_sync_log (
+                id SERIAL PRIMARY KEY,
+                record_type VARCHAR(20) NOT NULL,
+                record_id UUID,
+                hubspot_id VARCHAR(50),
+                sync_direction VARCHAR(10) NOT NULL,
+                fields_updated TEXT,
+                fields_skipped TEXT,
+                details TEXT,
+                synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+        """)
         conn.commit()
         cur.close()
         conn.close()
-        print("HubSpot migration complete: hubspot columns ensured")
+        print("HubSpot migration complete: hubspot columns + sync_log ensured")
     except Exception as e:
         print(f"HubSpot migration check (non-fatal): {e}")
 
@@ -118,6 +132,109 @@ def _set_config(conn, key, value):
     """, (key, value))
     conn.commit()
     cur.close()
+
+
+# ── Sync Logging ──
+
+def _log_sync(conn, record_type, record_id, hubspot_id, direction, fields_updated=None,
+              fields_skipped=None, details=None):
+    """Write an entry to hubspot_sync_log."""
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO hubspot_sync_log (record_type, record_id, hubspot_id, sync_direction,
+                                      fields_updated, fields_skipped, details)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """, (
+        record_type,
+        str(record_id) if record_id else None,
+        hubspot_id,
+        direction,
+        json.dumps(fields_updated) if fields_updated else None,
+        json.dumps(fields_skipped) if fields_skipped else None,
+        details,
+    ))
+    cur.close()
+
+
+# Fields compared for conflict detection (XO DB column -> HubSpot property)
+SYNC_COMPARE_FIELDS = {
+    'company_name': 'name',
+    'website_url': 'website',
+    'industry': 'industry',
+    'description': 'description',
+    'future_plans': 'xo_future_plans',
+    'status': 'xo_status',
+    'source': 'xo_source',
+    'pain_points_json': 'xo_pain_points_json',
+    'addresses_json': 'xo_addresses_json',
+}
+
+
+def _parse_hs_timestamp(ts_str):
+    """Parse a HubSpot ISO timestamp string to a timezone-aware datetime."""
+    if not ts_str:
+        return None
+    try:
+        # HubSpot returns millisecond timestamps like "2026-03-28T10:00:00.000Z"
+        ts_str = ts_str.replace('Z', '+00:00')
+        return datetime.fromisoformat(ts_str)
+    except (ValueError, TypeError):
+        return None
+
+
+def _make_aware(dt):
+    """Ensure a datetime is timezone-aware (assume UTC if naive)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _determine_sync_direction(xo_updated_at, hs_lastmodified, last_sync):
+    """Determine which side wins based on timestamps.
+
+    Returns:
+        'first_sync' — hubspot_last_sync is NULL, HubSpot is authoritative
+        'push'       — only XO changed since last sync
+        'pull'       — only HubSpot changed since last sync
+        'conflict'   — both sides changed since last sync
+        'none'       — neither side changed
+    """
+    if last_sync is None:
+        return 'first_sync'
+
+    last_sync = _make_aware(last_sync)
+    xo_updated_at = _make_aware(xo_updated_at)
+    hs_lastmodified = _make_aware(hs_lastmodified)
+
+    xo_changed = xo_updated_at and xo_updated_at > last_sync
+    hs_changed = hs_lastmodified and hs_lastmodified > last_sync
+
+    if xo_changed and hs_changed:
+        return 'conflict'
+    elif xo_changed:
+        return 'push'
+    elif hs_changed:
+        return 'pull'
+    else:
+        return 'none'
+
+
+def _detect_field_conflicts(xo_record, hs_props, client_key=None):
+    """Compare XO record fields with HubSpot properties. Returns dict of {field: (xo_val, hs_val)}."""
+    conflicts = {}
+    for xo_field, hs_field in SYNC_COMPARE_FIELDS.items():
+        xo_val = xo_record.get(xo_field, '') or ''
+        if client_key and xo_val and xo_field not in ('status', 'source'):
+            xo_val = _decrypt_field(client_key, xo_val)
+        xo_val = str(xo_val).strip() if xo_val else ''
+
+        hs_val = str(hs_props.get(hs_field, '') or '').strip()
+
+        if xo_val != hs_val and (xo_val or hs_val):
+            conflicts[xo_field] = (xo_val, hs_val)
+    return conflicts
 
 
 # ── HubSpot Token Management ──
@@ -569,10 +686,12 @@ def _push_enrichment_note(access_token, company_id, client_record, client_key=No
 # ── Sync: HubSpot -> XO ──
 
 def _pull_companies(access_token, conn, record_type='client'):
-    """Pull companies from HubSpot with given xo_record_type into XO."""
+    """Pull companies from HubSpot with given xo_record_type into XO.
+    Returns (created, updated, conflicts_list)."""
     cur = conn.cursor()
     created = 0
     updated = 0
+    conflicts_list = []
 
     try:
         after = None
@@ -583,7 +702,8 @@ def _pull_companies(access_token, conn, record_type='client'):
                               'xo_client_id,xo_record_type,xo_status,xo_source,'
                               'xo_nda_signed,xo_nda_signed_at,xo_intellagentic_lead,'
                               'xo_future_plans,xo_pain_points_json,xo_addresses_json,'
-                              'address,address2,city,state,zip,country',
+                              'address,address2,city,state,zip,country,'
+                              'hs_lastmodifieddate',
             }
             if after:
                 params['after'] = after
@@ -600,7 +720,9 @@ def _pull_companies(access_token, conn, record_type='client'):
                 xo_id = props.get('xo_client_id')
 
                 if record_type == 'client':
-                    _pull_client_record(cur, conn, hs_id, xo_id, props)
+                    conflict = _pull_client_record(cur, conn, hs_id, xo_id, props)
+                    if conflict:
+                        conflicts_list.append(conflict)
                 elif record_type == 'partner':
                     _pull_partner_record(cur, conn, hs_id, xo_id, props)
 
@@ -623,11 +745,11 @@ def _pull_companies(access_token, conn, record_type='client'):
     finally:
         cur.close()
 
-    return created, updated
+    return created, updated, conflicts_list
 
 
-def _pull_client_record(cur, conn, hs_id, xo_id, props):
-    """Create or update a client record from HubSpot company data."""
+def _apply_hs_to_xo_update(cur, hs_id, xo_id, props, where_clause, where_params):
+    """Apply HubSpot property values to an XO client record (pull update)."""
     name = props.get('name', '')
     website = props.get('website', '')
     industry = props.get('industry', '')
@@ -639,65 +761,159 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
     intellagentic_lead = props.get('xo_intellagentic_lead', '')
     pain_points = props.get('xo_pain_points_json', '')
     addresses = props.get('xo_addresses_json', '')
-
-    # Convert boolean strings
     nda_bool = nda_signed.lower() == 'true' if nda_signed else None
     lead_bool = intellagentic_lead.lower() == 'true' if intellagentic_lead else None
 
-    if xo_id:
-        cur.execute("""
-            UPDATE clients SET
-                company_name = COALESCE(NULLIF(%s, ''), company_name),
-                website_url = COALESCE(NULLIF(%s, ''), website_url),
-                industry = COALESCE(NULLIF(%s, ''), industry),
-                description = COALESCE(NULLIF(%s, ''), description),
-                future_plans = COALESCE(NULLIF(%s, ''), future_plans),
-                status = COALESCE(NULLIF(%s, ''), status),
-                source = COALESCE(NULLIF(%s, ''), source),
-                nda_signed = COALESCE(%s, nda_signed),
-                intellagentic_lead = COALESCE(%s, intellagentic_lead),
-                pain_points_json = COALESCE(NULLIF(%s, ''), pain_points_json),
-                addresses_json = COALESCE(NULLIF(%s, ''), addresses_json),
-                hubspot_company_id = %s,
-                hubspot_last_sync = NOW(),
-                updated_at = NOW()
-            WHERE id = %s
-        """, (name, website, industry, description, future_plans,
-              status, source, nda_bool, lead_bool, pain_points, addresses,
-              hs_id, xo_id))
-    else:
-        cur.execute("SELECT id FROM clients WHERE hubspot_company_id = %s", (hs_id,))
+    cur.execute(f"""
+        UPDATE clients SET
+            company_name = COALESCE(NULLIF(%s, ''), company_name),
+            website_url = COALESCE(NULLIF(%s, ''), website_url),
+            industry = COALESCE(NULLIF(%s, ''), industry),
+            description = COALESCE(NULLIF(%s, ''), description),
+            future_plans = COALESCE(NULLIF(%s, ''), future_plans),
+            status = COALESCE(NULLIF(%s, ''), status),
+            source = COALESCE(NULLIF(%s, ''), source),
+            nda_signed = COALESCE(%s, nda_signed),
+            intellagentic_lead = COALESCE(%s, intellagentic_lead),
+            pain_points_json = COALESCE(NULLIF(%s, ''), pain_points_json),
+            addresses_json = COALESCE(NULLIF(%s, ''), addresses_json),
+            hubspot_company_id = %s,
+            hubspot_last_sync = NOW(),
+            updated_at = NOW()
+        WHERE {where_clause}
+    """, (name, website, industry, description, future_plans,
+          status, source, nda_bool, lead_bool, pain_points, addresses,
+          hs_id, *where_params))
+
+    # Return list of fields that had values
+    updated_fields = []
+    for label, val in [('company_name', name), ('website_url', website), ('industry', industry),
+                       ('description', description), ('future_plans', future_plans),
+                       ('status', status), ('source', source), ('pain_points_json', pain_points),
+                       ('addresses_json', addresses)]:
+        if val:
+            updated_fields.append(label)
+    if nda_bool is not None:
+        updated_fields.append('nda_signed')
+    if lead_bool is not None:
+        updated_fields.append('intellagentic_lead')
+    return updated_fields
+
+
+def _pull_client_record(cur, conn, hs_id, xo_id, props):
+    """Create or update a client record from HubSpot company data.
+    Uses timestamp-based conflict resolution. Returns conflict dict if conflict detected, else None."""
+    name = props.get('name', '')
+    website = props.get('website', '')
+    hs_lastmodified = _parse_hs_timestamp(props.get('hs_lastmodifieddate'))
+
+    # --- New record: no xo_id and no existing link ---
+    if not xo_id:
+        cur.execute("SELECT id, hubspot_last_sync, updated_at FROM clients WHERE hubspot_company_id = %s", (hs_id,))
         existing = cur.fetchone()
         if existing:
-            cur.execute("""
-                UPDATE clients SET
-                    company_name = COALESCE(NULLIF(%s, ''), company_name),
-                    website_url = COALESCE(NULLIF(%s, ''), website_url),
-                    industry = COALESCE(NULLIF(%s, ''), industry),
-                    description = COALESCE(NULLIF(%s, ''), description),
-                    future_plans = COALESCE(NULLIF(%s, ''), future_plans),
-                    status = COALESCE(NULLIF(%s, ''), status),
-                    source = COALESCE(NULLIF(%s, ''), source),
-                    nda_signed = COALESCE(%s, nda_signed),
-                    intellagentic_lead = COALESCE(%s, intellagentic_lead),
-                    pain_points_json = COALESCE(NULLIF(%s, ''), pain_points_json),
-                    addresses_json = COALESCE(NULLIF(%s, ''), addresses_json),
-                    hubspot_last_sync = NOW(),
-                    updated_at = NOW()
-                WHERE hubspot_company_id = %s
-            """, (name, website, industry, description, future_plans,
-                  status, source, nda_bool, lead_bool, pain_points, addresses, hs_id))
+            xo_id = str(existing[0])
+            last_sync = existing[1]
+            xo_updated_at = existing[2]
         else:
+            # Brand new record from HubSpot — create it
             s3_folder = f"hubspot-{hs_id}-{int(time.time())}"
+            status_val = props.get('xo_status', '') or 'active'
+            nda_str = props.get('xo_nda_signed', '')
+            nda_bool = nda_str.lower() == 'true' if nda_str else None
+            lead_str = props.get('xo_intellagentic_lead', '')
+            lead_bool = lead_str.lower() == 'true' if lead_str else None
+
             cur.execute("""
                 INSERT INTO clients (company_name, website_url, industry, description,
                                      future_plans, status, source, nda_signed, intellagentic_lead,
                                      pain_points_json, addresses_json, s3_folder,
                                      hubspot_company_id, hubspot_last_sync)
-                VALUES (%s, %s, %s, %s, %s, COALESCE(NULLIF(%s,''),'active'), %s, %s, %s, %s, %s, %s, %s, NOW())
-            """, (name, website, industry, description, future_plans,
-                  status, source, nda_bool, lead_bool, pain_points, addresses,
-                  s3_folder, hs_id))
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                RETURNING id
+            """, (name, website, props.get('industry', ''), props.get('description', ''),
+                  props.get('xo_future_plans', ''), status_val, props.get('xo_source', ''),
+                  nda_bool, lead_bool, props.get('xo_pain_points_json', ''),
+                  props.get('xo_addresses_json', ''), s3_folder, hs_id))
+            new_row = cur.fetchone()
+            new_id = str(new_row[0]) if new_row else None
+
+            all_fields = [f for f in SYNC_COMPARE_FIELDS.keys() if props.get(SYNC_COMPARE_FIELDS[f])]
+            _log_sync(conn, 'client', new_id, hs_id, 'pull', fields_updated=all_fields,
+                      details=f"New client created from HubSpot: {name}")
+            return None
+    else:
+        # Existing xo_id — look up timestamps
+        cur.execute("SELECT hubspot_last_sync, updated_at FROM clients WHERE id = %s", (xo_id,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        last_sync = row[0]
+        xo_updated_at = row[1]
+
+    # --- Determine sync direction ---
+    direction = _determine_sync_direction(xo_updated_at, hs_lastmodified, last_sync)
+
+    if direction == 'first_sync' or direction == 'pull':
+        # HubSpot wins — apply all fields
+        updated = _apply_hs_to_xo_update(cur, hs_id, xo_id, props, 'id = %s', (xo_id,))
+        _log_sync(conn, 'client', xo_id, hs_id, 'pull', fields_updated=updated,
+                  details=f"{'First sync' if direction == 'first_sync' else 'HubSpot newer'}: {name}")
+        return None
+
+    elif direction == 'push':
+        # XO wins — just update hubspot_last_sync, don't overwrite XO
+        cur.execute("UPDATE clients SET hubspot_last_sync = NOW() WHERE id = %s", (xo_id,))
+        _log_sync(conn, 'client', xo_id, hs_id, 'push',
+                  details=f"XO newer, skipped pull: {name}")
+        return None
+
+    elif direction == 'conflict':
+        # Both sides changed — detect which fields conflict
+        # Read current XO record for comparison
+        cur.execute("""
+            SELECT company_name, website_url, industry, description, future_plans,
+                   status, source, pain_points_json, addresses_json, encryption_key
+            FROM clients WHERE id = %s
+        """, (xo_id,))
+        xo_row = cur.fetchone()
+        if not xo_row:
+            return None
+        xo_cols = ['company_name', 'website_url', 'industry', 'description', 'future_plans',
+                    'status', 'source', 'pain_points_json', 'addresses_json', 'encryption_key']
+        xo_record = dict(zip(xo_cols, xo_row))
+        client_key = unwrap_client_key(xo_record.pop('encryption_key', None))
+
+        field_conflicts = _detect_field_conflicts(xo_record, props, client_key)
+        if not field_conflicts:
+            # No actual field differences — just update sync timestamp
+            cur.execute("UPDATE clients SET hubspot_last_sync = NOW() WHERE id = %s", (xo_id,))
+            return None
+
+        conflicting_fields = list(field_conflicts.keys())
+        details_parts = []
+        for f, (xo_v, hs_v) in field_conflicts.items():
+            xo_display = (xo_v[:80] + '...') if len(xo_v) > 80 else xo_v
+            hs_display = (hs_v[:80] + '...') if len(hs_v) > 80 else hs_v
+            details_parts.append(f"{f}: XO=\"{xo_display}\" vs HS=\"{hs_display}\"")
+
+        details_text = f"Conflict on {name}: " + "; ".join(details_parts)
+
+        _log_sync(conn, 'client', xo_id, hs_id, 'conflict',
+                  fields_skipped=conflicting_fields, details=details_text)
+
+        logger.warning("Conflict detected for client %s (%s): %s", xo_id, name, conflicting_fields)
+        return {
+            'record_type': 'client',
+            'record_id': str(xo_id),
+            'hubspot_id': hs_id,
+            'company_name': name,
+            'conflicting_fields': conflicting_fields,
+            'details': details_text,
+        }
+
+    # direction == 'none'
+    return None
 
 
 def _pull_partner_record(cur, conn, hs_id, xo_id, props):
@@ -1020,8 +1236,10 @@ def handle_sync(event, user):
         cur.close()
 
         # ── Phase 2: Pull HubSpot -> XO ──
-        clients_created, clients_updated = _pull_companies(access_token, conn, 'client')
-        partners_created, partners_updated = _pull_companies(access_token, conn, 'partner')
+        clients_created, clients_updated, client_conflicts = _pull_companies(access_token, conn, 'client')
+        partners_created, partners_updated, _partner_conflicts = _pull_companies(access_token, conn, 'partner')
+
+        all_conflicts = client_conflicts + _partner_conflicts
 
         # Update last sync timestamp
         _set_config(conn, 'hubspot_last_full_sync', datetime.now(timezone.utc).isoformat())
@@ -1041,6 +1259,7 @@ def handle_sync(event, user):
                     'partners_created': partners_created,
                     'partners_updated': partners_updated,
                 },
+                'conflicts': all_conflicts,
                 'last_sync': datetime.now(timezone.utc).isoformat(),
             })
         }
@@ -1233,6 +1452,163 @@ def handle_sync_pull(event, user):
         conn.close()
 
 
+def handle_conflicts(event, user):
+    """GET /hubspot/conflicts — Return unresolved conflicts from sync log."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, record_type, record_id, hubspot_id, fields_skipped, details, synced_at
+            FROM hubspot_sync_log
+            WHERE sync_direction = 'conflict'
+            ORDER BY synced_at DESC
+            LIMIT 100
+        """)
+        rows = cur.fetchall()
+        cur.close()
+
+        conflicts = []
+        for row in rows:
+            conflicts.append({
+                'log_id': row[0],
+                'record_type': row[1],
+                'record_id': str(row[2]) if row[2] else None,
+                'hubspot_id': row[3],
+                'conflicting_fields': json.loads(row[4]) if row[4] else [],
+                'details': row[5],
+                'synced_at': row[6].isoformat() if row[6] else None,
+            })
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'conflicts': conflicts})
+        }
+    finally:
+        conn.close()
+
+
+def handle_resolve_conflict(event, user):
+    """POST /hubspot/conflicts/resolve — Resolve a conflict by choosing XO or HubSpot as winner."""
+    conn = get_db_connection()
+    try:
+        body = json.loads(event.get('body', '{}'))
+        record_id = body.get('record_id', '').strip()
+        winner = body.get('winner', '').strip().lower()
+
+        if not record_id or winner not in ('xo', 'hubspot'):
+            return {
+                'statusCode': 400,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'record_id and winner (xo|hubspot) are required'})
+            }
+
+        cur = conn.cursor()
+
+        # Look up the conflict log entry
+        cur.execute("""
+            SELECT id, record_type, hubspot_id, fields_skipped, details
+            FROM hubspot_sync_log
+            WHERE sync_direction = 'conflict' AND record_id = %s
+            ORDER BY synced_at DESC LIMIT 1
+        """, (record_id,))
+        log_row = cur.fetchone()
+        if not log_row:
+            cur.close()
+            return {
+                'statusCode': 404,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'No conflict found for this record'})
+            }
+
+        log_id, record_type, hubspot_id, fields_skipped_json, details = log_row
+        conflicting_fields = json.loads(fields_skipped_json) if fields_skipped_json else []
+
+        if winner == 'hubspot':
+            # Fetch fresh HubSpot data and apply to XO
+            access_token = _get_access_token(conn)
+            if not access_token:
+                cur.close()
+                return {
+                    'statusCode': 401,
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({'error': 'HubSpot not connected'})
+                }
+
+            company = _hubspot_api('GET', f'/crm/v3/objects/companies/{hubspot_id}', access_token,
+                                   params={'properties': 'name,website,industry,description,'
+                                                          'xo_client_id,xo_record_type,xo_status,xo_source,'
+                                                          'xo_nda_signed,xo_nda_signed_at,xo_intellagentic_lead,'
+                                                          'xo_future_plans,xo_pain_points_json,xo_addresses_json'})
+            props = company.get('properties', {})
+            updated = _apply_hs_to_xo_update(cur, hubspot_id, record_id, props, 'id = %s', (record_id,))
+
+            _log_sync(conn, record_type, record_id, hubspot_id, 'pull',
+                      fields_updated=updated,
+                      details=f"Conflict resolved: HubSpot wins for fields {conflicting_fields}")
+
+        elif winner == 'xo':
+            # Push XO values to HubSpot
+            access_token = _get_access_token(conn)
+            if not access_token:
+                cur.close()
+                return {
+                    'statusCode': 401,
+                    'headers': CORS_HEADERS,
+                    'body': json.dumps({'error': 'HubSpot not connected'})
+                }
+
+            cur.execute("""
+                SELECT id, company_name, website_url, industry, description,
+                       future_plans, status, source, nda_signed, nda_signed_at,
+                       intellagentic_lead, pain_points_json, contacts_json,
+                       addresses_json, s3_folder, hubspot_company_id,
+                       hubspot_contact_id, partner_id, encryption_key
+                FROM clients WHERE id = %s
+            """, (record_id,))
+            row = cur.fetchone()
+            if row:
+                cols = ['id', 'company_name', 'website_url', 'industry', 'description',
+                        'future_plans', 'status', 'source', 'nda_signed', 'nda_signed_at',
+                        'intellagentic_lead', 'pain_points_json', 'contacts_json',
+                        'addresses_json', 's3_folder', 'hubspot_company_id',
+                        'hubspot_contact_id', 'partner_id', 'encryption_key']
+                record = dict(zip(cols, row))
+                client_key = unwrap_client_key(record.get('encryption_key')) if record.get('encryption_key') else None
+                _push_company(access_token, record, record_type, client_key)
+
+            cur.execute("UPDATE clients SET hubspot_last_sync = NOW() WHERE id = %s", (record_id,))
+
+            _log_sync(conn, record_type, record_id, hubspot_id, 'push',
+                      fields_updated=conflicting_fields,
+                      details=f"Conflict resolved: XO wins for fields {conflicting_fields}")
+
+        # Remove the conflict log entry
+        cur.execute("DELETE FROM hubspot_sync_log WHERE id = %s", (log_id,))
+        conn.commit()
+        cur.close()
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'status': 'resolved',
+                'winner': winner,
+                'record_id': record_id,
+                'fields': conflicting_fields,
+            })
+        }
+    except Exception as e:
+        logger.error("Conflict resolution failed: %s", e)
+        return {
+            'statusCode': 500,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': f'Resolution failed: {str(e)}'})
+        }
+    finally:
+        conn.close()
+
+
 def handle_mapping(event, user):
     """GET /hubspot/mapping — Return current field mapping configuration."""
     mapping = {
@@ -1322,6 +1698,12 @@ def _route_hubspot(event, user, path, method):
 
     if '/hubspot/status' in path and method == 'GET':
         return handle_status(event, user)
+
+    if '/hubspot/conflicts/resolve' in path and method == 'POST':
+        return handle_resolve_conflict(event, user)
+
+    if '/hubspot/conflicts' in path and method == 'GET':
+        return handle_conflicts(event, user)
 
     if '/hubspot/sync/push' in path and method == 'POST':
         return handle_sync_push(event, user)
