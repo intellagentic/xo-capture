@@ -85,6 +85,9 @@ CUSTOM_PROPERTY_DEFS = [
      'groupName': 'companyinformation', 'description': 'JSON array of pain points'},
     {'name': 'xo_addresses_json', 'label': 'XO Addresses', 'type': 'string', 'fieldType': 'textarea',
      'groupName': 'companyinformation', 'description': 'JSON array of addresses'},
+    {'name': 'xo_sync_enabled', 'label': 'Sync to XO Capture', 'type': 'enumeration', 'fieldType': 'booleancheckbox',
+     'groupName': 'companyinformation', 'description': 'Enable to pull this company into XO Capture during sync',
+     'options': [{'label': 'True', 'value': 'true'}, {'label': 'False', 'value': 'false'}]},
 ]
 
 _properties_ensured = False
@@ -735,7 +738,7 @@ def _pull_companies(access_token, conn, record_type='client'):
                 'properties': 'name,website,description,xo_industry,'
                               'xo_client_id,xo_record_type,xo_status,xo_source,'
                               'xo_nda_signed,xo_nda_signed_at,xo_intellagentic_lead,'
-                              'xo_future_plans,xo_pain_points_json,xo_addresses_json,'
+                              'xo_future_plans,xo_pain_points_json,xo_addresses_json,xo_sync_enabled,'
                               'address,address2,city,state,zip,country,'
                               'hs_lastmodifieddate',
             }
@@ -747,11 +750,19 @@ def _pull_companies(access_token, conn, record_type='client'):
 
             for company in results:
                 props = company.get('properties', {})
-                if props.get('xo_record_type') != record_type:
+                hs_record_type = props.get('xo_record_type', '')
+                sync_enabled = (props.get('xo_sync_enabled', '') or '').lower() == 'true'
+                xo_id = props.get('xo_client_id')
+
+                # Process if: matches record_type, OR has xo_sync_enabled and is a client pull
+                if hs_record_type == record_type:
+                    pass  # explicit match — process
+                elif record_type == 'client' and sync_enabled and not hs_record_type:
+                    pass  # tagged for sync, no record_type yet — treat as client
+                else:
                     continue
 
                 hs_id = company['id']
-                xo_id = props.get('xo_client_id')
 
                 if record_type == 'client':
                     conflict = _pull_client_record(cur, conn, hs_id, xo_id, props)
@@ -850,6 +861,10 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
             last_sync = existing[1]
             xo_updated_at = existing[2]
         else:
+            # Only create new XO records if xo_sync_enabled is true
+            sync_enabled = (props.get('xo_sync_enabled', '') or '').lower() == 'true'
+            if not sync_enabled:
+                return None
             # Brand new record from HubSpot — create it
             s3_folder = f"hubspot-{hs_id}-{int(time.time())}"
             status_val = props.get('xo_status', '') or 'active'
@@ -1369,7 +1384,7 @@ def handle_sync_pull(event, user):
                                params={'properties': 'name,website,description,xo_industry,'
                                                       'xo_client_id,xo_record_type,xo_status,xo_source,'
                                                       'xo_nda_signed,xo_nda_signed_at,xo_intellagentic_lead,'
-                                                      'xo_future_plans,xo_pain_points_json,xo_addresses_json,'
+                                                      'xo_future_plans,xo_pain_points_json,xo_addresses_json,xo_sync_enabled,'
                                                       'address,address2,city,state,zip,country'})
         props = company.get('properties', {})
         record_type = props.get('xo_record_type', 'client')
@@ -1609,6 +1624,7 @@ def handle_mapping(event, user):
             'xo_future_plans': 'Text - client future plans',
             'xo_pain_points_json': 'Text - JSON array of pain points',
             'xo_addresses_json': 'Text - JSON array of addresses',
+            'xo_sync_enabled': 'Boolean - set true on HubSpot company to pull into XO Capture',
         },
         'associations': {
             'contact_to_company': 'All contacts from contacts_json linked to Company',
@@ -1616,9 +1632,14 @@ def handle_mapping(event, user):
             'note_to_company': 'Enrichment summary notes on Company',
         },
         'dedup_strategy': {
-            'primary': 'Match on website/domain (exact)',
+            'primary': 'Match on website/domain (normalized, case-insensitive)',
             'fallback': 'Match on company name (fuzzy/contains)',
             'tracking': 'hubspot_company_id stored in clients/partners table',
+        },
+        'pull_behavior': {
+            'existing_records': 'Companies pushed from XO (have xo_client_id) sync normally regardless of xo_sync_enabled',
+            'new_records': 'Only HubSpot companies with xo_sync_enabled=true are pulled into XO Capture as new clients',
+            'how_to_enable': 'Set "Sync to XO Capture" checkbox to true on the HubSpot Company record',
         },
     }
 
