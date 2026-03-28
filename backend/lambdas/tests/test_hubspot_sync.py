@@ -41,9 +41,7 @@ def hubspot_module():
     with patch.dict(os.environ, {
         'DATABASE_URL': 'postgresql://fake',
         'JWT_SECRET': 'test',
-        'HUBSPOT_CLIENT_ID': 'test-client-id',
-        'HUBSPOT_CLIENT_SECRET': 'test-client-secret',
-        'HUBSPOT_REDIRECT_URI': 'https://xo.intellagentic.io/oauth/callback',
+        'HUBSPOT_PRIVATE_TOKEN': 'test-private-token',
     }):
         with patch('psycopg2.connect') as mock_connect:
             mock_cur = MagicMock()
@@ -88,36 +86,23 @@ class TestAuthRequired:
         response = hubspot_module.lambda_handler(event, None)
         assert_status(response, 401)
 
-    def test_callback_does_not_require_auth(self, hubspot_module, mock_deps):
-        """OAuth callback should work without JWT auth."""
+    def test_callback_returns_private_app_message(self, hubspot_module, mock_deps):
+        """OAuth callback should return private app message."""
         started, mock_conn, mock_cur = mock_deps
-
-        # Mock the token exchange
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            'access_token': 'test-access',
-            'refresh_token': 'test-refresh',
-            'expires_in': 1800,
-        }
-        mock_response.raise_for_status = MagicMock()
-        started['requests'].post.return_value = mock_response
-
-        # Mock config reads
-        mock_cur.fetchone.return_value = None
 
         event = make_event(method='GET', path='/hubspot/callback',
                            query_params={'code': 'test-auth-code'})
         response = hubspot_module.lambda_handler(event, None)
         assert_status(response, 200)
         body = parse_body(response)
-        assert body['status'] == 'connected'
+        assert body['status'] == 'private_app'
 
         # require_auth should NOT have been called
         started['require_auth'].assert_not_called()
 
 
-class TestOAuthFlow:
-    def test_connect_returns_authorization_url(self, hubspot_module, mock_deps):
+class TestPrivateAppAuth:
+    def test_connect_returns_private_app_message(self, hubspot_module, mock_deps):
         started, mock_conn, mock_cur = mock_deps
         started['require_auth'].return_value = (ADMIN_USER, None)
 
@@ -125,93 +110,28 @@ class TestOAuthFlow:
         response = hubspot_module.lambda_handler(event, None)
         assert_status(response, 200)
         body = parse_body(response)
-        assert 'authorization_url' in body
-        assert 'mcp-eu1.hubspot.com' in body['authorization_url']
-        assert 'code_challenge' in body['authorization_url']
-        assert body['status'] == 'redirect_required'
+        assert body['status'] == 'private_app'
+        assert body['connected'] is True
+        assert 'Private App' in body['message']
 
-    def test_callback_exchanges_code_for_tokens(self, hubspot_module, mock_deps):
+    def test_callback_returns_private_app_message(self, hubspot_module, mock_deps):
         started, mock_conn, mock_cur = mock_deps
-
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            'access_token': 'hs-access-token',
-            'refresh_token': 'hs-refresh-token',
-            'expires_in': 1800,
-        }
-        mock_response.raise_for_status = MagicMock()
-        started['requests'].post.return_value = mock_response
-        mock_cur.fetchone.return_value = None
 
         event = make_event(method='GET', path='/hubspot/callback',
                            query_params={'code': 'auth-code-123'})
         response = hubspot_module.lambda_handler(event, None)
         assert_status(response, 200)
-
-        # Verify token exchange was called
-        started['requests'].post.assert_called_once()
-        call_args = started['requests'].post.call_args
-        assert call_args[0][0] == 'https://api.hubapi.com/oauth/v1/token'
-        assert call_args[1]['data']['code'] == 'auth-code-123'
-        assert call_args[1]['data']['grant_type'] == 'authorization_code'
-
-    def test_callback_error_returns_400(self, hubspot_module, mock_deps):
-        started, mock_conn, mock_cur = mock_deps
-
-        event = make_event(method='GET', path='/hubspot/callback',
-                           query_params={'error': 'access_denied', 'error_description': 'User denied'})
-        response = hubspot_module.lambda_handler(event, None)
-        assert_status(response, 400)
         body = parse_body(response)
-        assert 'access_denied' in body['error']
+        assert body['status'] == 'private_app'
 
-    def test_callback_missing_code_returns_400(self, hubspot_module, mock_deps):
-        started, mock_conn, mock_cur = mock_deps
+    def test_get_access_token_returns_env_var(self, hubspot_module):
+        result = hubspot_module._get_access_token()
+        assert result == 'test-private-token'
 
-        event = make_event(method='GET', path='/hubspot/callback', query_params={})
-        response = hubspot_module.lambda_handler(event, None)
-        assert_status(response, 400)
-
-
-class TestTokenRefresh:
-    def test_refresh_exchanges_token(self, hubspot_module, mock_deps):
-        started, mock_conn, mock_cur = mock_deps
-
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            'access_token': 'new-access-token',
-            'refresh_token': 'new-refresh-token',
-            'expires_in': 1800,
-        }
-        mock_response.raise_for_status = MagicMock()
-        started['requests'].post.return_value = mock_response
-
-        result = hubspot_module._refresh_access_token(mock_conn, 'old-refresh-token')
-        assert result == 'new-access-token'
-
-        # Verify the refresh request
-        call_args = started['requests'].post.call_args
-        assert call_args[1]['data']['grant_type'] == 'refresh_token'
-        assert call_args[1]['data']['refresh_token'] == 'old-refresh-token'
-
-    def test_get_access_token_returns_cached_when_valid(self, hubspot_module, mock_deps):
-        started, mock_conn, mock_cur = mock_deps
-
-        # Mock: token exists and not expired
-        def config_side_effect(query, params):
-            key = params[0] if params else ''
-            if key == 'hubspot_token_expiry':
-                mock_cur.fetchone.return_value = (str(time.time() + 3600),)
-            elif key == 'hubspot_access_token':
-                mock_cur.fetchone.return_value = ('cached-token',)
-            else:
-                mock_cur.fetchone.return_value = None
-
-        mock_cur.execute.side_effect = config_side_effect
-        # decrypt pass-through
-        with patch.object(hubspot_module, 'decrypt', side_effect=lambda x: x):
-            result = hubspot_module._get_access_token(mock_conn)
-            assert result == 'cached-token'
+    def test_get_access_token_returns_none_when_empty(self, hubspot_module):
+        with patch.object(hubspot_module, 'HUBSPOT_PRIVATE_TOKEN', ''):
+            result = hubspot_module._get_access_token()
+            assert result is None
 
 
 class TestSyncPush:
@@ -386,7 +306,7 @@ class TestPartnerAssociation:
         assert props['xo_record_type'] == 'partner'
         assert props['name'] == 'Test Partner'
         assert props['website'] == 'testpartner.com'
-        assert props['industry'] == 'Consulting'
+        assert props['xo_industry'] == 'Consulting'
         assert props['description'] == 'A partner org'
         assert props['xo_nda_signed'] == 'true'
         assert props['xo_status'] == 'active'
@@ -517,40 +437,29 @@ class TestFieldMapping:
 
 
 class TestStatus:
-    def test_status_disconnected(self, hubspot_module, mock_deps):
+    def test_status_disconnected_when_no_token(self, hubspot_module, mock_deps):
+        started, mock_conn, mock_cur = mock_deps
+        started['require_auth'].return_value = (ADMIN_USER, None)
+
+        with patch.object(hubspot_module, 'HUBSPOT_PRIVATE_TOKEN', ''):
+            event = make_event(method='GET', path='/hubspot/status')
+            response = hubspot_module.lambda_handler(event, None)
+            assert_status(response, 200)
+            body = parse_body(response)
+            assert body['connected'] is False
+
+    def test_status_connected_with_valid_token(self, hubspot_module, mock_deps):
         started, mock_conn, mock_cur = mock_deps
         started['require_auth'].return_value = (ADMIN_USER, None)
         mock_cur.fetchone.return_value = None
 
-        event = make_event(method='GET', path='/hubspot/status')
-        response = hubspot_module.lambda_handler(event, None)
-        assert_status(response, 200)
-        body = parse_body(response)
-        assert body['connected'] is False
-
-    def test_status_connected(self, hubspot_module, mock_deps):
-        started, mock_conn, mock_cur = mock_deps
-        started['require_auth'].return_value = (ADMIN_USER, None)
-
-        def config_side_effect(query, params):
-            key = params[0] if params else ''
-            if key == 'hubspot_refresh_token':
-                mock_cur.fetchone.return_value = ('encrypted-refresh-token',)
-            elif key == 'hubspot_last_full_sync':
-                mock_cur.fetchone.return_value = ('2026-03-28T10:00:00',)
-            elif key == 'hubspot_intellagentic_company_id':
-                mock_cur.fetchone.return_value = ('hs-master-123',)
-            else:
-                mock_cur.fetchone.return_value = None
-
-        mock_cur.execute.side_effect = config_side_effect
-
-        with patch.object(hubspot_module, 'decrypt', side_effect=lambda x: x):
+        with patch.object(hubspot_module, '_hubspot_api', return_value={'results': []}):
             event = make_event(method='GET', path='/hubspot/status')
             response = hubspot_module.lambda_handler(event, None)
             assert_status(response, 200)
             body = parse_body(response)
             assert body['connected'] is True
+            assert body['auth_type'] == 'private_app'
 
 
 class TestRouting:
@@ -824,7 +733,7 @@ class TestSyncLogging:
         hs_props = {
             'name': 'HS Name',
             'website': 'https://same.com',
-            'industry': 'Tech',
+            'xo_industry': 'Tech',
             'description': 'New desc',
             'xo_future_plans': '',
             'xo_status': 'active',

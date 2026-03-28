@@ -1,6 +1,6 @@
 """
 XO Platform - HubSpot Bi-directional Sync Lambda
-OAuth 2.1 connection, push/pull sync between XO Capture and HubSpot CRM.
+Private App token auth, push/pull sync between XO Capture and HubSpot CRM.
 Routes on HTTP method + path, same pattern as clients lambda.
 """
 
@@ -35,26 +35,20 @@ except ImportError:
 logger = logging.getLogger('xo.hubspot')
 logger.setLevel(logging.INFO)
 
-# ── HubSpot OAuth Config ──
-HUBSPOT_CLIENT_ID = os.environ.get('HUBSPOT_CLIENT_ID', '')
-HUBSPOT_CLIENT_SECRET = os.environ.get('HUBSPOT_CLIENT_SECRET', '')
-HUBSPOT_REDIRECT_URI = os.environ.get('HUBSPOT_REDIRECT_URI', 'https://xo.intellagentic.io/oauth/callback')
-HUBSPOT_AUTH_URL = 'https://mcp-eu1.hubspot.com/oauth/authorize/user'
-HUBSPOT_TOKEN_URL = 'https://api.hubapi.com/oauth/v1/token'
+# ── HubSpot Private App Config ──
+HUBSPOT_PRIVATE_TOKEN = os.environ.get('HUBSPOT_PRIVATE_TOKEN', '')
 HUBSPOT_API_BASE = 'https://api.hubapi.com'
-
-HUBSPOT_SCOPES = 'crm.objects.companies.read crm.objects.companies.write crm.objects.contacts.read crm.objects.contacts.write crm.schemas.companies.read crm.schemas.companies.write'
 
 # Field mapping: XO clients -> HubSpot Company standard properties
 FIELD_MAP_CLIENT_TO_COMPANY = {
     'company_name': 'name',
     'website_url': 'website',
-    'industry': 'industry',
     'description': 'description',
 }
 
-# Custom properties in HubSpot
+# Custom properties in HubSpot (XO field -> HS property name)
 CUSTOM_PROPS = {
+    'industry': 'xo_industry',
     'future_plans': 'xo_future_plans',
     'status': 'xo_status',
     'source': 'xo_source',
@@ -64,6 +58,54 @@ CUSTOM_PROPS = {
     'pain_points_json': 'xo_pain_points_json',
     'addresses_json': 'xo_addresses_json',
 }
+
+# Custom property definitions to auto-create in HubSpot
+CUSTOM_PROPERTY_DEFS = [
+    {'name': 'xo_record_type', 'label': 'XO Record Type', 'type': 'string', 'fieldType': 'text',
+     'groupName': 'companyinformation', 'description': 'XO Capture record type (client or partner)'},
+    {'name': 'xo_client_id', 'label': 'XO Client ID', 'type': 'string', 'fieldType': 'text',
+     'groupName': 'companyinformation', 'description': 'XO Capture UUID back-reference'},
+    {'name': 'xo_industry', 'label': 'XO Industry', 'type': 'string', 'fieldType': 'text',
+     'groupName': 'companyinformation', 'description': 'Industry/vertical (free text from XO Capture)'},
+    {'name': 'xo_status', 'label': 'XO Status', 'type': 'string', 'fieldType': 'text',
+     'groupName': 'companyinformation', 'description': 'Client status in XO Capture'},
+    {'name': 'xo_source', 'label': 'XO Source', 'type': 'string', 'fieldType': 'text',
+     'groupName': 'companyinformation', 'description': 'Client source (invite, manual, etc.)'},
+    {'name': 'xo_nda_signed', 'label': 'XO NDA Signed', 'type': 'enumeration', 'fieldType': 'booleancheckbox',
+     'groupName': 'companyinformation', 'description': 'NDA signed status',
+     'options': [{'label': 'True', 'value': 'true'}, {'label': 'False', 'value': 'false'}]},
+    {'name': 'xo_nda_signed_at', 'label': 'XO NDA Signed At', 'type': 'datetime', 'fieldType': 'date',
+     'groupName': 'companyinformation', 'description': 'When NDA was signed'},
+    {'name': 'xo_intellagentic_lead', 'label': 'XO Intellagentic Lead', 'type': 'enumeration', 'fieldType': 'booleancheckbox',
+     'groupName': 'companyinformation', 'description': 'Intellagentic lead flag',
+     'options': [{'label': 'True', 'value': 'true'}, {'label': 'False', 'value': 'false'}]},
+    {'name': 'xo_future_plans', 'label': 'XO Future Plans', 'type': 'string', 'fieldType': 'textarea',
+     'groupName': 'companyinformation', 'description': 'Client future plans'},
+    {'name': 'xo_pain_points_json', 'label': 'XO Pain Points', 'type': 'string', 'fieldType': 'textarea',
+     'groupName': 'companyinformation', 'description': 'JSON array of pain points'},
+    {'name': 'xo_addresses_json', 'label': 'XO Addresses', 'type': 'string', 'fieldType': 'textarea',
+     'groupName': 'companyinformation', 'description': 'JSON array of addresses'},
+]
+
+_properties_ensured = False
+
+def _ensure_custom_properties(access_token):
+    """Create custom HubSpot company properties if they don't exist. Runs once per container."""
+    global _properties_ensured
+    if _properties_ensured:
+        return
+    for prop_def in CUSTOM_PROPERTY_DEFS:
+        try:
+            _hubspot_api('POST', '/crm/v3/properties/companies', access_token, json_body=prop_def)
+            logger.info("Created HubSpot property: %s", prop_def['name'])
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 409:
+                pass  # Already exists
+            else:
+                logger.warning("Failed to create property %s: %s", prop_def['name'], e)
+        except Exception as e:
+            logger.warning("Failed to create property %s: %s", prop_def['name'], e)
+    _properties_ensured = True
 
 
 # ── Auto-migration: add HubSpot columns ──
@@ -160,7 +202,7 @@ def _log_sync(conn, record_type, record_id, hubspot_id, direction, fields_update
 SYNC_COMPARE_FIELDS = {
     'company_name': 'name',
     'website_url': 'website',
-    'industry': 'industry',
+    'industry': 'xo_industry',
     'description': 'description',
     'future_plans': 'xo_future_plans',
     'status': 'xo_status',
@@ -239,55 +281,9 @@ def _detect_field_conflicts(xo_record, hs_props, client_key=None):
 
 # ── HubSpot Token Management ──
 
-def _get_access_token(conn):
-    """Get a valid HubSpot access token, refreshing if expired."""
-    expiry_str = _get_config(conn, 'hubspot_token_expiry')
-    access_token_enc = _get_config(conn, 'hubspot_access_token')
-
-    if access_token_enc and expiry_str:
-        try:
-            expiry = float(expiry_str)
-            if time.time() < expiry - 60:  # 60s buffer
-                return decrypt(access_token_enc)
-        except (ValueError, TypeError):
-            pass
-
-    # Need to refresh
-    refresh_token_enc = _get_config(conn, 'hubspot_refresh_token')
-    if not refresh_token_enc:
-        return None
-
-    refresh_token = decrypt(refresh_token_enc)
-    new_token = _refresh_access_token(conn, refresh_token)
-    return new_token
-
-
-def _refresh_access_token(conn, refresh_token):
-    """Exchange refresh token for new access token."""
-    try:
-        resp = requests.post(HUBSPOT_TOKEN_URL, data={
-            'grant_type': 'refresh_token',
-            'client_id': HUBSPOT_CLIENT_ID,
-            'client_secret': HUBSPOT_CLIENT_SECRET,
-            'refresh_token': refresh_token,
-        }, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-
-        access_token = data['access_token']
-        expires_in = data.get('expires_in', 1800)
-        new_refresh = data.get('refresh_token', refresh_token)
-
-        # Store encrypted
-        _set_config(conn, 'hubspot_access_token', encrypt(access_token))
-        _set_config(conn, 'hubspot_refresh_token', encrypt(new_refresh))
-        _set_config(conn, 'hubspot_token_expiry', str(time.time() + expires_in))
-
-        logger.info("HubSpot access token refreshed, expires_in=%s", expires_in)
-        return access_token
-    except Exception as e:
-        logger.error("Failed to refresh HubSpot token: %s", e)
-        return None
+def _get_access_token(conn=None):
+    """Return the HubSpot Private App bearer token from env var."""
+    return HUBSPOT_PRIVATE_TOKEN or None
 
 
 def _hubspot_api(method, path, access_token, json_body=None, params=None):
@@ -298,7 +294,10 @@ def _hubspot_api(method, path, access_token, json_body=None, params=None):
         'Content-Type': 'application/json',
     }
     resp = requests.request(method, url, headers=headers, json=json_body, params=params, timeout=30)
-    resp.raise_for_status()
+    if not resp.ok:
+        error_body = resp.text[:1000] if resp.text else '(empty)'
+        logger.error("HubSpot API %s %s -> %s: %s", method, path, resp.status_code, error_body)
+        resp.raise_for_status()
     return resp.json() if resp.content else {}
 
 
@@ -438,7 +437,7 @@ def _build_company_properties(record, record_type, client_key=None):
 
     industry = _decrypt_field(client_key, record.get('industry', ''))
     if industry:
-        props['industry'] = industry
+        props['xo_industry'] = industry
 
     description = _decrypt_field(client_key, record.get('description', ''))
     if description:
@@ -460,7 +459,16 @@ def _build_company_properties(record, record_type, client_key=None):
 
     if 'nda_signed_at' in record and record['nda_signed_at']:
         nda_at = record['nda_signed_at']
-        props['xo_nda_signed_at'] = nda_at.isoformat() if hasattr(nda_at, 'isoformat') else str(nda_at)
+        # HubSpot datetime properties expect Unix epoch milliseconds
+        if hasattr(nda_at, 'timestamp'):
+            props['xo_nda_signed_at'] = str(int(nda_at.timestamp() * 1000))
+        else:
+            try:
+                from datetime import datetime as _dt
+                parsed = _dt.fromisoformat(str(nda_at).replace('Z', '+00:00'))
+                props['xo_nda_signed_at'] = str(int(parsed.timestamp() * 1000))
+            except (ValueError, TypeError):
+                pass  # Skip if unparseable
 
     if 'intellagentic_lead' in record and record['intellagentic_lead'] is not None:
         props['xo_intellagentic_lead'] = str(record['intellagentic_lead']).lower()
@@ -698,7 +706,7 @@ def _pull_companies(access_token, conn, record_type='client'):
         while True:
             params = {
                 'limit': 100,
-                'properties': 'name,website,industry,description,'
+                'properties': 'name,website,description,xo_industry,'
                               'xo_client_id,xo_record_type,xo_status,xo_source,'
                               'xo_nda_signed,xo_nda_signed_at,xo_intellagentic_lead,'
                               'xo_future_plans,xo_pain_points_json,xo_addresses_json,'
@@ -752,7 +760,7 @@ def _apply_hs_to_xo_update(cur, hs_id, xo_id, props, where_clause, where_params)
     """Apply HubSpot property values to an XO client record (pull update)."""
     name = props.get('name', '')
     website = props.get('website', '')
-    industry = props.get('industry', '')
+    industry = props.get('xo_industry', '')
     description = props.get('description', '')
     status = props.get('xo_status', '')
     source = props.get('xo_source', '')
@@ -831,7 +839,7 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
                                      hubspot_company_id, hubspot_last_sync)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                 RETURNING id
-            """, (name, website, props.get('industry', ''), props.get('description', ''),
+            """, (name, website, props.get('xo_industry', ''), props.get('description', ''),
                   props.get('xo_future_plans', ''), status_val, props.get('xo_source', ''),
                   nda_bool, lead_bool, props.get('xo_pain_points_json', ''),
                   props.get('xo_addresses_json', ''), s3_folder, hs_id))
@@ -1007,138 +1015,71 @@ def _pull_contacts_for_company(access_token, conn, hs_company_id, xo_client_id):
 # ── Route Handlers ──
 
 def handle_connect(event, user):
-    """POST /hubspot/connect — Initiate OAuth flow, return authorization URL with PKCE."""
-    import base64
-    code_verifier = secrets.token_urlsafe(64)
-    code_challenge = hashlib.sha256(code_verifier.encode('ascii')).digest()
-    code_challenge_b64 = base64.urlsafe_b64encode(code_challenge).rstrip(b'=').decode('ascii')
-
-    # Store code_verifier in system_config for the callback
-    conn = get_db_connection()
-    _set_config(conn, 'hubspot_pkce_verifier', encrypt(code_verifier))
-    conn.close()
-
-    params = {
-        'client_id': HUBSPOT_CLIENT_ID,
-        'redirect_uri': HUBSPOT_REDIRECT_URI,
-        'scope': HUBSPOT_SCOPES,
-        'response_type': 'code',
-        'code_challenge': code_challenge_b64,
-        'code_challenge_method': 'S256',
-    }
-    auth_url = f"{HUBSPOT_AUTH_URL}?{urllib.parse.urlencode(params)}"
-
+    """POST /hubspot/connect — Private App tokens are configured server-side."""
     return {
         'statusCode': 200,
         'headers': CORS_HEADERS,
         'body': json.dumps({
-            'authorization_url': auth_url,
-            'status': 'redirect_required',
+            'status': 'private_app',
+            'message': 'HubSpot integration uses a Private App token configured server-side. No OAuth flow required.',
+            'connected': bool(HUBSPOT_PRIVATE_TOKEN),
         })
     }
 
 
 def handle_callback(event):
-    """GET /hubspot/callback — OAuth callback, exchange code for tokens."""
-    query = event.get('queryStringParameters') or {}
-    code = query.get('code', '')
-    error = query.get('error', '')
-
-    if error:
-        logger.error("HubSpot OAuth error: %s - %s", error, query.get('error_description', ''))
-        return {
-            'statusCode': 400,
-            'headers': CORS_HEADERS,
-            'body': json.dumps({'error': f'HubSpot OAuth error: {error}'})
-        }
-
-    if not code:
-        return {
-            'statusCode': 400,
-            'headers': CORS_HEADERS,
-            'body': json.dumps({'error': 'Missing authorization code'})
-        }
-
-    conn = get_db_connection()
-    try:
-        # Retrieve PKCE verifier
-        verifier_enc = _get_config(conn, 'hubspot_pkce_verifier')
-        code_verifier = decrypt(verifier_enc) if verifier_enc else None
-
-        # Exchange code for tokens
-        token_data = {
-            'grant_type': 'authorization_code',
-            'client_id': HUBSPOT_CLIENT_ID,
-            'client_secret': HUBSPOT_CLIENT_SECRET,
-            'redirect_uri': HUBSPOT_REDIRECT_URI,
-            'code': code,
-        }
-        if code_verifier:
-            token_data['code_verifier'] = code_verifier
-
-        resp = requests.post(HUBSPOT_TOKEN_URL, data=token_data, timeout=30)
-        resp.raise_for_status()
-        tokens = resp.json()
-
-        access_token = tokens['access_token']
-        refresh_token = tokens['refresh_token']
-        expires_in = tokens.get('expires_in', 1800)
-
-        # Store encrypted
-        _set_config(conn, 'hubspot_access_token', encrypt(access_token))
-        _set_config(conn, 'hubspot_refresh_token', encrypt(refresh_token))
-        _set_config(conn, 'hubspot_token_expiry', str(time.time() + expires_in))
-
-        # Clean up PKCE verifier
-        _set_config(conn, 'hubspot_pkce_verifier', '')
-
-        logger.info("HubSpot OAuth connected successfully")
-
-        return {
-            'statusCode': 200,
-            'headers': CORS_HEADERS,
-            'body': json.dumps({
-                'status': 'connected',
-                'message': 'HubSpot connected successfully',
-            })
-        }
-    except requests.exceptions.HTTPError as e:
-        error_body = e.response.text if e.response else str(e)
-        logger.error("HubSpot token exchange failed: %s", error_body)
-        return {
-            'statusCode': 502,
-            'headers': CORS_HEADERS,
-            'body': json.dumps({'error': f'HubSpot token exchange failed: {error_body}'})
-        }
-    except Exception as e:
-        logger.error("HubSpot callback error: %s", e)
-        return {
-            'statusCode': 500,
-            'headers': CORS_HEADERS,
-            'body': json.dumps({'error': f'Internal error: {str(e)}'})
-        }
-    finally:
-        conn.close()
+    """GET /hubspot/callback — Not used with Private App auth."""
+    return {
+        'statusCode': 200,
+        'headers': CORS_HEADERS,
+        'body': json.dumps({
+            'status': 'private_app',
+            'message': 'HubSpot integration uses a Private App token. OAuth callback is not required.',
+        })
+    }
 
 
 def handle_status(event, user):
-    """GET /hubspot/status — Return connection status."""
-    conn = get_db_connection()
-    try:
-        refresh_enc = _get_config(conn, 'hubspot_refresh_token')
-        last_sync = _get_config(conn, 'hubspot_last_full_sync')
-        intellagentic_id = _get_config(conn, 'hubspot_intellagentic_company_id')
-
-        connected = bool(refresh_enc and decrypt(refresh_enc))
-
+    """GET /hubspot/status — Check connectivity with a test read against HubSpot."""
+    token = _get_access_token()
+    if not token:
         return {
             'statusCode': 200,
             'headers': CORS_HEADERS,
             'body': json.dumps({
-                'connected': connected,
-                'last_sync': last_sync,
-                'intellagentic_company_id': intellagentic_id,
+                'connected': False,
+                'last_sync': None,
+                'error': 'HUBSPOT_PRIVATE_TOKEN env var not set',
             })
+        }
+
+    # Test connectivity with a lightweight read
+    connected = False
+    error_msg = None
+    try:
+        resp = _hubspot_api('GET', '/crm/v3/objects/companies', token, params={'limit': 1})
+        connected = True
+    except Exception as e:
+        error_msg = str(e)
+
+    conn = get_db_connection()
+    try:
+        last_sync = _get_config(conn, 'hubspot_last_full_sync')
+        intellagentic_id = _get_config(conn, 'hubspot_intellagentic_company_id')
+
+        result = {
+            'connected': connected,
+            'auth_type': 'private_app',
+            'last_sync': last_sync,
+            'intellagentic_company_id': intellagentic_id,
+        }
+        if error_msg:
+            result['error'] = error_msg
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps(result)
         }
     finally:
         conn.close()
@@ -1148,13 +1089,16 @@ def handle_sync(event, user):
     """POST /hubspot/sync — Full bi-directional sync."""
     conn = get_db_connection()
     try:
-        access_token = _get_access_token(conn)
+        access_token = _get_access_token()
         if not access_token:
             return {
                 'statusCode': 401,
                 'headers': CORS_HEADERS,
-                'body': json.dumps({'error': 'HubSpot not connected or token expired'})
+                'body': json.dumps({'error': 'HUBSPOT_PRIVATE_TOKEN not configured'})
             }
+
+        # Ensure custom properties exist in HubSpot
+        _ensure_custom_properties(access_token)
 
         intellagentic_company_id = _get_config(conn, 'hubspot_intellagentic_company_id')
 
@@ -1288,7 +1232,7 @@ def handle_sync_push(event, user):
                 'body': json.dumps({'error': 'client_id is required'})
             }
 
-        access_token = _get_access_token(conn)
+        access_token = _get_access_token()
         if not access_token:
             return {
                 'statusCode': 401,
@@ -1386,7 +1330,7 @@ def handle_sync_pull(event, user):
                 'body': json.dumps({'error': 'hubspot_company_id is required'})
             }
 
-        access_token = _get_access_token(conn)
+        access_token = _get_access_token()
         if not access_token:
             return {
                 'statusCode': 401,
@@ -1396,7 +1340,7 @@ def handle_sync_pull(event, user):
 
         # Fetch company from HubSpot
         company = _hubspot_api('GET', f'/crm/v3/objects/companies/{hubspot_company_id}', access_token,
-                               params={'properties': 'name,website,industry,description,'
+                               params={'properties': 'name,website,description,xo_industry,'
                                                       'xo_client_id,xo_record_type,xo_status,xo_source,'
                                                       'xo_nda_signed,xo_nda_signed_at,xo_intellagentic_lead,'
                                                       'xo_future_plans,xo_pain_points_json,xo_addresses_json,'
@@ -1526,7 +1470,7 @@ def handle_resolve_conflict(event, user):
 
         if winner == 'hubspot':
             # Fetch fresh HubSpot data and apply to XO
-            access_token = _get_access_token(conn)
+            access_token = _get_access_token()
             if not access_token:
                 cur.close()
                 return {
@@ -1536,7 +1480,7 @@ def handle_resolve_conflict(event, user):
                 }
 
             company = _hubspot_api('GET', f'/crm/v3/objects/companies/{hubspot_id}', access_token,
-                                   params={'properties': 'name,website,industry,description,'
+                                   params={'properties': 'name,website,description,xo_industry,'
                                                           'xo_client_id,xo_record_type,xo_status,xo_source,'
                                                           'xo_nda_signed,xo_nda_signed_at,xo_intellagentic_lead,'
                                                           'xo_future_plans,xo_pain_points_json,xo_addresses_json'})
@@ -1549,7 +1493,7 @@ def handle_resolve_conflict(event, user):
 
         elif winner == 'xo':
             # Push XO values to HubSpot
-            access_token = _get_access_token(conn)
+            access_token = _get_access_token()
             if not access_token:
                 cur.close()
                 return {
@@ -1615,7 +1559,7 @@ def handle_mapping(event, user):
         'client_to_company': {
             'company_name': 'name (HubSpot Company name)',
             'website_url': 'website (HubSpot Company website)',
-            'industry': 'industry (HubSpot Company industry)',
+            'industry': 'xo_industry (custom text, free-form)',
             'description': 'description (HubSpot Company description)',
             'future_plans': 'xo_future_plans (custom text)',
             'status': 'xo_status (custom)',
