@@ -317,27 +317,53 @@ def _get_client_key_by_id(cur, db_client_id):
 
 # ── Dedup Logic ──
 
+def _normalize_domain(url):
+    """Normalize a URL/domain for dedup comparison.
+    Lowercase, strip protocol, www prefix, trailing slashes, and path."""
+    if not url:
+        return ''
+    d = url.lower().strip()
+    for prefix in ('https://', 'http://'):
+        if d.startswith(prefix):
+            d = d[len(prefix):]
+            break
+    if d.startswith('www.'):
+        d = d[4:]
+    # Strip path and trailing slashes
+    d = d.split('/')[0].rstrip('.')
+    return d
+
+
 def _find_hubspot_company(access_token, domain=None, company_name=None):
-    """Search HubSpot for existing company by domain (exact) or name (fuzzy)."""
-    # Try domain match first
-    if domain:
-        try:
-            resp = _hubspot_api('POST', '/crm/v3/objects/companies/search', access_token, json_body={
-                'filterGroups': [{
-                    'filters': [{
-                        'propertyName': 'domain',
-                        'operator': 'EQ',
-                        'value': domain,
-                    }]
-                }],
-                'properties': ['name', 'domain', 'xo_client_id', 'xo_record_type'],
-                'limit': 1,
-            })
-            results = resp.get('results', [])
-            if results:
-                return results[0]
-        except Exception as e:
-            logger.warning("HubSpot domain search failed: %s", e)
+    """Search HubSpot for existing company by domain (exact) or name (fuzzy).
+    Domain is normalized before search — also searches the website property."""
+    normalized = _normalize_domain(domain)
+
+    # Try domain/website match first
+    if normalized:
+        # Search both 'domain' and 'website' properties
+        for prop_name in ('domain', 'website'):
+            try:
+                resp = _hubspot_api('POST', '/crm/v3/objects/companies/search', access_token, json_body={
+                    'filterGroups': [{
+                        'filters': [{
+                            'propertyName': prop_name,
+                            'operator': 'CONTAINS_TOKEN',
+                            'value': normalized,
+                        }]
+                    }],
+                    'properties': ['name', 'domain', 'website', 'xo_client_id', 'xo_record_type'],
+                    'limit': 10,
+                })
+                results = resp.get('results', [])
+                for r in results:
+                    rp = r.get('properties', {})
+                    hs_domain = _normalize_domain(rp.get('domain', ''))
+                    hs_website = _normalize_domain(rp.get('website', ''))
+                    if normalized == hs_domain or normalized == hs_website:
+                        return r
+            except Exception as e:
+                logger.warning("HubSpot %s search failed: %s", prop_name, e)
 
     # Fall back to company name fuzzy match
     if company_name:
@@ -350,7 +376,7 @@ def _find_hubspot_company(access_token, domain=None, company_name=None):
                         'value': company_name,
                     }]
                 }],
-                'properties': ['name', 'domain', 'xo_client_id', 'xo_record_type'],
+                'properties': ['name', 'domain', 'website', 'xo_client_id', 'xo_record_type'],
                 'limit': 5,
             })
             results = resp.get('results', [])

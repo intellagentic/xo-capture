@@ -250,35 +250,59 @@ class TestSyncPull:
 
 
 class TestDedupLogic:
+    def test_normalize_domain(self, hubspot_module):
+        n = hubspot_module._normalize_domain
+        assert n('https://www.Example.com/') == 'example.com'
+        assert n('http://example.com') == 'example.com'
+        assert n('HTTP://WWW.EXAMPLE.COM/path/page') == 'example.com'
+        assert n('www.example.com') == 'example.com'
+        assert n('example.com/') == 'example.com'
+        assert n('https://elkor.uk/') == 'elkor.uk'
+        assert n('www.Intellagentic.io') == 'intellagentic.io'
+        assert n('') == ''
+        assert n(None) == ''
+
     def test_dedup_matches_on_domain(self, hubspot_module, mock_deps):
         started, mock_conn, mock_cur = mock_deps
 
         with patch.object(hubspot_module, '_hubspot_api') as mock_api:
             mock_api.return_value = {
-                'results': [{'id': 'hs-existing-1', 'properties': {'name': 'Match Co', 'domain': 'match.com'}}]
+                'results': [{'id': 'hs-existing-1', 'properties': {'name': 'Match Co', 'domain': 'match.com', 'website': ''}}]
             }
-            result = hubspot_module._find_hubspot_company('test-token', domain='match.com')
+            result = hubspot_module._find_hubspot_company('test-token', domain='https://www.Match.com/')
             assert result is not None
             assert result['id'] == 'hs-existing-1'
+
+    def test_dedup_matches_website_with_different_format(self, hubspot_module, mock_deps):
+        started, mock_conn, mock_cur = mock_deps
+
+        with patch.object(hubspot_module, '_hubspot_api') as mock_api:
+            # First call (domain property search) returns no match, second (website) returns match
+            mock_api.side_effect = [
+                {'results': []},
+                {'results': [{'id': 'hs-web-1', 'properties': {'name': 'Web Co', 'domain': '', 'website': 'https://WWW.webco.com/about'}}]},
+            ]
+            result = hubspot_module._find_hubspot_company('test-token', domain='http://webco.com')
+            assert result is not None
+            assert result['id'] == 'hs-web-1'
 
     def test_dedup_falls_back_to_name(self, hubspot_module, mock_deps):
         started, mock_conn, mock_cur = mock_deps
 
-        call_count = [0]
-
-        def api_side_effect(*args, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                # Domain search returns empty
+        with patch.object(hubspot_module, '_hubspot_api', return_value={'results': []}):
+            # All domain/website searches return empty, then name search
+            def api_side_effect(*args, **kwargs):
+                body = kwargs.get('json_body') or (args[3] if len(args) > 3 else None)
+                if body and 'filterGroups' in body:
+                    filters = body['filterGroups'][0]['filters']
+                    if filters[0]['propertyName'] == 'name':
+                        return {'results': [{'id': 'hs-name-match', 'properties': {'name': 'Acme Corp', 'domain': '', 'website': ''}}]}
                 return {'results': []}
-            else:
-                # Name search returns match
-                return {'results': [{'id': 'hs-name-match', 'properties': {'name': 'Acme Corp'}}]}
 
-        with patch.object(hubspot_module, '_hubspot_api', side_effect=api_side_effect):
-            result = hubspot_module._find_hubspot_company('test-token', domain='nope.com', company_name='Acme Corp')
-            assert result is not None
-            assert result['id'] == 'hs-name-match'
+            with patch.object(hubspot_module, '_hubspot_api', side_effect=api_side_effect):
+                result = hubspot_module._find_hubspot_company('test-token', domain='nope.com', company_name='Acme Corp')
+                assert result is not None
+                assert result['id'] == 'hs-name-match'
 
     def test_dedup_returns_none_when_no_match(self, hubspot_module, mock_deps):
         started, mock_conn, mock_cur = mock_deps
