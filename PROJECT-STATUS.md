@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.94)
+**Status:** Deployed & Operational (v1.96)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3006,6 +3006,28 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Frontend: `?token=` URL parameter auto-validates and enters workspace, `ShareLinkModal` component
 - Share buttons on dashboard rows (ExternalLink icon) and workspace header for admins
 - API Gateway: `/auth/token` (POST) and `/auth/magic-link` (GET/POST/DELETE) resources added
+
+**v1.96 — HubSpot Frontend: OAuth Callback + Admin UI**
+- OAuth callback route: `/oauth/callback?code=` detected on page load, exchanges code via `GET /hubspot/callback`
+- Callback UI: loading spinner during token exchange, green checkmark on success with 3s auto-redirect, error display with back button on failure
+- HubSpot Integration panel in System Configuration (admin, dashboard mode) with Cloud icon
+- Connection status badge (green "Connected" / red "Disconnected") fetched from `GET /hubspot/status`
+- "Connect HubSpot" button (orange, HubSpot brand): calls `POST /hubspot/connect`, opens authorization URL in new tab
+- "Sync Now" button: triggers `POST /hubspot/sync`, displays push/pull counts and conflict warnings
+- Last sync timestamp displayed when connected
+- Build verified: `npx vite build` passes cleanly
+
+**v1.95 — Timestamp-based Conflict Resolution + Sync Logging**
+- New `hubspot_sync_log` table: tracks every sync action (push/pull/conflict) with field-level detail
+- Timestamp-based conflict resolution: compares `xo.updated_at` vs `hs.hs_lastmodifieddate` vs `hubspot_last_sync`
+- First sync (NULL last_sync): HubSpot is authoritative, overwrites XO values
+- Ongoing sync: only the side that changed since last sync wins; if neither changed, no-op
+- True conflict (both changed): neither side overwritten, conflict logged with both values for review
+- `GET /hubspot/conflicts` endpoint: returns unresolved conflicts from sync log
+- `POST /hubspot/conflicts/resolve` endpoint: accepts record_id + winner (xo|hubspot), applies winning values
+- `POST /hubspot/sync` response now includes `conflicts` array
+- 46 regression tests (up from 30): sync direction logic, first-sync, XO-wins, HS-wins, true conflict, resolve endpoint
+- Schema migration: `hubspot_sync_log` table with indexes on sync_direction and (record_type, record_id)
 
 **v1.94 — HubSpot Bi-directional Sync Lambda**
 - New Lambda `xo-hubspot-sync` (eu-west-2) for bi-directional sync between XO Capture and HubSpot CRM
