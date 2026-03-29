@@ -1535,6 +1535,12 @@ export default function App() {
     return !!params.get('token')
   })
 
+  // HubSpot OAuth callback handling
+  const [hubspotCallbackLoading, setHubspotCallbackLoading] = useState(() => {
+    return window.location.pathname === '/oauth/callback' && !!new URLSearchParams(window.location.search).get('code')
+  })
+  const [hubspotCallbackResult, setHubspotCallbackResult] = useState(null) // { success, message }
+
   const handleLogin = (userData, token) => {
     setUser(userData)
     setAuthToken(token)
@@ -1679,6 +1685,43 @@ export default function App() {
       setMagicTokenLoading(false)
     }
     validateToken()
+  }, [])
+
+  // HubSpot OAuth callback — handle /oauth/callback?code=...
+  useEffect(() => {
+    if (window.location.pathname !== '/oauth/callback') return
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    const error = params.get('error')
+
+    if (error) {
+      setHubspotCallbackResult({ success: false, message: `HubSpot authorization denied: ${error}` })
+      setHubspotCallbackLoading(false)
+      return
+    }
+    if (!code) return
+
+    const exchangeCode = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/hubspot/callback?code=${encodeURIComponent(code)}`, {
+          headers: { 'Content-Type': 'application/json' }
+        })
+        const data = await res.json()
+        if (res.ok) {
+          setHubspotCallbackResult({ success: true, message: 'HubSpot connected successfully!' })
+          // Redirect to main app after 3 seconds
+          setTimeout(() => {
+            window.location.href = window.location.origin
+          }, 3000)
+        } else {
+          setHubspotCallbackResult({ success: false, message: data.error || 'Failed to connect HubSpot' })
+        }
+      } catch (err) {
+        setHubspotCallbackResult({ success: false, message: `Connection failed: ${err.message}` })
+      }
+      setHubspotCallbackLoading(false)
+    }
+    exchangeCode()
   }, [])
 
   // Custom buttons state - synced with PostgreSQL via API
@@ -1975,6 +2018,40 @@ export default function App() {
   }
 
   // Magic token loading gate
+  // HubSpot OAuth callback screen
+  if (hubspotCallbackLoading || hubspotCallbackResult) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg-primary, #fff)' }}>
+        <div style={{ textAlign: 'center', maxWidth: 400, padding: '2rem' }}>
+          {hubspotCallbackLoading && !hubspotCallbackResult && (
+            <>
+              <Loader2 size={40} style={{ animation: 'spin 1s linear infinite', color: '#dc2626', margin: '0 auto 1rem' }} />
+              <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: '0.9375rem' }}>Connecting to HubSpot...</p>
+            </>
+          )}
+          {hubspotCallbackResult?.success && (
+            <>
+              <CheckCircle size={48} style={{ color: '#22c55e', margin: '0 auto 1rem' }} />
+              <h2 style={{ color: 'var(--text-primary, #111)', fontSize: '1.25rem', marginBottom: '0.5rem' }}>{hubspotCallbackResult.message}</h2>
+              <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: '0.85rem' }}>Redirecting to dashboard...</p>
+            </>
+          )}
+          {hubspotCallbackResult && !hubspotCallbackResult.success && (
+            <>
+              <AlertCircle size={48} style={{ color: '#dc2626', margin: '0 auto 1rem' }} />
+              <h2 style={{ color: 'var(--text-primary, #111)', fontSize: '1.25rem', marginBottom: '0.5rem' }}>Connection Failed</h2>
+              <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: '0.85rem', marginBottom: '1rem' }}>{hubspotCallbackResult.message}</p>
+              <button
+                onClick={() => { window.location.href = window.location.origin }}
+                style={{ padding: '0.5rem 1.5rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer' }}
+              >Back to Dashboard</button>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   if (magicTokenLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg-primary, #fff)' }}>
@@ -6995,6 +7072,12 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
   const [sysEnrichmentUrl, setSysEnrichmentUrl] = useState('')
   const [sysEnrichmentSaving, setSysEnrichmentSaving] = useState(false)
   const [sysEnrichmentSaved, setSysEnrichmentSaved] = useState(false)
+  // HubSpot integration state
+  const [hubspotConnected, setHubspotConnected] = useState(false)
+  const [hubspotLastSync, setHubspotLastSync] = useState(null)
+  const [hubspotLoading, setHubspotLoading] = useState(false)
+  const [hubspotConnecting, setHubspotConnecting] = useState(false)
+  const [hubspotStatusLoaded, setHubspotStatusLoaded] = useState(false)
 
   useEffect(() => {
     if (inWorkspace && clientId) {
@@ -7020,6 +7103,17 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
         })
         .catch(() => {})
         .finally(() => setWebhookLoaded(true))
+      // Fetch HubSpot connection status
+      fetch(`${API_BASE}/hubspot/status`, { headers: getAuthHeaders() })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            setHubspotConnected(!!data.connected)
+            setHubspotLastSync(data.last_sync || null)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setHubspotStatusLoaded(true))
     } else {
       setWebhookLoaded(true)
     }
@@ -7572,6 +7666,121 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
               <p style={{ fontSize: '0.7rem', color: C.muted, marginTop: '0.625rem', lineHeight: 1.4 }}>
                 Per-client settings (in client Configuration) override these system defaults.
               </p>
+            </div>
+          </div>
+
+          {/* ── HubSpot Integration ── */}
+          <div className="panel" style={{ marginTop: '1rem' }}>
+            <div className="panel-header">
+              <div className="panel-header-left">
+                <Cloud size={20} className="icon-red" />
+                <h2>HubSpot Integration</h2>
+              </div>
+              {hubspotStatusLoaded && (
+                <span style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: 12,
+                  background: hubspotConnected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(220, 38, 38, 0.1)',
+                  color: hubspotConnected ? '#22c55e' : '#dc2626',
+                }}>
+                  {hubspotConnected ? 'Connected' : 'Disconnected'}
+                </span>
+              )}
+            </div>
+            <div style={{ padding: '1.25rem' }}>
+              <p style={{ fontSize: '0.75rem', color: C.muted, marginBottom: '0.75rem', lineHeight: 1.4 }}>
+                Bi-directional sync between XO Capture and HubSpot CRM. Companies, contacts, and enrichment data are synced automatically.
+              </p>
+
+              {!hubspotConnected && (
+                <button
+                  onClick={async () => {
+                    setHubspotConnecting(true)
+                    try {
+                      const res = await fetch(`${API_BASE}/hubspot/connect`, {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                      })
+                      const data = await res.json()
+                      if (res.ok && data.authorization_url) {
+                        window.open(data.authorization_url, '_blank')
+                      } else {
+                        alert(data.error || 'Failed to initiate HubSpot connection')
+                      }
+                    } catch (err) {
+                      alert('Failed to connect: ' + err.message)
+                    }
+                    setHubspotConnecting(false)
+                  }}
+                  disabled={hubspotConnecting}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    padding: '0.625rem 1.25rem',
+                    background: '#ff7a59', color: '#fff',
+                    border: 'none', borderRadius: 8, fontSize: '0.85rem',
+                    fontWeight: 600, cursor: hubspotConnecting ? 'wait' : 'pointer',
+                    opacity: hubspotConnecting ? 0.7 : 1,
+                  }}
+                >
+                  {hubspotConnecting ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Link size={16} />}
+                  {hubspotConnecting ? 'Connecting...' : 'Connect HubSpot'}
+                </button>
+              )}
+
+              {hubspotConnected && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {hubspotLastSync && (
+                    <div style={{
+                      padding: '0.5rem 0.75rem',
+                      background: `${C.muted}10`,
+                      borderRadius: 8,
+                      border: `1px solid ${C.border}`,
+                      fontSize: '0.75rem', color: C.muted,
+                    }}>
+                      <span style={{ fontWeight: 600 }}>Last sync:</span>{' '}
+                      {new Date(hubspotLastSync).toLocaleString()}
+                    </div>
+                  )}
+                  <button
+                    onClick={async () => {
+                      setHubspotLoading(true)
+                      try {
+                        const res = await fetch(`${API_BASE}/hubspot/sync`, {
+                          method: 'POST',
+                          headers: getAuthHeaders(),
+                        })
+                        const data = await res.json()
+                        if (res.ok) {
+                          setHubspotLastSync(data.last_sync)
+                          const conflicts = data.conflicts || []
+                          const msg = `Sync complete. Pushed: ${data.pushed?.clients || 0} clients, ${data.pushed?.partners || 0} partners. Pulled: ${data.pulled?.clients_created || 0} new, ${data.pulled?.clients_updated || 0} updated.` +
+                            (conflicts.length > 0 ? `\n${conflicts.length} conflict(s) need review.` : '')
+                          alert(msg)
+                        } else {
+                          alert(data.error || 'Sync failed')
+                        }
+                      } catch (err) {
+                        alert('Sync failed: ' + err.message)
+                      }
+                      setHubspotLoading(false)
+                    }}
+                    disabled={hubspotLoading}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.5rem',
+                      padding: '0.625rem 1.25rem',
+                      background: '#ff7a59', color: '#fff',
+                      border: 'none', borderRadius: 8, fontSize: '0.85rem',
+                      fontWeight: 600, cursor: hubspotLoading ? 'wait' : 'pointer',
+                      opacity: hubspotLoading ? 0.7 : 1, alignSelf: 'flex-start',
+                    }}
+                  >
+                    {hubspotLoading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={16} />}
+                    {hubspotLoading ? 'Syncing...' : 'Sync Now'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

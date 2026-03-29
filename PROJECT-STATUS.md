@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v1.93)
+**Status:** Deployed & Operational (v1.98)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3006,6 +3006,71 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Frontend: `?token=` URL parameter auto-validates and enters workspace, `ShareLinkModal` component
 - Share buttons on dashboard rows (ExternalLink icon) and workspace header for admins
 - API Gateway: `/auth/token` (POST) and `/auth/magic-link` (GET/POST/DELETE) resources added
+
+**v1.94–v1.98 — HubSpot CRM Bi-directional Sync (complete integration)**
+
+Backend Lambda (`xo-hubspot-sync`, eu-west-2, Python 3.11, 60s timeout):
+- Private App bearer token auth via `HUBSPOT_PRIVATE_TOKEN` env var (replaced initial OAuth 2.1 approach after scope issues)
+- 12 custom HubSpot Company properties auto-created on first sync: xo_record_type, xo_client_id, xo_industry, xo_status, xo_source, xo_nda_signed, xo_nda_signed_at, xo_intellagentic_lead, xo_future_plans, xo_pain_points_json, xo_addresses_json, xo_sync_enabled
+- Industry mapped to `xo_industry` custom text property (HubSpot's native `industry` field is an enum that rejects free-text)
+- DateTime fields (nda_signed_at) sent as Unix epoch milliseconds per HubSpot API requirements
+
+API routes (10 endpoints on API Gateway `odvopohlp3`, all with CORS OPTIONS):
+- `POST /hubspot/connect` — returns Private App status message
+- `GET /hubspot/callback` — returns Private App status message (OAuth no longer needed)
+- `GET /hubspot/status` — live connectivity test via HubSpot read, returns auth_type + last_sync
+- `POST /hubspot/sync` — full bi-directional sync with push + pull + conflict detection
+- `POST /hubspot/sync/push` — push single client to HubSpot
+- `POST /hubspot/sync/pull` — pull single company from HubSpot into XO
+- `GET /hubspot/mapping` — returns full field mapping + pull behavior documentation
+- `GET /hubspot/conflicts` — returns unresolved sync conflicts
+- `POST /hubspot/conflicts/resolve` — resolves conflict by choosing XO or HubSpot as winner
+- `POST /hubspot/webhook?secret=xxx` — pull-only sync triggered by external webhook (no JWT, shared secret auth)
+
+Push (XO Capture → HubSpot):
+- company_name→name, website_url→website, description→description
+- Custom properties: xo_industry, xo_future_plans, xo_status, xo_source, xo_nda_signed, xo_nda_signed_at, xo_intellagentic_lead, xo_pain_points_json, xo_addresses_json
+- contacts_json → multiple HubSpot Contacts associated to Company
+- addresses_json → xo_addresses_json custom property + HubSpot standard address fields from primary address
+- partner_id → Company-to-Company association with partner's HubSpot Company record
+- Enrichment results (summary, bottom_line) → HubSpot Note on Company
+
+Pull (HubSpot → XO Capture):
+- Tag-based: only creates new XO client records for companies with `xo_sync_enabled=true` checkbox
+- Existing linked records (with xo_client_id) continue syncing normally regardless of checkbox
+- All contacts pulled into contacts_json array on client record
+- All custom properties synced back to corresponding XO fields
+
+Dedup logic:
+- URL normalization: strips protocol, www prefix, trailing slashes, lowercases before comparing
+- Searches both HubSpot `domain` and `website` properties with normalized comparison
+- Falls back to company name fuzzy match (CONTAINS_TOKEN)
+- Tracked via hubspot_company_id in clients/partners tables
+
+Conflict resolution:
+- Timestamp-based: compares xo.updated_at vs hs.hs_lastmodifieddate vs hubspot_last_sync
+- First sync (NULL last_sync): HubSpot authoritative, overwrites XO values
+- Ongoing: only the side that changed since last sync wins
+- True conflict (both changed): neither overwritten, logged to hubspot_sync_log with both values
+- `GET /hubspot/conflicts` + `POST /hubspot/conflicts/resolve` for manual review
+
+Frontend (src/App.jsx):
+- OAuth callback handler on `/oauth/callback?code=` with loading/success/error states
+- HubSpot Integration panel in admin Configuration screen: connection status badge, Sync Now button
+- CloudFront custom error responses (403/404 → index.html) for SPA routing
+
+Infrastructure deployed:
+- Lambda: `xo-hubspot-sync` (eu-west-2, role xo-lambda-role, 256MB, 60s)
+- Env vars: DATABASE_URL, JWT_SECRET, AES_MASTER_KEY, AES_ENCRYPTION_KEY, BUCKET_NAME, HUBSPOT_PRIVATE_TOKEN, HUBSPOT_WEBHOOK_SECRET, HUBSPOT_CLIENT_ID, HUBSPOT_CLIENT_SECRET
+- API Gateway: 10 resources under /hubspot/* on xo-api (odvopohlp3), deployed to prod
+- DB migrations: hubspot_company_id, hubspot_contact_id, hubspot_last_sync on clients/partners; hubspot_sync_log table
+- JWT secret rotated across all 9 xo- Lambda functions (64-char)
+- RDS master password rotated (32-char)
+- CloudFront SPA routing configured (E7PWZX8BT02CE)
+
+Testing: 50 pytest regression tests covering Private App auth, sync push/pull, field mapping, dedup with URL normalization, timestamp-based conflict resolution, webhook auth, pull-only mode
+
+Verified: Full sync pushed 2 partners + 12 clients, pulled 13 back. Webhook pull-only sync operational.
 
 **Next Step:** Web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode).
 

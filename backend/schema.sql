@@ -191,3 +191,40 @@ ALTER TABLE skills ALTER COLUMN client_id DROP NOT NULL;
 ALTER TABLE buttons ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES clients(id) ON DELETE CASCADE;
 ALTER TABLE buttons ALTER COLUMN user_id DROP NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_buttons_client_id ON buttons(client_id);
+
+-- ============================================================
+-- HUBSPOT SYNC (migration)
+-- Bi-directional sync tracking between XO Capture and HubSpot CRM
+-- ============================================================
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS hubspot_company_id VARCHAR(50);
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS hubspot_contact_id VARCHAR(50);
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS hubspot_last_sync TIMESTAMP;
+
+ALTER TABLE partners ADD COLUMN IF NOT EXISTS hubspot_company_id VARCHAR(50);
+ALTER TABLE partners ADD COLUMN IF NOT EXISTS hubspot_last_sync TIMESTAMP;
+
+-- system_config entries used by hubspot-sync Lambda:
+--   hubspot_access_token (encrypted)
+--   hubspot_refresh_token (encrypted)
+--   hubspot_token_expiry
+--   hubspot_last_full_sync
+--   hubspot_intellagentic_company_id (HubSpot ID for Intellagentic master Company)
+
+-- ============================================================
+-- HUBSPOT SYNC LOG (migration)
+-- Tracks every sync action and conflicts for review
+-- ============================================================
+CREATE TABLE IF NOT EXISTS hubspot_sync_log (
+    id SERIAL PRIMARY KEY,
+    record_type VARCHAR(20) NOT NULL,
+    record_id UUID,
+    hubspot_id VARCHAR(50),
+    sync_direction VARCHAR(10) NOT NULL,
+    fields_updated TEXT,
+    fields_skipped TEXT,
+    details TEXT,
+    synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_hubspot_sync_log_direction ON hubspot_sync_log(sync_direction);
+CREATE INDEX IF NOT EXISTS idx_hubspot_sync_log_record ON hubspot_sync_log(record_type, record_id);
