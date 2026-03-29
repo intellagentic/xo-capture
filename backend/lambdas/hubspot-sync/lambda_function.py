@@ -860,8 +860,7 @@ def _apply_hs_to_xo_update(cur, hs_id, xo_id, props, where_clause, where_params)
             pain_points_json = COALESCE(NULLIF(%s, ''), pain_points_json),
             addresses_json = COALESCE(NULLIF(%s, ''), addresses_json),
             hubspot_company_id = %s,
-            hubspot_last_sync = NOW(),
-            updated_at = NOW()
+            hubspot_last_sync = NOW()
         WHERE {where_clause}
     """, (name, website, industry, description, future_plans,
           status, source, nda_bool, lead_bool, pain_points, addresses,
@@ -1011,8 +1010,7 @@ def _pull_partner_record(cur, conn, hs_id, xo_id, props):
             UPDATE partners SET
                 name = COALESCE(NULLIF(%s, ''), name),
                 hubspot_company_id = %s,
-                hubspot_last_sync = NOW(),
-                updated_at = NOW()
+                hubspot_last_sync = NOW()
             WHERE id = %s
         """, (name, hs_id, xo_id))
     else:
@@ -1022,8 +1020,7 @@ def _pull_partner_record(cur, conn, hs_id, xo_id, props):
             cur.execute("""
                 UPDATE partners SET
                     name = COALESCE(NULLIF(%s, ''), name),
-                    hubspot_last_sync = NOW(),
-                    updated_at = NOW()
+                    hubspot_last_sync = NOW()
                 WHERE hubspot_company_id = %s
             """, (name, hs_id))
         else:
@@ -1160,8 +1157,7 @@ def _pull_contacts_for_company(access_token, conn, hs_company_id, xo_client_id):
         cur.execute("""
             UPDATE clients SET
                 contacts_json = %s,
-                hubspot_contact_id = COALESCE(%s, hubspot_contact_id),
-                updated_at = NOW()
+                hubspot_contact_id = COALESCE(%s, hubspot_contact_id)
             WHERE id = %s
         """, (json.dumps(merged), primary_hs_contact_id, xo_client_id))
         conn.commit()
@@ -1260,40 +1256,88 @@ def handle_sync(event, user):
 
         intellagentic_company_id = _get_config(conn, 'hubspot_intellagentic_company_id')
 
-        # ── Phase 1: Push XO -> HubSpot ──
+        # ── Phase 1: Push XO -> HubSpot (only changed records) ──
         cur = conn.cursor()
+        api_calls = {'before': 0, 'after': 0}
 
-        # Push partners
-        cur.execute("SELECT id, name, company, email, website, hubspot_company_id, "
-                    "contacts_json, addresses_json FROM partners")
+        # Push partners — only those changed since last sync
+        cur.execute("""
+            SELECT id, name, company, email, website, hubspot_company_id,
+                   contacts_json, addresses_json
+            FROM partners
+            WHERE hubspot_last_sync IS NULL OR updated_at > hubspot_last_sync
+        """)
         partner_rows = cur.fetchall()
         partner_cols = ['id', 'name', 'company', 'email', 'website', 'hubspot_company_id',
                         'contacts_json', 'addresses_json']
         partners_pushed = 0
-        partner_hs_map = {}  # partner_id -> hubspot_company_id
+        partner_hs_map = {}
 
+        # Also load all partner hubspot IDs for association mapping
+        cur.execute("SELECT id, hubspot_company_id FROM partners WHERE hubspot_company_id IS NOT NULL")
+        for pid, phsid in cur.fetchall():
+            partner_hs_map[pid] = phsid
+
+        # Batch: separate creates vs updates
+        partner_creates = []
+        partner_updates = []
         for row in partner_rows:
             record = dict(zip(partner_cols, row))
-            try:
-                hs_id = _push_company(access_token, record, 'partner')
-                partner_hs_map[record['id']] = hs_id
-                if hs_id != record.get('hubspot_company_id'):
-                    cur.execute("UPDATE partners SET hubspot_company_id = %s, hubspot_last_sync = NOW() WHERE id = %s",
-                                (hs_id, record['id']))
-                else:
-                    cur.execute("UPDATE partners SET hubspot_last_sync = NOW() WHERE id = %s", (record['id'],))
-                partners_pushed += 1
-            except Exception as e:
-                logger.warning("Failed to push partner %s: %s", record['id'], e)
+            props = _build_company_properties(record, 'partner')
+            if record.get('hubspot_company_id'):
+                partner_updates.append({'id': record['hubspot_company_id'], 'properties': props, '_xo_id': record['id']})
+            else:
+                partner_creates.append({'properties': props, '_xo_id': record['id']})
 
-        # Push clients
+        # Batch create partners
+        if partner_creates:
+            try:
+                batch_body = {'inputs': [{'properties': c['properties']} for c in partner_creates]}
+                resp = _hubspot_api('POST', '/crm/v3/objects/companies/batch/create', access_token, json_body=batch_body)
+                api_calls['after'] += 1
+                for i, result in enumerate(resp.get('results', [])):
+                    hs_id = result['id']
+                    xo_id = partner_creates[i]['_xo_id']
+                    partner_hs_map[xo_id] = hs_id
+                    cur.execute("UPDATE partners SET hubspot_company_id = %s, hubspot_last_sync = NOW() WHERE id = %s",
+                                (hs_id, xo_id))
+                    partners_pushed += 1
+            except Exception as e:
+                logger.warning("Batch create partners failed: %s", e)
+                # Fallback to individual creates
+                for c in partner_creates:
+                    try:
+                        hs_id = _push_company(access_token, dict(zip(partner_cols, [c['_xo_id']] + [None]*7)), 'partner')
+                        partner_hs_map[c['_xo_id']] = hs_id
+                        cur.execute("UPDATE partners SET hubspot_company_id = %s, hubspot_last_sync = NOW() WHERE id = %s",
+                                    (hs_id, c['_xo_id']))
+                        partners_pushed += 1
+                    except Exception as e2:
+                        logger.warning("Failed to push partner %s: %s", c['_xo_id'], e2)
+
+        # Batch update partners
+        if partner_updates:
+            try:
+                batch_body = {'inputs': [{'id': u['id'], 'properties': u['properties']} for u in partner_updates]}
+                _hubspot_api('POST', '/crm/v3/objects/companies/batch/update', access_token, json_body=batch_body)
+                api_calls['after'] += 1
+                for u in partner_updates:
+                    partner_hs_map[u['_xo_id']] = u['id']
+                    cur.execute("UPDATE partners SET hubspot_last_sync = NOW() WHERE id = %s", (u['_xo_id'],))
+                    partners_pushed += 1
+            except Exception as e:
+                logger.warning("Batch update partners failed: %s", e)
+
+        # Push clients — only those changed since last sync
         cur.execute("""
             SELECT id, company_name, website_url, industry, description,
                    future_plans, status, source, nda_signed, nda_signed_at,
                    intellagentic_lead, pain_points_json, contacts_json,
                    addresses_json, s3_folder, hubspot_company_id,
                    hubspot_contact_id, partner_id, encryption_key
-            FROM clients WHERE status != 'deleted' OR status IS NULL
+            FROM clients
+            WHERE (status != 'deleted' OR status IS NULL)
+              AND (hubspot_last_sync IS NULL OR updated_at > hubspot_last_sync)
         """)
         client_rows = cur.fetchall()
         client_cols = ['id', 'company_name', 'website_url', 'industry', 'description',
@@ -1303,22 +1347,87 @@ def handle_sync(event, user):
                        'hubspot_contact_id', 'partner_id', 'encryption_key']
         clients_pushed = 0
 
+        # Separate creates vs updates for batch
+        client_creates = []
+        client_updates = []
+        client_records = {}  # xo_id -> record
+
         for row in client_rows:
             record = dict(zip(client_cols, row))
+            client_key = unwrap_client_key(record.get('encryption_key')) if record.get('encryption_key') else None
+            record['_client_key'] = client_key
+            client_records[str(record['id'])] = record
+            props = _build_company_properties(record, 'client', client_key)
+
+            if record.get('hubspot_company_id'):
+                client_updates.append({'id': record['hubspot_company_id'], 'properties': props, '_xo_id': str(record['id'])})
+            else:
+                client_creates.append({'properties': props, '_xo_id': str(record['id'])})
+
+        api_calls['before'] = len(client_creates) + len(client_updates) + len(partner_creates) + len(partner_updates)
+
+        # Batch create clients (max 100 per batch)
+        for batch_start in range(0, len(client_creates), 100):
+            batch = client_creates[batch_start:batch_start + 100]
             try:
-                client_key = unwrap_client_key(record.get('encryption_key')) if record.get('encryption_key') else None
+                batch_body = {'inputs': [{'properties': c['properties']} for c in batch]}
+                resp = _hubspot_api('POST', '/crm/v3/objects/companies/batch/create', access_token, json_body=batch_body)
+                api_calls['after'] += 1
+                for i, result in enumerate(resp.get('results', [])):
+                    hs_id = result['id']
+                    xo_id = batch[i]['_xo_id']
+                    record = client_records[xo_id]
+                    record['hubspot_company_id'] = hs_id
+                    cur.execute("UPDATE clients SET hubspot_company_id = %s, hubspot_last_sync = NOW() WHERE id = %s",
+                                (hs_id, xo_id))
+                    clients_pushed += 1
+                    logger.info("Batch created company %s (%s)", hs_id, batch[i]['properties'].get('name', ''))
+            except Exception as e:
+                logger.warning("Batch create clients failed, falling back to individual: %s", e)
+                for c in batch:
+                    try:
+                        record = client_records[c['_xo_id']]
+                        hs_id = _push_company(access_token, record, 'client', record.get('_client_key'))
+                        record['hubspot_company_id'] = hs_id
+                        cur.execute("UPDATE clients SET hubspot_company_id = %s, hubspot_last_sync = NOW() WHERE id = %s",
+                                    (hs_id, c['_xo_id']))
+                        clients_pushed += 1
+                    except Exception as e2:
+                        logger.warning("Failed to push client %s: %s", c['_xo_id'], e2)
 
-                hs_company_id = _push_company(access_token, record, 'client', client_key)
+        # Batch update clients
+        for batch_start in range(0, len(client_updates), 100):
+            batch = client_updates[batch_start:batch_start + 100]
+            try:
+                batch_body = {'inputs': [{'id': u['id'], 'properties': u['properties']} for u in batch]}
+                _hubspot_api('POST', '/crm/v3/objects/companies/batch/update', access_token, json_body=batch_body)
+                api_calls['after'] += 1
+                for u in batch:
+                    cur.execute("UPDATE clients SET hubspot_last_sync = NOW() WHERE id = %s", (u['_xo_id'],))
+                    clients_pushed += 1
+                    logger.info("Batch updated company %s (%s)", u['id'], u['properties'].get('name', ''))
+            except Exception as e:
+                logger.warning("Batch update clients failed, falling back to individual: %s", e)
+                for u in batch:
+                    try:
+                        record = client_records[u['_xo_id']]
+                        _push_company(access_token, record, 'client', record.get('_client_key'))
+                        cur.execute("UPDATE clients SET hubspot_last_sync = NOW() WHERE id = %s", (u['_xo_id'],))
+                        clients_pushed += 1
+                    except Exception as e2:
+                        logger.warning("Failed to push client %s: %s", u['_xo_id'], e2)
+
+        # Push contacts + associations only for changed clients
+        for xo_id, record in client_records.items():
+            hs_company_id = record.get('hubspot_company_id')
+            if not hs_company_id:
+                continue
+            try:
+                client_key = record.get('_client_key')
                 hs_contact_id = _push_contacts(access_token, record, hs_company_id, client_key)
-
-                # Update hubspot IDs in DB
-                cur.execute("""
-                    UPDATE clients SET
-                        hubspot_company_id = %s,
-                        hubspot_contact_id = COALESCE(%s, hubspot_contact_id),
-                        hubspot_last_sync = NOW()
-                    WHERE id = %s
-                """, (hs_company_id, hs_contact_id, record['id']))
+                if hs_contact_id:
+                    cur.execute("UPDATE clients SET hubspot_contact_id = %s WHERE id = %s AND hubspot_contact_id IS NULL",
+                                (hs_contact_id, xo_id))
 
                 # Partner-client association
                 partner_id = record.get('partner_id')
@@ -1326,16 +1435,14 @@ def handle_sync(event, user):
                     _create_company_association(access_token, partner_hs_map[partner_id], hs_company_id)
                 elif intellagentic_company_id:
                     _create_company_association(access_token, intellagentic_company_id, hs_company_id)
-
-                # Push enrichment note
-                _push_enrichment_note(access_token, hs_company_id, record, client_key)
-
-                clients_pushed += 1
             except Exception as e:
-                logger.warning("Failed to push client %s: %s", record['id'], e)
+                logger.warning("Failed to push contacts/associations for %s: %s", xo_id, e)
 
         conn.commit()
         cur.close()
+
+        logger.info("Push complete: %s partners, %s clients. API calls: %s individual -> %s batch",
+                     partners_pushed, clients_pushed, api_calls['before'], api_calls['after'])
 
         # ── Phase 2: Pull HubSpot -> XO ──
         clients_created, clients_updated, client_conflicts = _pull_companies(access_token, conn, 'client')
@@ -1362,6 +1469,10 @@ def handle_sync(event, user):
                     'partners_updated': partners_updated,
                 },
                 'conflicts': all_conflicts,
+                'optimization': {
+                    'records_skipped': 'unchanged since last sync',
+                    'company_api_calls': f"{api_calls['before']} individual -> {api_calls['after']} batch",
+                },
                 'last_sync': datetime.now(timezone.utc).isoformat(),
             })
         }
