@@ -633,8 +633,9 @@ class TestConflictResolution:
 
         with patch.object(hubspot_module, '_log_sync') as mock_log, \
              patch.object(hubspot_module, '_apply_hs_to_xo_update', return_value=['company_name', 'website_url']) as mock_apply:
-            result = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-1', 'xo-uuid-1', hs_props)
-            assert result is None  # No conflict
+            action, conflict = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-1', 'xo-uuid-1', hs_props)
+            assert action == 'updated'
+            assert conflict is None
             mock_apply.assert_called_once()
             mock_log.assert_called_once()
             # _log_sync(conn, record_type, record_id, hubspot_id, direction, ...)
@@ -654,8 +655,9 @@ class TestConflictResolution:
         }
 
         with patch.object(hubspot_module, '_log_sync') as mock_log:
-            result = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-2', 'xo-uuid-2', hs_props)
-            assert result is None
+            action, conflict = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-2', 'xo-uuid-2', hs_props)
+            assert action is None  # No change applied
+            assert conflict is None
             mock_log.assert_called_once()
             assert mock_log.call_args[0][4] == 'push'  # direction param index 4
 
@@ -677,8 +679,9 @@ class TestConflictResolution:
 
         with patch.object(hubspot_module, '_log_sync') as mock_log, \
              patch.object(hubspot_module, '_apply_hs_to_xo_update', return_value=['company_name']) as mock_apply:
-            result = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-3', 'xo-uuid-3', hs_props)
-            assert result is None
+            action, conflict = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-3', 'xo-uuid-3', hs_props)
+            assert action == 'updated'
+            assert conflict is None
             mock_apply.assert_called_once()
 
     def test_true_conflict_not_overwritten(self, hubspot_module, mock_deps):
@@ -710,14 +713,15 @@ class TestConflictResolution:
 
         with patch.object(hubspot_module, '_log_sync') as mock_log, \
              patch.object(hubspot_module, 'unwrap_client_key', return_value=None):
-            result = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-4', 'xo-uuid-4', hs_props)
+            action, conflict = hubspot_module._pull_client_record(mock_cur, mock_conn, 'hs-4', 'xo-uuid-4', hs_props)
 
-            # Should return a conflict dict
-            assert result is not None
-            assert result['record_type'] == 'client'
-            assert result['record_id'] == 'xo-uuid-4'
-            assert len(result['conflicting_fields']) > 0
-            assert 'company_name' in result['conflicting_fields']
+            # Should return a conflict
+            assert action == 'conflict'
+            assert conflict is not None
+            assert conflict['record_type'] == 'client'
+            assert conflict['record_id'] == 'xo-uuid-4'
+            assert len(conflict['conflicting_fields']) > 0
+            assert 'company_name' in conflict['conflicting_fields']
 
             # _log_sync called with direction='conflict' (param index 4)
             mock_log.assert_called_once()

@@ -794,9 +794,13 @@ def _pull_companies(access_token, conn, record_type='client'):
                 hs_id = company['id']
 
                 if record_type == 'client':
-                    conflict = _pull_client_record(cur, conn, hs_id, xo_id, props)
+                    action, conflict = _pull_client_record(cur, conn, hs_id, xo_id, props)
                     if conflict:
                         conflicts_list.append(conflict)
+                    if action == 'created':
+                        created += 1
+                    elif action == 'updated':
+                        updated += 1
                     # Merge contacts from HubSpot into XO contacts_json
                     resolved_xo_id = xo_id
                     if not resolved_xo_id:
@@ -807,11 +811,6 @@ def _pull_companies(access_token, conn, record_type='client'):
                         _pull_contacts_for_company(access_token, conn, hs_id, resolved_xo_id)
                 elif record_type == 'partner':
                     _pull_partner_record(cur, conn, hs_id, xo_id, props)
-
-                if xo_id:
-                    updated += 1
-                else:
-                    created += 1
 
             # Pagination
             paging = resp.get('paging', {})
@@ -883,7 +882,8 @@ def _apply_hs_to_xo_update(cur, hs_id, xo_id, props, where_clause, where_params)
 
 def _pull_client_record(cur, conn, hs_id, xo_id, props):
     """Create or update a client record from HubSpot company data.
-    Uses timestamp-based conflict resolution. Returns conflict dict if conflict detected, else None."""
+    Uses timestamp-based conflict resolution.
+    Returns (action, conflict_dict) where action is 'created', 'updated', 'conflict', or None."""
     name = props.get('name', '')
     website = props.get('website', '')
     hs_lastmodified = _parse_hs_timestamp(props.get('hs_lastmodifieddate'))
@@ -900,7 +900,7 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
             # Only create new XO records if xo_sync_enabled is true
             sync_enabled = (props.get('xo_sync_enabled', '') or '').lower() == 'true'
             if not sync_enabled:
-                return None
+                return None, None
             # Brand new record from HubSpot — create it
             s3_folder = f"hubspot-{hs_id}-{int(time.time())}"
             status_val = props.get('xo_status', '') or 'active'
@@ -926,13 +926,13 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
             all_fields = [f for f in SYNC_COMPARE_FIELDS.keys() if props.get(SYNC_COMPARE_FIELDS[f])]
             _log_sync(conn, 'client', new_id, hs_id, 'pull', fields_updated=all_fields,
                       details=f"New client created from HubSpot: {name}")
-            return None
+            return 'created', None
     else:
         # Existing xo_id — look up timestamps
         cur.execute("SELECT hubspot_last_sync, updated_at FROM clients WHERE id = %s", (xo_id,))
         row = cur.fetchone()
         if not row:
-            return None
+            return None, None
         last_sync = row[0]
         xo_updated_at = row[1]
 
@@ -941,17 +941,17 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
 
     if direction == 'first_sync' or direction == 'pull':
         # HubSpot wins — apply all fields
-        updated = _apply_hs_to_xo_update(cur, hs_id, xo_id, props, 'id = %s', (xo_id,))
-        _log_sync(conn, 'client', xo_id, hs_id, 'pull', fields_updated=updated,
+        updated_fields = _apply_hs_to_xo_update(cur, hs_id, xo_id, props, 'id = %s', (xo_id,))
+        _log_sync(conn, 'client', xo_id, hs_id, 'pull', fields_updated=updated_fields,
                   details=f"{'First sync' if direction == 'first_sync' else 'HubSpot newer'}: {name}")
-        return None
+        return ('updated' if updated_fields else None), None
 
     elif direction == 'push':
         # XO wins — just update hubspot_last_sync, don't overwrite XO
         cur.execute("UPDATE clients SET hubspot_last_sync = NOW() WHERE id = %s", (xo_id,))
         _log_sync(conn, 'client', xo_id, hs_id, 'push',
                   details=f"XO newer, skipped pull: {name}")
-        return None
+        return None, None
 
     elif direction == 'conflict':
         # Both sides changed — detect which fields conflict
@@ -963,7 +963,7 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
         """, (xo_id,))
         xo_row = cur.fetchone()
         if not xo_row:
-            return None
+            return None, None
         xo_cols = ['company_name', 'website_url', 'industry', 'description', 'future_plans',
                     'status', 'source', 'pain_points_json', 'addresses_json', 'encryption_key']
         xo_record = dict(zip(xo_cols, xo_row))
@@ -973,7 +973,7 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
         if not field_conflicts:
             # No actual field differences — just update sync timestamp
             cur.execute("UPDATE clients SET hubspot_last_sync = NOW() WHERE id = %s", (xo_id,))
-            return None
+            return None, None
 
         conflicting_fields = list(field_conflicts.keys())
         details_parts = []
@@ -988,7 +988,7 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
                   fields_skipped=conflicting_fields, details=details_text)
 
         logger.warning("Conflict detected for client %s (%s): %s", xo_id, name, conflicting_fields)
-        return {
+        return 'conflict', {
             'record_type': 'client',
             'record_id': str(xo_id),
             'hubspot_id': hs_id,
@@ -998,7 +998,7 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
         }
 
     # direction == 'none'
-    return None
+    return None, None
 
 
 def _pull_partner_record(cur, conn, hs_id, xo_id, props):
