@@ -538,13 +538,20 @@ def _build_company_properties(record, record_type, client_key=None):
     return props
 
 
+HONORIFICS = {'mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'sir', 'dame', 'rev', 'lord', 'lady'}
+
+
 def _build_contact_properties_from_obj(contact_obj, client_key=None):
     """Build HubSpot contact properties from a single contact JSON object.
-    Contact object: {name, email, phone, title, linkedin}."""
+    Handles both {name} (combined) and {firstName, lastName} (separate) patterns."""
     props = {}
 
-    name = _decrypt_field(client_key, contact_obj.get('name', ''))
-    first, last = _split_name(name)
+    # Try separate firstName/lastName first, fall back to combined name
+    first = _decrypt_field(client_key, contact_obj.get('firstName', ''))
+    last = _decrypt_field(client_key, contact_obj.get('lastName', ''))
+    if not first and not last:
+        name = _decrypt_field(client_key, contact_obj.get('name', ''))
+        first, last = _split_name(name)
     if first:
         props['firstname'] = first
     if last:
@@ -558,9 +565,15 @@ def _build_contact_properties_from_obj(contact_obj, client_key=None):
     if phone:
         props['phone'] = phone
 
+    # Only push title as jobtitle if it's an actual job title (not an honorific)
     title = _decrypt_field(client_key, contact_obj.get('title', ''))
-    if title:
+    if title and title.lower().rstrip('.') not in HONORIFICS:
         props['jobtitle'] = title
+
+    # LinkedIn URL
+    linkedin = _decrypt_field(client_key, contact_obj.get('linkedin', ''))
+    if linkedin:
+        props['hs_linkedinbio'] = linkedin
 
     return props
 
@@ -1018,18 +1031,19 @@ def _pull_contacts_for_company(access_token, conn, hs_company_id, xo_client_id):
                 continue
             try:
                 contact = _hubspot_api('GET', f'/crm/v3/objects/contacts/{contact_id}', access_token,
-                                       params={'properties': 'firstname,lastname,email,phone,jobtitle'})
+                                       params={'properties': 'firstname,lastname,email,phone,jobtitle,hs_linkedinbio'})
                 props = contact.get('properties', {})
-                first = props.get('firstname', '')
-                last = props.get('lastname', '')
-                full_name = f"{first} {last}".strip()
 
                 contact_obj = {
-                    'name': full_name,
+                    'firstName': props.get('firstname', ''),
+                    'lastName': props.get('lastname', ''),
                     'email': props.get('email', ''),
                     'phone': props.get('phone', ''),
                     'title': props.get('jobtitle', ''),
+                    'linkedin': props.get('hs_linkedinbio', ''),
                 }
+                # Remove empty values to keep JSON clean
+                contact_obj = {k: v for k, v in contact_obj.items() if v}
                 contacts_list.append(contact_obj)
 
                 if i == 0:

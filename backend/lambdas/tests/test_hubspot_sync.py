@@ -344,7 +344,7 @@ class TestPartnerAssociation:
 
 
 class TestFieldMapping:
-    def test_contact_properties_from_obj(self, hubspot_module):
+    def test_contact_properties_from_combined_name(self, hubspot_module):
         contact = {
             'name': 'Jane Smith',
             'email': 'jane@test.com',
@@ -358,11 +358,49 @@ class TestFieldMapping:
         assert props['phone'] == '+44123456'
         assert props['jobtitle'] == 'CTO'
 
-    def test_contact_single_name(self, hubspot_module):
+    def test_contact_properties_from_separate_names(self, hubspot_module):
+        contact = {
+            'firstName': 'Edem',
+            'lastName': 'Brampah',
+            'email': 'edem@test.com',
+            'phone': '07443 238369',
+            'title': 'Fire Safety Engineer',
+            'linkedin': 'https://linkedin.com/in/edem',
+        }
+        props = hubspot_module._build_contact_properties_from_obj(contact)
+        assert props['firstname'] == 'Edem'
+        assert props['lastname'] == 'Brampah'
+        assert props['phone'] == '07443 238369'
+        assert props['jobtitle'] == 'Fire Safety Engineer'
+        assert props['hs_linkedinbio'] == 'https://linkedin.com/in/edem'
+
+    def test_contact_firstName_only(self, hubspot_module):
+        contact = {'firstName': 'Edem', 'email': 'e@test.com'}
+        props = hubspot_module._build_contact_properties_from_obj(contact)
+        assert props['firstname'] == 'Edem'
+        assert 'lastname' not in props
+
+    def test_contact_combined_name_fallback(self, hubspot_module):
         contact = {'name': 'Madonna', 'email': 'm@test.com'}
         props = hubspot_module._build_contact_properties_from_obj(contact)
         assert props['firstname'] == 'Madonna'
         assert props.get('lastname', '') == ''
+
+    def test_honorific_not_pushed_as_jobtitle(self, hubspot_module):
+        for honorific in ['Mr', 'Mrs', 'Ms', 'Dr', 'Prof', 'mr.', 'DR.']:
+            contact = {'firstName': 'Test', 'title': honorific, 'email': 't@t.com'}
+            props = hubspot_module._build_contact_properties_from_obj(contact)
+            assert 'jobtitle' not in props, f'{honorific} should not be pushed as jobtitle'
+
+    def test_real_title_pushed_as_jobtitle(self, hubspot_module):
+        contact = {'firstName': 'Test', 'title': 'Chief Technology Officer', 'email': 't@t.com'}
+        props = hubspot_module._build_contact_properties_from_obj(contact)
+        assert props['jobtitle'] == 'Chief Technology Officer'
+
+    def test_linkedin_mapped(self, hubspot_module):
+        contact = {'name': 'Test', 'linkedin': 'https://linkedin.com/in/test'}
+        props = hubspot_module._build_contact_properties_from_obj(contact)
+        assert props['hs_linkedinbio'] == 'https://linkedin.com/in/test'
 
     def test_multiple_contacts_push(self, hubspot_module, mock_deps):
         """Verify _push_contacts handles multiple contacts from contacts_json."""
