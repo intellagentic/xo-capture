@@ -8420,6 +8420,11 @@ function assembleBrief(results, client) {
       },
       {
         number: '06',
+        title: 'INTELLISTACK STREAMLINE APPLICATIONS',
+        content: results.streamline_applications || results.Streamline_applications || '',
+      },
+      {
+        number: '07',
         title: 'PROOF OF CONCEPT & NEXT STEPS',
         content: planPhases.map(p => `**${p.phase}**\n${(p.actions || []).map(a => a.replace(/^\d+\.\s*/, '')).map((a, i) => `${i + 1}. ${a}`).join('\n')}`).join('\n\n'),
       },
@@ -9481,32 +9486,34 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                           {(() => { const brief = assembleBrief(displayResults, currentClient); return brief ? (
                             <div>
                               {/* Download bar */}
-                              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }} className="pdf-hide">
                                 <button
                                   onClick={async () => {
-                                    setBriefDownloading('docx')
+                                    setBriefDownloading('pdf')
                                     try {
-                                      const res = await fetch(`${API_BASE}/results/${clientId}/brief`, {
-                                        method: 'POST',
-                                        headers: getAuthHeaders(),
-                                        body: JSON.stringify({ format: 'docx' })
-                                      })
-                                      const data = await res.json()
-                                      if (!res.ok) throw new Error(data.error || 'Download failed')
-                                      // Decode base64 to binary
-                                      const byteChars = atob(data.content_base64)
-                                      const byteArray = new Uint8Array(byteChars.length)
-                                      for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i)
-                                      const blob = new Blob([byteArray], { type: data.content_type })
-                                      const url = URL.createObjectURL(blob)
-                                      const a = document.createElement('a')
-                                      a.href = url
-                                      a.download = data.filename
-                                      a.click()
-                                      URL.revokeObjectURL(url)
+                                      const el = document.getElementById('deployment-brief-content')
+                                      if (!el || !window.html2pdf) throw new Error('PDF generator not loaded')
+                                      const companyName = brief.cover?.client_name || 'Client'
+                                      await window.html2pdf().set({
+                                        margin: [0.8, 0.75, 0.8, 0.75],
+                                        filename: `${companyName.replace(/\s+/g, '_')}_XO_Deployment_Brief.pdf`,
+                                        image: { type: 'jpeg', quality: 0.98 },
+                                        html2canvas: { scale: 2, useCORS: true, logging: false },
+                                        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+                                        pagebreak: { mode: ['css', 'legacy'], before: '.pdf-page-break' }
+                                      }).from(el).toPdf().get('pdf').then(pdf => {
+                                        const totalPages = pdf.internal.getNumberOfPages()
+                                        for (let i = 1; i <= totalPages; i++) {
+                                          pdf.setPage(i)
+                                          pdf.setFontSize(7)
+                                          pdf.setTextColor(150)
+                                          pdf.text(`INTELLAGENTIC XO  ·  ${companyName}  ·  XO Deployment Brief  ·  CONFIDENTIAL`, 0.75, 0.45)
+                                          pdf.text(`Intellagentic XO  ·  Strictly Confidential  ·  Page ${i} of ${totalPages}`, 0.75, 11.25)
+                                        }
+                                      }).save()
                                     } catch (err) {
-                                      console.error('Brief download failed:', err)
-                                      alert('Download failed: ' + err.message)
+                                      console.error('PDF export failed:', err)
+                                      alert('PDF export failed: ' + err.message)
                                     }
                                     setBriefDownloading(null)
                                   }}
@@ -9515,14 +9522,15 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                     display: 'flex', alignItems: 'center', gap: '0.4rem',
                                     padding: '0.5rem 1rem', fontSize: '0.8rem', fontWeight: 600,
                                     background: '#0F969C', color: '#fff', border: 'none', borderRadius: 6, cursor: briefDownloading ? 'wait' : 'pointer',
-                                    opacity: briefDownloading === 'docx' ? 0.7 : 1
+                                    opacity: briefDownloading ? 0.7 : 1
                                   }}
                                 >
-                                  {briefDownloading === 'docx' ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
-                                  Download .docx
+                                  {briefDownloading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
+                                  Download PDF
                                 </button>
                               </div>
 
+                              <div id="deployment-brief-content">
                               {/* Cover */}
                               {brief.cover && (
                                 <div style={{
@@ -9570,7 +9578,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
 
                               {/* Numbered Sections */}
                               {brief.sections && brief.sections.map((sec, i) => (
-                                <div key={i} style={{ marginBottom: '1.25rem' }}>
+                                <div key={i} style={{ marginBottom: '1.25rem' }} className={i > 0 ? 'pdf-page-break' : ''}>
                                   <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                                     <span style={{ color: '#0F969C', fontWeight: 700 }}>{sec.number}</span>{' '}
                                     <span style={{ color: 'var(--text-primary)' }}>{sec.title}</span>
@@ -9648,6 +9656,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                   <strong>Success Metric:</strong> {brief.success_metric}
                                 </div>
                               )}
+                            </div>
                             </div>
                           ) : (
                             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>

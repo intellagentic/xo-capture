@@ -519,3 +519,9 @@ body {
   .action-buttons { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 0.5rem; }
   .action-btn { flex-shrink: 0; font-size: 0.75rem; padding: 0.5rem 0.75rem; }
 }
+
+/* PDF export styles for Deployment Brief */
+.pdf-page-break { page-break-before: always; }
+#deployment-brief-content pre { page-break-inside: avoid; }
+#deployment-brief-content table { page-break-inside: avoid; }
+.pdf-hide-in-export { } /* marker class — html2pdf captures as-is */
