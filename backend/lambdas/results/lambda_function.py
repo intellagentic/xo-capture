@@ -147,6 +147,11 @@ def _handle_results(event, user):
 
 # ── Deployment Brief Assembly ──
 
+def _strip_leading_number(text):
+    """Remove leading '1. ', '2. ' etc from action text."""
+    return re.sub(r'^\d+\.\s*', '', text)
+
+
 def _assemble_brief(results, client_name='', industry='', description='', contact_name=''):
     """Assemble deployment brief from existing analysis results — no Bedrock call."""
     problems = results.get('problems', results.get('problems_identified', []))
@@ -199,7 +204,7 @@ def _assemble_brief(results, client_name='', industry='', description='', contac
                 f"- **Audit Trail:** All AI actions are logged with full provenance for regulatory audit\n"
                 f"- **Domain Boundaries:** Boundaries are encoded as rules, not suggestions — the system cannot generate outputs that violate them"},
             {'number': '06', 'title': 'PROOF OF CONCEPT & NEXT STEPS',
-             'content': '\n\n'.join(f"**{p.get('phase', '')}**\n" + '\n'.join(f"{i+1}. {re.sub(r'^\\d+\\.\\s*', '', a)}" for i, a in enumerate(p.get('actions', []) if isinstance(p.get('actions'), list) else []))
+             'content': '\n\n'.join(f"**{p.get('phase', '')}**\n" + '\n'.join(f"{i+1}. {_strip_leading_number(a)}" for i, a in enumerate(p.get('actions', []) if isinstance(p.get('actions'), list) else []))
                                     for p in plan_phases)},
         ],
         'ooda_phases': [
@@ -209,10 +214,10 @@ def _assemble_brief(results, client_name='', industry='', description='', contac
             {'name': 'ACT', 'tagline': 'Delivers through Streamline workflows', 'bullets': ['Automated report generation', 'Notification and escalation', 'Full audit logging']},
         ],
         'poc_timeline': [
-            {'step': '1', 'timeline': 'Week 1', 'action': re.sub(r'^\d+\.\s*', '', (plan_phases[0].get('actions', ['Configure DX Cartridge'])[0] if plan_phases else 'Configure DX Cartridge with domain rules'))},
-            {'step': '2', 'timeline': 'Week 1-2', 'action': re.sub(r'^\d+\.\s*', '', (plan_phases[0].get('actions', ['', 'Ingest sample data'])[1] if plan_phases and len(plan_phases[0].get('actions', [])) > 1 else 'Ingest sample data and validate extraction'))},
-            {'step': '3', 'timeline': 'Week 2', 'action': re.sub(r'^\d+\.\s*', '', (plan_phases[1].get('actions', ['Run analysis'])[0] if len(plan_phases) > 1 else 'Run analysis against live data'))},
-            {'step': '4', 'timeline': 'Week 3', 'action': re.sub(r'^\d+\.\s*', '', (plan_phases[2].get('actions', ['Deploy decision'])[0] if len(plan_phases) > 2 else 'Review results and make deploy/iterate decision'))},
+            {'step': '1', 'timeline': 'Week 1', 'action': _strip_leading_number(plan_phases[0].get('actions', ['Configure DX Cartridge'])[0] if plan_phases else 'Configure DX Cartridge with domain rules')},
+            {'step': '2', 'timeline': 'Week 1-2', 'action': _strip_leading_number(plan_phases[0].get('actions', ['', 'Ingest sample data'])[1] if plan_phases and len(plan_phases[0].get('actions', [])) > 1 else 'Ingest sample data and validate extraction')},
+            {'step': '3', 'timeline': 'Week 2', 'action': _strip_leading_number(plan_phases[1].get('actions', ['Run analysis'])[0] if len(plan_phases) > 1 else 'Run analysis against live data')},
+            {'step': '4', 'timeline': 'Week 3', 'action': _strip_leading_number(plan_phases[2].get('actions', ['Deploy decision'])[0] if len(plan_phases) > 2 else 'Review results and make deploy/iterate decision')},
         ],
         'success_metric': f"The pilot is successful when {primary.get('title', 'the primary operational bottleneck').lower()} is resolved without manual intervention in the current workflow." if primary else 'The pilot is successful when the primary operational bottleneck is resolved through automated XO processing.',
     }
