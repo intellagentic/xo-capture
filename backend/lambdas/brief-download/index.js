@@ -90,7 +90,7 @@ function createCoverMeta(clientContact, meetingDate, colW, labelStyle, valueStyl
     columnWidths: [colW, colW, colW],
     rows: [new TableRow({ children: [
       metaCell("Client", clientContact),
-      metaCell("Prepared by", "IntellagenticXO"),
+      metaCell("Prepared by", "Intellagentic Limited"),
       metaCell("Meeting Date", meetingDate || "TBD"),
     ] })]
   });
@@ -207,7 +207,7 @@ function oodaPhase(icon, phaseName, tagline, subBullets) {
 
 // ── POC Timeline Table ──
 function pocTimelineTable(steps) {
-  const colStep = 600, colTime = 1400, colAction = PAGE.contentWidth - colStep - colTime;
+  const colStep = 720, colTime = 1350, colAction = PAGE.contentWidth - colStep - colTime;
   return new Table({
     width: { size: PAGE.contentWidth, type: WidthType.DXA }, layout: TableLayoutType.FIXED,
     columnWidths: [colStep, colTime, colAction],
@@ -439,8 +439,8 @@ function buildDocument(brief) {
   body.push(spacer());
 
   const metrics = [
-    { value: String(problems.length), label: 'Issues Identified', sublabel: `${problems.filter(p => p.severity === 'high').length} high severity` },
-    ...(problems.slice(0, 3).map(p => ({ value: (p.severity || 'N/A').toUpperCase(), label: (p.title || '').substring(0, 35), sublabel: p.severity + ' priority' })))
+    { value: String(problems.length), label: 'Issues Found', sublabel: `${problems.filter(p => p.severity === 'high').length} high severity` },
+    ...(problems.slice(0, 3).map(p => ({ value: (p.severity || 'N/A').toUpperCase(), label: (p.title || '').substring(0, 25), sublabel: p.severity + ' priority' })))
   ];
   body.push(keyMetricsRow(metrics));
   body.push(spacer());
@@ -471,22 +471,21 @@ function buildDocument(brief) {
   body.push(pageBreak());
   body.push(sectionHeader("03", "WHY STANDARD AI CANNOT BE USED HERE"));
   body.push(spacer(120));
-  body.push(para(`Generic AI tools like ChatGPT or off-the-shelf automation platforms cannot safely operate in ${industry} because they lack domain-specific guardrails. In ${clientName}'s environment, a single error in ${(primary.title || 'operational processes').toLowerCase()} could result in ${(primary.evidence || 'significant compliance and operational failures').split('.')[0].toLowerCase()}.`));
+  // Use first 200 chars of evidence for the risk example, ending at a word boundary
+  const riskExample = (primary.evidence || 'significant compliance and operational failures').substring(0, 200).replace(/\s+\S*$/, '') + '...';
+  body.push(para(`Generic AI tools like ChatGPT or off-the-shelf automation platforms cannot safely operate in ${industry} because they lack domain-specific guardrails. In ${clientName}'s environment, a single error in ${(primary.title || 'operational processes').toLowerCase()} could result in cascading compliance failures. ${riskExample}`));
   body.push(para(`Standard AI has no concept of ${industry} compliance hierarchies, cannot cross-reference domain-specific standards and regulations, and provides no audit trail for regulatory accountability.`));
   body.push(calloutBox("THE PRINCIPLE", `The IntellagenticXO is not a language model applied to ${industry}. It is a domain-specific runtime that happens to use AI for pattern recognition, bounded by Constitutional Safety rules that the operator defines and controls.`));
   body.push(spacer());
 
-  // Section 04 — Architecture & OODA
+  // Section 04 — Architecture & OODA (header + diagram on same page)
   body.push(pageBreak());
   body.push(sectionHeader("04", "THE XO DEPLOYMENT: ARCHITECTURE & OODA WORKFLOW"));
-  body.push(spacer(120));
   if (architecture) {
-    body.push(pageBreak());
     body.push(...codeBlock(architecture));
-    body.push(spacer());
+    body.push(spacer(80));
   }
   body.push(para(`The XO deployment for ${clientName} operates on a continuous Observe-Orient-Decide-Act loop, processing ${industry} data through domain-specific rules before any output reaches the operator.`));
-  body.push(spacer(80));
   body.push(...oodaPhase("\uD83D\uDC41", "OBSERVE", `Ingests ${clientName}'s operational data`,
     [{ bold: "Document ingestion: ", text: "Upload and extraction of all source materials" },
      { bold: "Data feeds: ", text: "Integration with existing systems and data sources" },
@@ -503,7 +502,6 @@ function buildDocument(brief) {
     [{ bold: "Automated output: ", text: "Report generation, notifications, escalation" },
      { bold: "Audit trail: ", text: "Full provenance logging for every action" },
      { bold: "Feedback loop: ", text: "Operator corrections improve future cycles" }]));
-  body.push(spacer());
 
   // Section 05 — Constitutional Safety
   body.push(pageBreak());
@@ -543,7 +541,13 @@ function buildDocument(brief) {
   for (const p of planPhases) {
     body.push(boldPara(p.phase || '', ''));
     for (let i = 0; i < (p.actions || []).length; i++) {
-      body.push(bulletItem(`${i + 1}. `, stripNum(p.actions[i])));
+      body.push(new Paragraph({
+        spacing: { after: 80 }, indent: { left: 360 },
+        children: [
+          new TextRun({ text: `${i + 1}. `, bold: true, size: 20, color: B.teal }),
+          ...xoTextRuns(stripNum(p.actions[i]), { fontSize: 20, color: B.bodyText }),
+        ]
+      }));
     }
     body.push(spacer(80));
   }
