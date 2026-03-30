@@ -416,6 +416,8 @@ def _generate_brief_docx(brief, company_name):
         segments = re.split(r'(```[\s\S]*?```)', content)
         for segment in segments:
             if segment.startswith('```') and segment.endswith('```'):
+                # Page break before architecture diagram
+                doc.add_page_break()
                 # Code block — render as monospace preformatted
                 code = segment.strip('`').strip()
                 if code.startswith('\n'): code = code[1:]
@@ -494,6 +496,11 @@ def _generate_brief_docx(brief, company_name):
 
         table = doc.add_table(rows=len(poc) + 1, cols=3)
         table.style = 'Table Grid'
+        # Column widths: Step 8%, Timeline 15%, Action 77%
+        col_widths = [Cm(1.3), Cm(2.5), Cm(12.7)]
+        for i, width in enumerate(col_widths):
+            for row_obj in table.rows:
+                row_obj.cells[i].width = width
         # Header
         for i, label in enumerate(['Step', 'Timeline', 'Action']):
             cell = table.cell(0, i)
