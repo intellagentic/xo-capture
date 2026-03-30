@@ -2546,33 +2546,34 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Right side: header + content */}
-      <div style={{ flex: 1, marginLeft: `${contentOffset}px`, transition: 'margin-left 0.2s ease', overflowX: 'hidden', minWidth: 0 }}>
-        {/* Header */}
-        <header className="header">
-          <div className="header-inner">
-            <div className="header-left">
-              <div className="logo-box">XO</div>
-              <div className="header-title">
-                <h1>
-                  <span className="header-title-desktop">Capture</span>
-                  <span className="header-title-mobile">Capture</span>
-                  <span className="version-badge">Rapid Prototype</span>
-                </h1>
-                {currentScreen === 'dashboard' && (
-                  <p style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {isPartner && !isAdmin ? 'Partner Dashboard' : 'Client Dashboard'}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="header-right" style={{display: 'flex', alignItems: 'center'}}>
-              <div style={{cursor:"pointer"}} onClick={()=>{window.open("https://www.intellagentic.io","_blank")}}>
-              <img src={logoLight} alt="Intellagentic" style={{ height: '26px' }} />
-              </div>
+      {/* Header — fixed position, spans from sidebar edge to right edge */}
+      <header className="header" style={{ position: 'fixed', top: 0, left: `${contentOffset}px`, right: 0, zIndex: 130, transition: 'left 0.2s ease' }}>
+        <div className="header-inner">
+          <div className="header-left">
+            <div className="logo-box">XO</div>
+            <div className="header-title">
+              <h1>
+                <span className="header-title-desktop">Capture</span>
+                <span className="header-title-mobile">Capture</span>
+                <span className="version-badge">Rapid Prototype</span>
+              </h1>
+              {currentScreen === 'dashboard' && (
+                <p style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {isPartner && !isAdmin ? 'Partner Dashboard' : 'Client Dashboard'}
+                </p>
+              )}
             </div>
           </div>
-        </header>
+          <div className="header-right" style={{display: 'flex', alignItems: 'center'}}>
+            <div style={{cursor:"pointer"}} onClick={()=>{window.open("https://www.intellagentic.io","_blank")}}>
+            <img src={logoLight} alt="Intellagentic" style={{ height: '26px' }} />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Right side: content area */}
+      <div style={{ flex: 1, marginLeft: `${contentOffset}px`, transition: 'margin-left 0.2s ease', overflowX: 'hidden', minWidth: 0, paddingTop: '52px' }}>
 
       {/* Main Content */}
       <main className="main">
