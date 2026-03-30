@@ -1,0 +1,9 @@
+{
+  "name": "xo-brief-download",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "docx": "^8.5.0"
+  }
+}
