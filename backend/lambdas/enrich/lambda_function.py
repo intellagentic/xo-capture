@@ -88,7 +88,7 @@ def _invoke_bedrock_bearer(model_id, body_str):
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=300) as resp:
+        with urllib.request.urlopen(req, timeout=840) as resp:
             return json.loads(resp.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8', errors='replace')
