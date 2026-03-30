@@ -9340,19 +9340,25 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                   onClick={async () => {
                                     setBriefDownloading('docx')
                                     try {
-                                      const res = await fetch(`${API_BASE}/results/${clientId}`, { headers: getAuthHeaders() })
-                                      const data = await res.json()
-                                      const brief = data.deployment_brief
-                                      if (!brief) throw new Error('No deployment brief data')
-                                      const blob = new Blob([JSON.stringify(brief, null, 2)], { type: 'application/json' })
+                                      const res = await fetch(`${API_BASE}/results/${clientId}/brief`, {
+                                        method: 'POST',
+                                        headers: { ...getAuthHeaders(), 'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+                                        body: JSON.stringify({ format: 'docx' })
+                                      })
+                                      if (!res.ok) {
+                                        const err = await res.json()
+                                        throw new Error(err.error || 'Download failed')
+                                      }
+                                      const blob = await res.blob()
                                       const url = URL.createObjectURL(blob)
                                       const a = document.createElement('a')
                                       a.href = url
-                                      a.download = `${displayResults.company_name || 'Client'}_XO_Deployment_Brief.json`
+                                      a.download = `${displayResults.company_name || 'Client'}_XO_Deployment_Brief.docx`
                                       a.click()
                                       URL.revokeObjectURL(url)
                                     } catch (err) {
                                       console.error('Brief download failed:', err)
+                                      alert('Download failed: ' + err.message)
                                     }
                                     setBriefDownloading(null)
                                   }}
@@ -9365,7 +9371,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                   }}
                                 >
                                   {briefDownloading === 'docx' ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
-                                  Download Brief Data
+                                  Download .docx
                                 </button>
                               </div>
 

@@ -1,0 +1,4 @@
+python-docx
+psycopg2-binary
+PyJWT
+cryptography
