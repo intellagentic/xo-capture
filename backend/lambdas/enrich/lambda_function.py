@@ -1172,7 +1172,6 @@ def _send_streamline_webhook(company_name, contacts, model, analysis, source_fil
             },
             "client_summary": analysis.get("client_summary", ""),
             "streamline_applications": analysis.get("streamline_applications", ""),
-            "deployment_brief": analysis.get("deployment_brief", None),
             "data_sources": analysis.get("sources", []),
             "source_files": source_files,
             "xo_results_url": "https://d2np82m8rfcd6u.cloudfront.net",
@@ -1348,27 +1347,6 @@ Provide your analysis in structured, technical format. Follow these formatting r
    - NEVER include cost estimates, pricing, or timelines
    - Keep under 400 words total
 
-9. DEPLOYMENT BRIEF (Client-Ready XO Deployment Document)
-   Generate a structured deployment brief that could be presented directly to the client as a formal XO engagement proposal. This synthesizes everything above into a polished, client-ready document.
-
-   The brief must include:
-   - Cover metadata: client name, a one-line descriptor of their business, a compelling headline for the XO deployment, a value proposition statement, primary contact name, and suggested meeting date
-   - Executive summary: 2-3 paragraphs positioning the XO deployment as the solution to their specific operational crisis
-   - Key metrics: 3-5 quantified impact metrics (e.g., "85% reduction in manual processing", "4-hour response time → 12 minutes") -- use realistic projections based on the document analysis
-   - 6 numbered sections:
-     01 CLIENT PROFILE -- who they are, what they do, scale of operations, key context from documents
-     02 THE OPERATIONAL CRISIS -- the specific pain points driving this engagement, with evidence from their data
-     03 WHY STANDARD AI CANNOT BE USED HERE -- why off-the-shelf AI (ChatGPT, generic automation) fails for their specific domain, regulatory, or operational requirements
-     04 THE XO DEPLOYMENT: ARCHITECTURE & OODA WORKFLOW -- how XO's Observe-Orient-Decide-Act loop applies to their operations, with specific workflow steps. IMPORTANT: Include the Proposed Architecture ASCII diagram from your technical analysis as a fenced code block (``` ... ```) within this section's content. Reproduce the full diagram, do not summarize it.
-     05 CONSTITUTIONAL SAFETY -- how the XO platform enforces domain-specific rules, compliance guardrails, and human oversight for their industry
-     06 PROOF OF CONCEPT & NEXT STEPS -- concrete POC scope, timeline (7/14/21 day), success criteria, and what happens after
-   - Each section can include a callout box highlighting a key insight or competitive advantage
-   - OODA phases: 4 phases (OBSERVE, ORIENT, DECIDE, ACT) with specific taglines and bullet points for this client's deployment
-   - POC timeline: step-by-step table with timeline and actions
-   - Success metric: one sentence defining what "success" looks like for this deployment
-
-   Write in confident, consultative tone. Use specific data from the documents. No generic filler.
-
 OUTPUT FORMAT:
 Return ONLY valid JSON in this exact structure. The "summary", "architecture_diagram", and "bottom_line" fields contain plain text. Schema "columns" use table format. All text fields can include newline characters (\\n) for formatting:
 {{
@@ -1414,67 +1392,6 @@ Return ONLY valid JSON in this exact structure. The "summary", "architecture_dia
   "bottom_line": "Direct summary: what to do first, what it costs, what to expect...",
   "client_summary": "Based on the information provided, XO has identified the following opportunities for [Company Name]:\\n\\n- First value proposition as a business outcome\\n- Second value proposition\\n- Third value proposition\\n\\nForward-looking closing statement about next steps.",
   "streamline_applications": "Based on [Company Name]'s operational needs, Streamline can automate the following workflows:\\n\\n**1. [Application Title]**\\nProblem: [Business problem in their language]\\nWorkflow: [Steps used e.g. Forms → Logic → Documents → Sign → Notifications]\\nIntegrations: [e.g. Salesforce, Google Drive, Slack]\\nOutcome: [What changes day-to-day]\\n\\n**2. [Application Title]**\\n...\\n\\nThese applications are ordered by ease of implementation.",
-  "deployment_brief": {{
-    "cover": {{
-      "client_name": "[Company Name]",
-      "client_descriptor": "One-line description of what they do",
-      "headline": "Compelling headline for the XO deployment",
-      "value_proposition": "One sentence on what XO delivers for them",
-      "client_contact": "Primary contact name from company info",
-      "meeting_date": "Suggested date or 'TBD'"
-    }},
-    "executive_summary": "2-3 paragraphs positioning XO as the solution...",
-    "key_metrics": [
-      {{"value": "85%", "label": "Reduction in Manual Processing", "sublabel": "Based on current document volume"}},
-      {{"value": "4hrs→12min", "label": "Response Time Improvement", "sublabel": "For compliance reporting"}}
-    ],
-    "sections": [
-      {{
-        "number": "01",
-        "title": "CLIENT PROFILE: [Company Name]",
-        "content": "Markdown content with specific details from documents...",
-        "callout": {{"label": "THE [DOMAIN] EDGE", "content": "Key insight or competitive advantage..."}}
-      }},
-      {{
-        "number": "02",
-        "title": "THE OPERATIONAL CRISIS",
-        "content": "Evidence-based description of their pain points..."
-      }},
-      {{
-        "number": "03",
-        "title": "WHY STANDARD AI CANNOT BE USED HERE",
-        "content": "Domain-specific reasons generic AI fails..."
-      }},
-      {{
-        "number": "04",
-        "title": "THE XO DEPLOYMENT: ARCHITECTURE & OODA WORKFLOW",
-        "content": "How XO's Observe-Orient-Decide-Act loop applies..."
-      }},
-      {{
-        "number": "05",
-        "title": "CONSTITUTIONAL SAFETY",
-        "content": "Compliance guardrails, human oversight, domain rules..."
-      }},
-      {{
-        "number": "06",
-        "title": "PROOF OF CONCEPT & NEXT STEPS",
-        "content": "Concrete POC scope, timeline, success criteria..."
-      }}
-    ],
-    "ooda_phases": [
-      {{"name": "OBSERVE", "tagline": "What XO watches...", "bullets": ["bullet 1", "bullet 2"]}},
-      {{"name": "ORIENT", "tagline": "How XO contextualizes...", "bullets": ["bullet 1", "bullet 2"]}},
-      {{"name": "DECIDE", "tagline": "What XO recommends...", "bullets": ["bullet 1", "bullet 2"]}},
-      {{"name": "ACT", "tagline": "What XO executes...", "bullets": ["bullet 1", "bullet 2"]}}
-    ],
-    "poc_timeline": [
-      {{"step": "1", "timeline": "Immediate", "action": "Specific first action..."}},
-      {{"step": "2", "timeline": "Week 1", "action": "..."}},
-      {{"step": "3", "timeline": "Week 2", "action": "..."}},
-      {{"step": "4", "timeline": "Week 3", "action": "..."}}
-    ],
-    "success_metric": "One sentence defining what success looks like for this deployment."
-  }},
   "sources": [
     {{"type": "client_data", "reference": "filename or data source"}}
   ]

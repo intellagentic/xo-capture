@@ -8334,6 +8334,102 @@ function renderMarkdown(text) {
   })
 }
 
+function assembleBrief(results, client) {
+  if (!results || !results.summary) return null
+  const problems = results.problems || []
+  const primary = problems[0] || {}
+  const industry = (client && client.industry) || 'this domain'
+  const companyName = (client && client.company_name) || results.company_name || 'the client'
+  const contactName = (client && client.contact_name) || results.client_contact || ''
+  const description = (client && client.description) || ''
+  const plan = results.plan || results.action_plan || {}
+
+  // Build plan phases array from either format
+  let planPhases = []
+  if (Array.isArray(plan)) {
+    planPhases = plan
+  } else if (typeof plan === 'object') {
+    planPhases = Object.entries(plan).map(([phase, actions]) => ({ phase, actions }))
+  }
+
+  return {
+    cover: {
+      client_name: companyName,
+      client_descriptor: description || industry,
+      headline: primary.title ? `XO Deployment: ${primary.title}` : `XO Deployment for ${companyName}`,
+      value_proposition: results.bottom_line ? results.bottom_line.split('.').slice(0, 2).join('.') + '.' : '',
+      client_contact: contactName,
+      meeting_date: 'TBD',
+    },
+    executive_summary: results.summary || results.executive_summary || '',
+    key_metrics: [
+      { value: String(problems.length), label: 'Critical Issues Identified', sublabel: `${problems.filter(p => p.severity === 'high').length} high severity` },
+      ...(problems.slice(0, 2).map(p => ({
+        value: p.severity === 'high' ? 'HIGH' : p.severity === 'medium' ? 'MED' : 'LOW',
+        label: p.title.length > 40 ? p.title.substring(0, 37) + '...' : p.title,
+        sublabel: p.severity + ' priority'
+      }))),
+    ],
+    sections: [
+      {
+        number: '01',
+        title: `CLIENT PROFILE: ${companyName}`,
+        content: (results.summary || '') + (description ? `\n\n**Industry:** ${industry}\n\n${description}` : ''),
+        callout: { label: `THE ${industry.toUpperCase()} CONTEXT`, content: primary.evidence || '' }
+      },
+      {
+        number: '02',
+        title: 'THE OPERATIONAL CRISIS',
+        content: problems.map(p => `**${p.title}** (${p.severity} severity)\n${p.evidence || ''}\n\n**Recommendation:** ${p.recommendation || ''}`).join('\n\n---\n\n'),
+      },
+      {
+        number: '03',
+        title: 'WHY STANDARD AI CANNOT BE USED HERE',
+        content: `Generic AI tools like ChatGPT or off-the-shelf automation platforms cannot safely operate in ${industry} because they lack domain-specific guardrails. In ${companyName}'s environment, a single error in ${primary.title ? primary.title.toLowerCase() : 'operational processes'} could result in ${primary.evidence ? primary.evidence.split('.')[0].toLowerCase() : 'significant compliance and operational failures'}.\n\nStandard AI has no concept of ${industry} compliance hierarchies, cannot cross-reference domain-specific standards and regulations, and provides no audit trail for regulatory accountability. The XO platform's Constitutional Safety layer ensures that every AI-generated output is bounded by domain rules that the operator defines and controls.`,
+      },
+      {
+        number: '04',
+        title: 'THE XO DEPLOYMENT: ARCHITECTURE & OODA WORKFLOW',
+        content: (results.architecture_diagram ? '```\n' + results.architecture_diagram + '\n```\n\n' : '') +
+          `The XO deployment for ${companyName} operates on a continuous **Observe-Orient-Decide-Act** loop, processing ${industry} data through domain-specific rules before any output reaches the operator.\n\n` +
+          `**Observe:** XO ingests documents, data feeds, and operational inputs from ${companyName}'s systems.\n` +
+          `**Orient:** The DX Cartridge contextualises each input against ${industry} rules, standards, and historical patterns.\n` +
+          `**Decide:** XO generates recommendations bounded by Constitutional Safety rules — flagging items that require human judgment.\n` +
+          `**Act:** Approved outputs are delivered through Streamline workflows, with full audit logging.`,
+      },
+      {
+        number: '05',
+        title: 'CONSTITUTIONAL SAFETY',
+        content: `XO enforces a Constitutional Layer — a set of immutable domain rules that the AI cannot override. For ${companyName}, this means:\n\n` +
+          `- **Compliance Validation:** Every output is validated against ${industry} standards and regulations before delivery\n` +
+          `- **Human Authority:** The operator retains final authority on all decisions flagged as requiring human judgment\n` +
+          `- **Audit Trail:** All AI actions are logged with full provenance for regulatory audit\n` +
+          `- **Domain Boundaries:** Boundaries are encoded as rules, not suggestions — the system cannot generate outputs that violate them`,
+      },
+      {
+        number: '06',
+        title: 'PROOF OF CONCEPT & NEXT STEPS',
+        content: planPhases.map(p => `**${p.phase}**\n${(p.actions || []).map(a => `- ${a}`).join('\n')}`).join('\n\n'),
+      },
+    ],
+    ooda_phases: [
+      { name: 'OBSERVE', tagline: `Ingests ${companyName}'s operational data`, bullets: ['Document upload and extraction', 'Data feed integration', 'Historical pattern capture'] },
+      { name: 'ORIENT', tagline: `Contextualises against ${industry} rules`, bullets: ['Domain rule matching', 'Compliance cross-reference', 'Risk classification'] },
+      { name: 'DECIDE', tagline: 'Generates bounded recommendations', bullets: ['AI analysis within safety constraints', 'Human-judgment flagging', 'Confidence scoring'] },
+      { name: 'ACT', tagline: 'Delivers through Streamline workflows', bullets: ['Automated report generation', 'Notification and escalation', 'Full audit logging'] },
+    ],
+    poc_timeline: [
+      { step: '1', timeline: 'Week 1', action: planPhases[0] ? (planPhases[0].actions || [])[0] || 'Configure DX Cartridge with domain rules' : 'Configure DX Cartridge with domain rules' },
+      { step: '2', timeline: 'Week 1-2', action: planPhases[0] ? (planPhases[0].actions || [])[1] || 'Ingest sample data and validate extraction' : 'Ingest sample data and validate extraction' },
+      { step: '3', timeline: 'Week 2', action: planPhases[1] ? (planPhases[1].actions || [])[0] || 'Run analysis against live data' : 'Run analysis against live data' },
+      { step: '4', timeline: 'Week 3', action: planPhases[2] ? (planPhases[2].actions || [])[0] || 'Review results and make deploy/iterate decision' : 'Review results and make deploy/iterate decision' },
+    ],
+    success_metric: primary.title
+      ? `The pilot is successful when ${primary.title.toLowerCase()} is resolved without manual intervention in the current workflow.`
+      : `The pilot is successful when the primary operational bottleneck is resolved through automated XO processing.`,
+  }
+}
+
 function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,preferredModel }) {
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -9370,7 +9466,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                         </div>:
                     (expandedResult.id==="deploymentBrief"?
                         <div style={{ padding: '1.25rem' }}>
-                          {displayResults.deployment_brief ? (
+                          {(() => { const brief = assembleBrief(displayResults, currentClient); return brief ? (
                             <div>
                               {/* Download bar */}
                               <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
@@ -9416,37 +9512,37 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               </div>
 
                               {/* Cover */}
-                              {displayResults.deployment_brief.cover && (
+                              {brief.cover && (
                                 <div style={{
                                   background: 'linear-gradient(135deg, #0F969C 0%, #0a7075 100%)',
                                   borderRadius: 10, padding: '1.5rem', marginBottom: '1.25rem', color: '#fff'
                                 }}>
                                   <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-                                    {displayResults.deployment_brief.cover.headline || 'XO Deployment Brief'}
+                                    {brief.cover.headline || 'XO Deployment Brief'}
                                   </h2>
                                   <p style={{ fontSize: '0.95rem', opacity: 0.9, marginBottom: '0.5rem' }}>
-                                    {displayResults.deployment_brief.cover.client_name} — {displayResults.deployment_brief.cover.client_descriptor}
+                                    {brief.cover.client_name} — {brief.cover.client_descriptor}
                                   </p>
                                   <p style={{ fontSize: '0.85rem', opacity: 0.8 }}>
-                                    {displayResults.deployment_brief.cover.value_proposition}
+                                    {brief.cover.value_proposition}
                                   </p>
                                 </div>
                               )}
 
                               {/* Executive Summary */}
-                              {displayResults.deployment_brief.executive_summary && (
+                              {brief.executive_summary && (
                                 <div style={{ marginBottom: '1.25rem' }}>
                                   <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Executive Summary</h3>
                                   <div style={{ color: 'var(--text-primary)' }}>
-                                    {renderMarkdown(displayResults.deployment_brief.executive_summary)}
+                                    {renderMarkdown(brief.executive_summary)}
                                   </div>
                                 </div>
                               )}
 
                               {/* Key Metrics */}
-                              {displayResults.deployment_brief.key_metrics && displayResults.deployment_brief.key_metrics.length > 0 && (
+                              {brief.key_metrics && brief.key_metrics.length > 0 && (
                                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-                                  {displayResults.deployment_brief.key_metrics.map((m, i) => (
+                                  {brief.key_metrics.map((m, i) => (
                                     <div key={i} style={{
                                       flex: '1 1 140px', padding: '0.75rem 1rem',
                                       background: 'var(--bg-card-alt)', borderRadius: 8,
@@ -9461,7 +9557,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               )}
 
                               {/* Numbered Sections */}
-                              {displayResults.deployment_brief.sections && displayResults.deployment_brief.sections.map((sec, i) => (
+                              {brief.sections && brief.sections.map((sec, i) => (
                                 <div key={i} style={{ marginBottom: '1.25rem' }}>
                                   <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                                     <span style={{ color: '#0F969C', fontWeight: 700 }}>{sec.number}</span>{' '}
@@ -9485,11 +9581,11 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               ))}
 
                               {/* OODA Phases */}
-                              {displayResults.deployment_brief.ooda_phases && displayResults.deployment_brief.ooda_phases.length > 0 && (
+                              {brief.ooda_phases && brief.ooda_phases.length > 0 && (
                                 <div style={{ marginBottom: '1.25rem' }}>
                                   <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>OODA Workflow</h3>
                                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
-                                    {displayResults.deployment_brief.ooda_phases.map((phase, i) => (
+                                    {brief.ooda_phases.map((phase, i) => (
                                       <div key={i} style={{
                                         padding: '0.75rem', background: 'var(--bg-card-alt)',
                                         borderRadius: 8, border: '1px solid var(--border-color)'
@@ -9506,7 +9602,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               )}
 
                               {/* POC Timeline */}
-                              {displayResults.deployment_brief.poc_timeline && displayResults.deployment_brief.poc_timeline.length > 0 && (
+                              {brief.poc_timeline && brief.poc_timeline.length > 0 && (
                                 <div style={{ marginBottom: '1.25rem' }}>
                                   <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Proof of Concept Timeline</h3>
                                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
@@ -9518,7 +9614,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                       </tr>
                                     </thead>
                                     <tbody>
-                                      {displayResults.deployment_brief.poc_timeline.map((row, i) => (
+                                      {brief.poc_timeline.map((row, i) => (
                                         <tr key={i}>
                                           <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-color)', fontWeight: 600, color: '#0F969C' }}>{row.step}</td>
                                           <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>{row.timeline}</td>
@@ -9531,13 +9627,13 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               )}
 
                               {/* Success Metric */}
-                              {displayResults.deployment_brief.success_metric && (
+                              {brief.success_metric && (
                                 <div style={{
                                   padding: '0.75rem 1rem', background: 'rgba(15, 150, 156, 0.08)',
                                   borderLeft: '4px solid #0F969C', borderRadius: 6,
                                   fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)'
                                 }}>
-                                  <strong>Success Metric:</strong> {displayResults.deployment_brief.success_metric}
+                                  <strong>Success Metric:</strong> {brief.success_metric}
                                 </div>
                               )}
                             </div>
@@ -9547,7 +9643,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               <p style={{ fontSize: '0.9rem' }}>Brief generation not available for this analysis.</p>
                               <p style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Re-run enrichment to generate a Deployment Brief.</p>
                             </div>
-                          )}
+                          )})()}
                         </div>:
                         <div></div>)))))
                   }

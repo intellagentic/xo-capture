@@ -144,7 +144,78 @@ def _handle_results(event, user):
         }
 
 
-# ── Deployment Brief .docx Generation ──
+# ── Deployment Brief Assembly ──
+
+def _assemble_brief(results, client_name='', industry='', description='', contact_name=''):
+    """Assemble deployment brief from existing analysis results — no Bedrock call."""
+    problems = results.get('problems', results.get('problems_identified', []))
+    primary = problems[0] if problems else {}
+    plan = results.get('plan', results.get('action_plan', {}))
+    plan_phases = []
+    if isinstance(plan, list):
+        plan_phases = plan
+    elif isinstance(plan, dict):
+        plan_phases = [{'phase': k, 'actions': v} for k, v in plan.items()]
+
+    company = client_name or results.get('company_name', 'the client')
+    ind = industry or 'this domain'
+
+    return {
+        'cover': {
+            'client_name': company,
+            'client_descriptor': description or ind,
+            'headline': f"XO Deployment: {primary.get('title', 'Operational Transformation')}" if primary else f"XO Deployment for {company}",
+            'value_proposition': (results.get('bottom_line', '') or '').split('.')[0] + '.' if results.get('bottom_line') else '',
+            'client_contact': contact_name,
+            'meeting_date': 'TBD',
+        },
+        'executive_summary': results.get('summary', results.get('executive_summary', '')),
+        'key_metrics': [
+            {'value': str(len(problems)), 'label': 'Critical Issues Identified',
+             'sublabel': f"{sum(1 for p in problems if p.get('severity') == 'high')} high severity"},
+        ] + [{'value': p.get('severity', 'N/A').upper(), 'label': p.get('title', '')[:40], 'sublabel': f"{p.get('severity', '')} priority"} for p in problems[:2]],
+        'sections': [
+            {'number': '01', 'title': f'CLIENT PROFILE: {company}',
+             'content': (results.get('summary', '') or '') + (f"\n\n**Industry:** {ind}\n\n{description}" if description else ''),
+             'callout': {'label': f'THE {ind.upper()} CONTEXT', 'content': primary.get('evidence', '')}},
+            {'number': '02', 'title': 'THE OPERATIONAL CRISIS',
+             'content': '\n\n---\n\n'.join(
+                 f"**{p.get('title', '')}** ({p.get('severity', '')} severity)\n{p.get('evidence', '')}\n\n**Recommendation:** {p.get('recommendation', '')}"
+                 for p in problems)},
+            {'number': '03', 'title': 'WHY STANDARD AI CANNOT BE USED HERE',
+             'content': f"Generic AI tools like ChatGPT or off-the-shelf automation platforms cannot safely operate in {ind} because they lack domain-specific guardrails. In {company}'s environment, a single error in {primary.get('title', 'operational processes').lower() if primary else 'operational processes'} could result in {primary.get('evidence', 'significant compliance and operational failures').split('.')[0].lower() if primary else 'significant compliance and operational failures'}.\n\nStandard AI has no concept of {ind} compliance hierarchies, cannot cross-reference domain-specific standards and regulations, and provides no audit trail for regulatory accountability. The XO platform's Constitutional Safety layer ensures that every AI-generated output is bounded by domain rules that the operator defines and controls."},
+            {'number': '04', 'title': 'THE XO DEPLOYMENT: ARCHITECTURE & OODA WORKFLOW',
+             'content': (f"```\n{results.get('architecture_diagram', '')}\n```\n\n" if results.get('architecture_diagram') else '') +
+                f"The XO deployment for {company} operates on a continuous **Observe-Orient-Decide-Act** loop, processing {ind} data through domain-specific rules before any output reaches the operator.\n\n"
+                f"**Observe:** XO ingests documents, data feeds, and operational inputs from {company}'s systems.\n"
+                f"**Orient:** The DX Cartridge contextualises each input against {ind} rules, standards, and historical patterns.\n"
+                f"**Decide:** XO generates recommendations bounded by Constitutional Safety rules — flagging items that require human judgment.\n"
+                f"**Act:** Approved outputs are delivered through Streamline workflows, with full audit logging."},
+            {'number': '05', 'title': 'CONSTITUTIONAL SAFETY',
+             'content': f"XO enforces a Constitutional Layer — a set of immutable domain rules that the AI cannot override. For {company}, this means:\n\n"
+                f"- **Compliance Validation:** Every output is validated against {ind} standards and regulations before delivery\n"
+                f"- **Human Authority:** The operator retains final authority on all decisions flagged as requiring human judgment\n"
+                f"- **Audit Trail:** All AI actions are logged with full provenance for regulatory audit\n"
+                f"- **Domain Boundaries:** Boundaries are encoded as rules, not suggestions — the system cannot generate outputs that violate them"},
+            {'number': '06', 'title': 'PROOF OF CONCEPT & NEXT STEPS',
+             'content': '\n\n'.join(f"**{p.get('phase', '')}**\n" + '\n'.join(f"- {a}" for a in (p.get('actions', []) if isinstance(p.get('actions'), list) else []))
+                                    for p in plan_phases)},
+        ],
+        'ooda_phases': [
+            {'name': 'OBSERVE', 'tagline': f"Ingests {company}'s operational data", 'bullets': ['Document upload and extraction', 'Data feed integration', 'Historical pattern capture']},
+            {'name': 'ORIENT', 'tagline': f'Contextualises against {ind} rules', 'bullets': ['Domain rule matching', 'Compliance cross-reference', 'Risk classification']},
+            {'name': 'DECIDE', 'tagline': 'Generates bounded recommendations', 'bullets': ['AI analysis within safety constraints', 'Human-judgment flagging', 'Confidence scoring']},
+            {'name': 'ACT', 'tagline': 'Delivers through Streamline workflows', 'bullets': ['Automated report generation', 'Notification and escalation', 'Full audit logging']},
+        ],
+        'poc_timeline': [
+            {'step': '1', 'timeline': 'Week 1', 'action': (plan_phases[0].get('actions', ['Configure DX Cartridge'])[0] if plan_phases else 'Configure DX Cartridge with domain rules')},
+            {'step': '2', 'timeline': 'Week 1-2', 'action': (plan_phases[0].get('actions', ['', 'Ingest sample data'])[1] if plan_phases and len(plan_phases[0].get('actions', [])) > 1 else 'Ingest sample data and validate extraction')},
+            {'step': '3', 'timeline': 'Week 2', 'action': (plan_phases[1].get('actions', ['Run analysis'])[0] if len(plan_phases) > 1 else 'Run analysis against live data')},
+            {'step': '4', 'timeline': 'Week 3', 'action': (plan_phases[2].get('actions', ['Deploy decision'])[0] if len(plan_phases) > 2 else 'Review results and make deploy/iterate decision')},
+        ],
+        'success_metric': f"The pilot is successful when {primary.get('title', 'the primary operational bottleneck').lower()} is resolved without manual intervention in the current workflow." if primary else 'The pilot is successful when the primary operational bottleneck is resolved through automated XO processing.',
+    }
+
 
 def _handle_brief_download(event, user):
     try:
@@ -162,7 +233,20 @@ def _handle_brief_download(event, user):
         if error_resp:
             return error_resp
 
-        brief = results.get('deployment_brief')
+        # Fetch client record for industry/description
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT company_name, industry, description, contact_name FROM clients WHERE s3_folder = %s", (client_id,))
+        client_row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        client_name = client_row[0] if client_row else ''
+        industry = client_row[1] if client_row else ''
+        description = client_row[2] if client_row else ''
+        contact_name = client_row[3] if client_row else ''
+
+        brief = _assemble_brief(results, client_name, industry, description, contact_name)
         if not brief:
             return {
                 'statusCode': 404,
