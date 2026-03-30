@@ -7,6 +7,7 @@ POST /results/:id/brief — Downloads deployment brief as .docx
 import json
 import os
 import io
+import re
 import base64
 import boto3
 from datetime import datetime, timezone
@@ -198,7 +199,7 @@ def _assemble_brief(results, client_name='', industry='', description='', contac
                 f"- **Audit Trail:** All AI actions are logged with full provenance for regulatory audit\n"
                 f"- **Domain Boundaries:** Boundaries are encoded as rules, not suggestions — the system cannot generate outputs that violate them"},
             {'number': '06', 'title': 'PROOF OF CONCEPT & NEXT STEPS',
-             'content': '\n\n'.join(f"**{p.get('phase', '')}**\n" + '\n'.join(f"- {a}" for a in (p.get('actions', []) if isinstance(p.get('actions'), list) else []))
+             'content': '\n\n'.join(f"**{p.get('phase', '')}**\n" + '\n'.join(f"{i+1}. {re.sub(r'^\\d+\\.\\s*', '', a)}" for i, a in enumerate(p.get('actions', []) if isinstance(p.get('actions'), list) else []))
                                     for p in plan_phases)},
         ],
         'ooda_phases': [
@@ -208,10 +209,10 @@ def _assemble_brief(results, client_name='', industry='', description='', contac
             {'name': 'ACT', 'tagline': 'Delivers through Streamline workflows', 'bullets': ['Automated report generation', 'Notification and escalation', 'Full audit logging']},
         ],
         'poc_timeline': [
-            {'step': '1', 'timeline': 'Week 1', 'action': (plan_phases[0].get('actions', ['Configure DX Cartridge'])[0] if plan_phases else 'Configure DX Cartridge with domain rules')},
-            {'step': '2', 'timeline': 'Week 1-2', 'action': (plan_phases[0].get('actions', ['', 'Ingest sample data'])[1] if plan_phases and len(plan_phases[0].get('actions', [])) > 1 else 'Ingest sample data and validate extraction')},
-            {'step': '3', 'timeline': 'Week 2', 'action': (plan_phases[1].get('actions', ['Run analysis'])[0] if len(plan_phases) > 1 else 'Run analysis against live data')},
-            {'step': '4', 'timeline': 'Week 3', 'action': (plan_phases[2].get('actions', ['Deploy decision'])[0] if len(plan_phases) > 2 else 'Review results and make deploy/iterate decision')},
+            {'step': '1', 'timeline': 'Week 1', 'action': re.sub(r'^\d+\.\s*', '', (plan_phases[0].get('actions', ['Configure DX Cartridge'])[0] if plan_phases else 'Configure DX Cartridge with domain rules'))},
+            {'step': '2', 'timeline': 'Week 1-2', 'action': re.sub(r'^\d+\.\s*', '', (plan_phases[0].get('actions', ['', 'Ingest sample data'])[1] if plan_phases and len(plan_phases[0].get('actions', [])) > 1 else 'Ingest sample data and validate extraction'))},
+            {'step': '3', 'timeline': 'Week 2', 'action': re.sub(r'^\d+\.\s*', '', (plan_phases[1].get('actions', ['Run analysis'])[0] if len(plan_phases) > 1 else 'Run analysis against live data'))},
+            {'step': '4', 'timeline': 'Week 3', 'action': re.sub(r'^\d+\.\s*', '', (plan_phases[2].get('actions', ['Deploy decision'])[0] if len(plan_phases) > 2 else 'Review results and make deploy/iterate decision'))},
         ],
         'success_metric': f"The pilot is successful when {primary.get('title', 'the primary operational bottleneck').lower()} is resolved without manual intervention in the current workflow." if primary else 'The pilot is successful when the primary operational bottleneck is resolved through automated XO processing.',
     }
@@ -404,10 +405,39 @@ def _generate_brief_docx(brief, company_name):
         run.font.color.rgb = DARK
 
         content = sec.get('content', '')
-        for para_text in content.split('\n\n'):
-            if para_text.strip():
-                p = doc.add_paragraph(para_text.strip())
-                p.paragraph_format.line_spacing = Pt(16)
+        # Strip backslash escapes
+        content = content.replace('\\*', '*').replace('\\-', '-').replace('\\|', '|')
+        # Split on fenced code blocks
+        segments = re.split(r'(```[\s\S]*?```)', content)
+        for segment in segments:
+            if segment.startswith('```') and segment.endswith('```'):
+                # Code block — render as monospace preformatted
+                code = segment.strip('`').strip()
+                if code.startswith('\n'): code = code[1:]
+                # Remove language hint (e.g. "python\n")
+                if '\n' in code and not code.split('\n')[0].strip().startswith(('+', '|', '-', ' ')):
+                    first_line = code.split('\n')[0].strip()
+                    if len(first_line) < 20 and ' ' not in first_line:
+                        code = code[len(first_line):].lstrip('\n')
+                for line in code.split('\n'):
+                    p = doc.add_paragraph()
+                    p.paragraph_format.space_after = Pt(0)
+                    p.paragraph_format.space_before = Pt(0)
+                    p.paragraph_format.line_spacing = Pt(12)
+                    run = p.add_run(line)
+                    run.font.name = 'Courier New'
+                    run.font.size = Pt(7)
+                    run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
+            else:
+                # Regular text
+                for para_text in segment.split('\n\n'):
+                    stripped = para_text.strip()
+                    if not stripped:
+                        continue
+                    # Strip markdown bold for plain text
+                    clean = re.sub(r'\*\*(.*?)\*\*', r'\1', stripped)
+                    p = doc.add_paragraph(clean)
+                    p.paragraph_format.line_spacing = Pt(16)
 
         callout = sec.get('callout')
         if callout:

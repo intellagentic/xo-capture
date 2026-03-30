@@ -8298,6 +8298,8 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
 // ============================================================
 function renderMarkdown(text) {
   if (!text) return null
+  // Strip backslash escapes before processing (e.g. \*\* → **)
+  text = text.replace(/\\\*/g, '*').replace(/\\-/g, '-').replace(/\\\|/g, '|')
   // Split on fenced code blocks first, then process each segment
   const segments = text.split(/(```[\s\S]*?```)/g)
   let blockKey = 0
@@ -8319,6 +8321,7 @@ function renderMarkdown(text) {
       if (!para.trim()) return null
       const lines = para.split('\n')
       const isBulletBlock = lines.every(l => /^\s*[-*]\s/.test(l) || !l.trim())
+      const isNumberedBlock = lines.every(l => /^\s*\d+\.\s/.test(l) || !l.trim())
       if (isBulletBlock) {
         return (
           <ul key={blockKey++} style={{ margin: '0.5rem 0 0.75rem 1.5rem', fontSize: '0.9rem', lineHeight: 1.7 }}>
@@ -8326,6 +8329,15 @@ function renderMarkdown(text) {
               <li key={j} dangerouslySetInnerHTML={{ __html: l.replace(/^\s*[-*]\s/, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
             ))}
           </ul>
+        )
+      }
+      if (isNumberedBlock) {
+        return (
+          <ol key={blockKey++} style={{ margin: '0.5rem 0 0.75rem 1.5rem', fontSize: '0.9rem', lineHeight: 1.7 }}>
+            {lines.filter(l => l.trim()).map((l, j) => (
+              <li key={j} dangerouslySetInnerHTML={{ __html: l.replace(/^\s*\d+\.\s/, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+            ))}
+          </ol>
         )
       }
       const html = para.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>')
@@ -8409,7 +8421,7 @@ function assembleBrief(results, client) {
       {
         number: '06',
         title: 'PROOF OF CONCEPT & NEXT STEPS',
-        content: planPhases.map(p => `**${p.phase}**\n${(p.actions || []).map(a => `- ${a}`).join('\n')}`).join('\n\n'),
+        content: planPhases.map(p => `**${p.phase}**\n${(p.actions || []).map(a => a.replace(/^\d+\.\s*/, '')).map((a, i) => `${i + 1}. ${a}`).join('\n')}`).join('\n\n'),
       },
     ],
     ooda_phases: [
@@ -8419,10 +8431,10 @@ function assembleBrief(results, client) {
       { name: 'ACT', tagline: 'Delivers through Streamline workflows', bullets: ['Automated report generation', 'Notification and escalation', 'Full audit logging'] },
     ],
     poc_timeline: [
-      { step: '1', timeline: 'Week 1', action: planPhases[0] ? (planPhases[0].actions || [])[0] || 'Configure DX Cartridge with domain rules' : 'Configure DX Cartridge with domain rules' },
-      { step: '2', timeline: 'Week 1-2', action: planPhases[0] ? (planPhases[0].actions || [])[1] || 'Ingest sample data and validate extraction' : 'Ingest sample data and validate extraction' },
-      { step: '3', timeline: 'Week 2', action: planPhases[1] ? (planPhases[1].actions || [])[0] || 'Run analysis against live data' : 'Run analysis against live data' },
-      { step: '4', timeline: 'Week 3', action: planPhases[2] ? (planPhases[2].actions || [])[0] || 'Review results and make deploy/iterate decision' : 'Review results and make deploy/iterate decision' },
+      { step: '1', timeline: 'Week 1', action: (planPhases[0] ? (planPhases[0].actions || [])[0] || 'Configure DX Cartridge with domain rules' : 'Configure DX Cartridge with domain rules').replace(/^\d+\.\s*/, '') },
+      { step: '2', timeline: 'Week 1-2', action: (planPhases[0] ? (planPhases[0].actions || [])[1] || 'Ingest sample data and validate extraction' : 'Ingest sample data and validate extraction').replace(/^\d+\.\s*/, '') },
+      { step: '3', timeline: 'Week 2', action: (planPhases[1] ? (planPhases[1].actions || [])[0] || 'Run analysis against live data' : 'Run analysis against live data').replace(/^\d+\.\s*/, '') },
+      { step: '4', timeline: 'Week 3', action: (planPhases[2] ? (planPhases[2].actions || [])[0] || 'Review results and make deploy/iterate decision' : 'Review results and make deploy/iterate decision').replace(/^\d+\.\s*/, '') },
     ],
     success_metric: primary.title
       ? `The pilot is successful when ${primary.title.toLowerCase()} is resolved without manual intervention in the current workflow.`
