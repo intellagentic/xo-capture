@@ -65,17 +65,16 @@ else:
 
 # Map Anthropic model names to Bedrock model IDs
 BEDROCK_MODEL_MAP = {
-    'claude-opus-4-6': 'us.anthropic.claude-opus-4-6-20250514-v1:0',
-    'claude-sonnet-4-5-20250929': 'us.anthropic.claude-sonnet-4-5-20250514-v1:0',
-    'claude-haiku-4-5-20251001': 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+    'claude-opus-4-6': 'eu.anthropic.claude-opus-4-6-v1',
+    'claude-sonnet-4-5-20250929': 'eu.anthropic.claude-sonnet-4-5-20250929-v1:0',
+    'claude-haiku-4-5-20251001': 'eu.anthropic.claude-haiku-4-5-20251001-v1:0',
 }
 
 
 def _invoke_bedrock_bearer(model_id, body_str):
-    """Call Bedrock invoke_model REST API using bearer token auth."""
-    # URL-encode the model ID (colons → %3A etc.)
+    """Call Bedrock Converse API using bearer token auth."""
     encoded_model = urllib.parse.quote(model_id, safe='')
-    url = f"https://bedrock-runtime.{BEDROCK_REGION}.amazonaws.com/model/{encoded_model}/invoke"
+    url = f"https://bedrock-runtime.{BEDROCK_REGION}.amazonaws.com/model/{encoded_model}/converse"
 
     req = urllib.request.Request(
         url,
@@ -93,7 +92,7 @@ def _invoke_bedrock_bearer(model_id, body_str):
             return json.loads(resp.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8', errors='replace')
-        print(f"Bedrock bearer API error: HTTP {e.code} - {error_body}")
+        print(f"Bedrock Converse API error: HTTP {e.code} - {error_body}")
         raise Exception(f"Bedrock API error {e.code}: {error_body}")
 
 
@@ -1404,30 +1403,32 @@ Be specific. Use actual data from the documents. Think like a management consult
         bedrock_model_id = BEDROCK_MODEL_MAP.get(model, BEDROCK_MODEL_MAP['claude-sonnet-4-5-20250929'])
         print(f"Invoking Bedrock model: {bedrock_model_id} (requested: {model})")
 
-        bedrock_body = json.dumps({
-            "anthropic_version": "bedrock-2023-10-16",
-            "max_tokens": 16000,
-            "temperature": 0.7,
+        converse_body = json.dumps({
             "messages": [
-                {"role": "user", "content": prompt}
-            ]
+                {"role": "user", "content": [{"text": prompt}]}
+            ],
+            "inferenceConfig": {
+                "maxTokens": 16000,
+                "temperature": 0.7
+            }
         })
 
         if AWS_BEARER_TOKEN_BEDROCK:
-            # Bearer token auth — direct REST call
-            response_body = _invoke_bedrock_bearer(bedrock_model_id, bedrock_body)
+            # Bearer token auth — direct REST call to Converse API
+            response_body = _invoke_bedrock_bearer(bedrock_model_id, converse_body)
         else:
-            # IAM role auth — boto3 client
-            bedrock_response = bedrock_client.invoke_model(
+            # IAM role auth — boto3 converse
+            bedrock_response = bedrock_client.converse(
                 modelId=bedrock_model_id,
-                contentType='application/json',
-                accept='application/json',
-                body=bedrock_body
+                messages=[
+                    {"role": "user", "content": [{"text": prompt}]}
+                ],
+                inferenceConfig={"maxTokens": 16000, "temperature": 0.7}
             )
-            response_body = json.loads(bedrock_response['body'].read())
+            response_body = bedrock_response
 
-        response_text = response_body['content'][0]['text']
-        stop_reason = response_body.get('stop_reason', 'unknown')
+        response_text = response_body['output']['message']['content'][0]['text']
+        stop_reason = response_body.get('stopReason', 'unknown')
         print(f"Bedrock response: {len(response_text)} chars, stop_reason={stop_reason}, model={bedrock_model_id}")
 
         if '```json' in response_text:
