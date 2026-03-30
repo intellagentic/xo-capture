@@ -2691,12 +2691,12 @@ export default function App() {
 
       </main>
 
-      {/* Footer */}
-      <div style={{ position: 'fixed', bottom: 0, left: `${contentOffset}px`, right: 0, textAlign: 'center', padding: '0.375rem 1rem', fontSize: '11px', color: '#808080', zIndex: 10, transition: 'left 0.2s ease' }}>
+      </div>{/* end right-side wrapper */}
+
+      {/* Footer — outside content wrapper so overflowX:hidden doesn't affect it */}
+      <div style={{ position: 'fixed', bottom: 0, left: `${contentOffset}px`, right: 0, textAlign: 'center', padding: '0.5rem 1rem', fontSize: '11px', color: '#808080', zIndex: 200, transition: 'left 0.2s ease', background: 'var(--bg-body, #f0f0f0)', borderTop: '1px solid var(--border-color, #e5e5e5)' }}>
         &copy; 2026 Intellagentic Limited. All rights reserved. &nbsp;|&nbsp; <a href="/terms" style={{ color: '#808080', textDecoration: 'none' }}>Terms</a> &middot; <a href="/privacy" style={{ color: '#808080', textDecoration: 'none' }}>Privacy</a> &middot; <a href="/security" style={{ color: '#808080', textDecoration: 'none' }}>Security</a>
       </div>
-
-      </div>{/* end right-side wrapper */}
 
       {/* Company Information Modal */}
       {showCompanyModal && (
@@ -8305,6 +8305,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   const [streamlineSending, setStreamlineSending] = useState(false)
   const [streamlineStatus, setStreamlineStatus] = useState(null) // null | 'sent' | 'error'
   const [protoDownloading, setProtoDownloading] = useState(false)
+  const [briefDownloading, setBriefDownloading] = useState(null) // null | 'docx' | 'pdf'
   const [currentClient,setCurrentClient]=useState(null)
   const [expandedResult,setExpandedResult]= useState({id:"executiveSummary",name:"Executive Summary",shortDescription:"Here is our understanding of your business",severity: 'high'});
   const [formattedResults,setFormattedResults] = useState([
@@ -8312,7 +8313,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
     {id:"problemsIdentified",icon:"AlertTriangle",name:"Problems Identified",shortDescription:"Key pain points and gaps surfaced by the analysis",severity: 'high'},
     {id:"whatwecando",icon:"Zap",name:"Potential Streamline Applications",shortDescription:"",severity: 'high'},
     {id:"rapidDeployment",icon:"Package",name:"Rapid Deployment",shortDescription:"Timeline and action plan",severity: 'high'},
-    {id:"technicalSection",icon:"Globe",name:"Technical Section",shortDescription:"",severity: 'high'}
+    {id:"technicalSection",icon:"Globe",name:"Technical Section",shortDescription:"",severity: 'high'},
+    {id:"deploymentBrief",icon:"FileText",name:"Deployment Brief",shortDescription:"CLIENT-READY XO DEPLOYMENT DOCUMENT",severity: 'high'}
   ]);
   const [expandedSummary,setExpandedSummary]= useState(null);
   const [formattedSummary,setFormattedSummary] = useState([
@@ -9328,7 +9330,180 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                             </div>
                           </div>
                         </div>:
-                        <div></div>))))
+                    (expandedResult.id==="deploymentBrief"?
+                        <div style={{ padding: '1.25rem' }}>
+                          {displayResults.deployment_brief ? (
+                            <div>
+                              {/* Download bar */}
+                              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                                <button
+                                  onClick={async () => {
+                                    setBriefDownloading('docx')
+                                    try {
+                                      const res = await fetch(`${API_BASE}/results/${clientId}`, { headers: getAuthHeaders() })
+                                      const data = await res.json()
+                                      const brief = data.deployment_brief
+                                      if (!brief) throw new Error('No deployment brief data')
+                                      const blob = new Blob([JSON.stringify(brief, null, 2)], { type: 'application/json' })
+                                      const url = URL.createObjectURL(blob)
+                                      const a = document.createElement('a')
+                                      a.href = url
+                                      a.download = `${displayResults.company_name || 'Client'}_XO_Deployment_Brief.json`
+                                      a.click()
+                                      URL.revokeObjectURL(url)
+                                    } catch (err) {
+                                      console.error('Brief download failed:', err)
+                                    }
+                                    setBriefDownloading(null)
+                                  }}
+                                  disabled={briefDownloading}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                    padding: '0.5rem 1rem', fontSize: '0.8rem', fontWeight: 600,
+                                    background: '#0F969C', color: '#fff', border: 'none', borderRadius: 6, cursor: briefDownloading ? 'wait' : 'pointer',
+                                    opacity: briefDownloading === 'docx' ? 0.7 : 1
+                                  }}
+                                >
+                                  {briefDownloading === 'docx' ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
+                                  Download Brief Data
+                                </button>
+                              </div>
+
+                              {/* Cover */}
+                              {displayResults.deployment_brief.cover && (
+                                <div style={{
+                                  background: 'linear-gradient(135deg, #0F969C 0%, #0a7075 100%)',
+                                  borderRadius: 10, padding: '1.5rem', marginBottom: '1.25rem', color: '#fff'
+                                }}>
+                                  <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                    {displayResults.deployment_brief.cover.headline || 'XO Deployment Brief'}
+                                  </h2>
+                                  <p style={{ fontSize: '0.95rem', opacity: 0.9, marginBottom: '0.5rem' }}>
+                                    {displayResults.deployment_brief.cover.client_name} — {displayResults.deployment_brief.cover.client_descriptor}
+                                  </p>
+                                  <p style={{ fontSize: '0.85rem', opacity: 0.8 }}>
+                                    {displayResults.deployment_brief.cover.value_proposition}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Executive Summary */}
+                              {displayResults.deployment_brief.executive_summary && (
+                                <div style={{ marginBottom: '1.25rem' }}>
+                                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Executive Summary</h3>
+                                  <p style={{ fontSize: '0.9rem', lineHeight: 1.7, color: 'var(--text-primary)' }}>
+                                    {displayResults.deployment_brief.executive_summary}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Key Metrics */}
+                              {displayResults.deployment_brief.key_metrics && displayResults.deployment_brief.key_metrics.length > 0 && (
+                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+                                  {displayResults.deployment_brief.key_metrics.map((m, i) => (
+                                    <div key={i} style={{
+                                      flex: '1 1 140px', padding: '0.75rem 1rem',
+                                      background: 'var(--bg-card-alt)', borderRadius: 8,
+                                      border: '1px solid var(--border-color)', textAlign: 'center'
+                                    }}>
+                                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F969C' }}>{m.value}</div>
+                                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: '0.15rem' }}>{m.label}</div>
+                                      {m.sublabel && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{m.sublabel}</div>}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Numbered Sections */}
+                              {displayResults.deployment_brief.sections && displayResults.deployment_brief.sections.map((sec, i) => (
+                                <div key={i} style={{ marginBottom: '1.25rem' }}>
+                                  <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                                    <span style={{ color: '#0F969C', fontWeight: 700 }}>{sec.number}</span>{' '}
+                                    <span style={{ color: 'var(--text-primary)' }}>{sec.title}</span>
+                                  </h3>
+                                  <div style={{ fontSize: '0.9rem', lineHeight: 1.7, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                                    {sec.content}
+                                  </div>
+                                  {sec.callout && (
+                                    <div style={{
+                                      marginTop: '0.75rem', padding: '0.75rem 1rem',
+                                      background: 'rgba(15, 150, 156, 0.08)',
+                                      borderLeft: '4px solid #0F969C', borderRadius: 6,
+                                      fontSize: '0.85rem', color: 'var(--text-primary)'
+                                    }}>
+                                      <strong style={{ color: '#0F969C' }}>{sec.callout.label}</strong>
+                                      <p style={{ margin: '0.25rem 0 0' }}>{sec.callout.content}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+
+                              {/* OODA Phases */}
+                              {displayResults.deployment_brief.ooda_phases && displayResults.deployment_brief.ooda_phases.length > 0 && (
+                                <div style={{ marginBottom: '1.25rem' }}>
+                                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>OODA Workflow</h3>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
+                                    {displayResults.deployment_brief.ooda_phases.map((phase, i) => (
+                                      <div key={i} style={{
+                                        padding: '0.75rem', background: 'var(--bg-card-alt)',
+                                        borderRadius: 8, border: '1px solid var(--border-color)'
+                                      }}>
+                                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0F969C', letterSpacing: '0.05em' }}>{phase.name}</div>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>{phase.tagline}</div>
+                                        <ul style={{ margin: 0, paddingLeft: '1rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                          {phase.bullets?.map((b, j) => <li key={j} style={{ marginBottom: '0.15rem' }}>{b}</li>)}
+                                        </ul>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* POC Timeline */}
+                              {displayResults.deployment_brief.poc_timeline && displayResults.deployment_brief.poc_timeline.length > 0 && (
+                                <div style={{ marginBottom: '1.25rem' }}>
+                                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Proof of Concept Timeline</h3>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                    <thead>
+                                      <tr style={{ background: 'var(--bg-card-alt)' }}>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', borderBottom: '1px solid var(--border-color)', fontWeight: 600 }}>Step</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', borderBottom: '1px solid var(--border-color)', fontWeight: 600 }}>Timeline</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', borderBottom: '1px solid var(--border-color)', fontWeight: 600 }}>Action</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {displayResults.deployment_brief.poc_timeline.map((row, i) => (
+                                        <tr key={i}>
+                                          <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-color)', fontWeight: 600, color: '#0F969C' }}>{row.step}</td>
+                                          <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap' }}>{row.timeline}</td>
+                                          <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-color)' }}>{row.action}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+
+                              {/* Success Metric */}
+                              {displayResults.deployment_brief.success_metric && (
+                                <div style={{
+                                  padding: '0.75rem 1rem', background: 'rgba(15, 150, 156, 0.08)',
+                                  borderLeft: '4px solid #0F969C', borderRadius: 6,
+                                  fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)'
+                                }}>
+                                  <strong>Success Metric:</strong> {displayResults.deployment_brief.success_metric}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                              <FileText size={32} style={{ margin: '0 auto 0.75rem', opacity: 0.5 }} />
+                              <p style={{ fontSize: '0.9rem' }}>Brief generation not available for this analysis.</p>
+                              <p style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Re-run enrichment to generate a Deployment Brief.</p>
+                            </div>
+                          )}
+                        </div>:
+                        <div></div>)))))
                   }
                 </div>
             )}
