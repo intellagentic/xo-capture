@@ -189,12 +189,22 @@ def _handle_enrich_request(event, user):
         model_to_use = requested_model if requested_model in allowed_models else db_model
         print(f"Using model: {model_to_use}")
 
-        cur.execute("""
-            SELECT company_name, website_url, contact_name, contact_title,
-                   contact_linkedin, industry, description, pain_point, id
-            FROM clients
-            WHERE s3_folder = %s AND user_id = %s
-        """, (client_id, user['user_id']))
+        is_admin = user.get('is_admin', False) or user.get('role') == 'admin'
+
+        if is_admin:
+            cur.execute("""
+                SELECT company_name, website_url, contact_name, contact_title,
+                       contact_linkedin, industry, description, pain_point, id, user_id
+                FROM clients
+                WHERE s3_folder = %s
+            """, (client_id,))
+        else:
+            cur.execute("""
+                SELECT company_name, website_url, contact_name, contact_title,
+                       contact_linkedin, industry, description, pain_point, id, user_id
+                FROM clients
+                WHERE s3_folder = %s AND user_id = %s
+            """, (client_id, user['user_id']))
 
         row = cur.fetchone()
         if not row:
@@ -205,6 +215,9 @@ def _handle_enrich_request(event, user):
                 'headers': CORS_HEADERS,
                 'body': json.dumps({'error': 'Client not found'})
             }
+
+        if is_admin and str(row[9]) != user['user_id']:
+            print(f"Admin bypass: user {user.get('email')} enriching client {client_id} owned by {row[9]}")
 
         db_client_id = str(row[8])
 
