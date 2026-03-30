@@ -2691,8 +2691,8 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <div style={{ position: 'fixed', bottom: 0, left: `${contentOffset}px`, right: 0, textAlign: 'center', padding: '0.375rem 0', fontSize: '11px', color: '#808080', pointerEvents: 'none', zIndex: 10, transition: 'left 0.2s ease' }}>
-        &copy; 2026 Intellagentic Limited. All rights reserved.
+      <div style={{ position: 'fixed', bottom: 0, left: `${contentOffset}px`, right: 0, textAlign: 'center', padding: '0.375rem 1rem', fontSize: '11px', color: '#808080', zIndex: 10, transition: 'left 0.2s ease' }}>
+        &copy; 2026 Intellagentic Limited. All rights reserved. &nbsp;|&nbsp; <a href="/terms" style={{ color: '#808080', textDecoration: 'none' }}>Terms</a> &middot; <a href="/privacy" style={{ color: '#808080', textDecoration: 'none' }}>Privacy</a> &middot; <a href="/security" style={{ color: '#808080', textDecoration: 'none' }}>Security</a>
       </div>
 
       </div>{/* end right-side wrapper */}
