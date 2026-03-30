@@ -179,13 +179,12 @@ def _handle_brief_download(event, user):
 
         return {
             'statusCode': 200,
-            'headers': {
-                **CORS_HEADERS,
-                'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'Content-Disposition': f'attachment; filename="{filename}"',
-            },
-            'body': base64.b64encode(docx_bytes).decode('utf-8'),
-            'isBase64Encoded': True,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'filename': filename,
+                'content_base64': base64.b64encode(docx_bytes).decode('utf-8'),
+                'content_type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            })
         }
 
     except Exception as e:

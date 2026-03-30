@@ -8296,6 +8296,29 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
 // ============================================================
 // RESULTS SCREEN
 // ============================================================
+function renderMarkdown(text) {
+  if (!text) return null
+  // Split into paragraphs, render inline markdown
+  return text.split('\n\n').map((para, i) => {
+    if (!para.trim()) return null
+    // Handle bullet lines
+    const lines = para.split('\n')
+    const isBulletBlock = lines.every(l => /^\s*[-*]\s/.test(l) || !l.trim())
+    if (isBulletBlock) {
+      return (
+        <ul key={i} style={{ margin: '0.5rem 0 0.75rem 1.5rem', fontSize: '0.9rem', lineHeight: 1.7 }}>
+          {lines.filter(l => l.trim()).map((l, j) => (
+            <li key={j} dangerouslySetInnerHTML={{ __html: l.replace(/^\s*[-*]\s/, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+          ))}
+        </ul>
+      )
+    }
+    // Regular paragraph with bold rendering
+    const html = para.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>')
+    return <p key={i} style={{ margin: '0.5rem 0', fontSize: '0.9rem', lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: html }} />
+  })
+}
+
 function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,preferredModel }) {
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -9342,18 +9365,20 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                     try {
                                       const res = await fetch(`${API_BASE}/results/${clientId}/brief`, {
                                         method: 'POST',
-                                        headers: { ...getAuthHeaders(), 'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+                                        headers: getAuthHeaders(),
                                         body: JSON.stringify({ format: 'docx' })
                                       })
-                                      if (!res.ok) {
-                                        const err = await res.json()
-                                        throw new Error(err.error || 'Download failed')
-                                      }
-                                      const blob = await res.blob()
+                                      const data = await res.json()
+                                      if (!res.ok) throw new Error(data.error || 'Download failed')
+                                      // Decode base64 to binary
+                                      const byteChars = atob(data.content_base64)
+                                      const byteArray = new Uint8Array(byteChars.length)
+                                      for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i)
+                                      const blob = new Blob([byteArray], { type: data.content_type })
                                       const url = URL.createObjectURL(blob)
                                       const a = document.createElement('a')
                                       a.href = url
-                                      a.download = `${displayResults.company_name || 'Client'}_XO_Deployment_Brief.docx`
+                                      a.download = data.filename
                                       a.click()
                                       URL.revokeObjectURL(url)
                                     } catch (err) {
@@ -9397,9 +9422,9 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               {displayResults.deployment_brief.executive_summary && (
                                 <div style={{ marginBottom: '1.25rem' }}>
                                   <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Executive Summary</h3>
-                                  <p style={{ fontSize: '0.9rem', lineHeight: 1.7, color: 'var(--text-primary)' }}>
-                                    {displayResults.deployment_brief.executive_summary}
-                                  </p>
+                                  <div style={{ color: 'var(--text-primary)' }}>
+                                    {renderMarkdown(displayResults.deployment_brief.executive_summary)}
+                                  </div>
                                 </div>
                               )}
 
@@ -9427,8 +9452,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                     <span style={{ color: '#0F969C', fontWeight: 700 }}>{sec.number}</span>{' '}
                                     <span style={{ color: 'var(--text-primary)' }}>{sec.title}</span>
                                   </h3>
-                                  <div style={{ fontSize: '0.9rem', lineHeight: 1.7, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
-                                    {sec.content}
+                                  <div style={{ color: 'var(--text-primary)' }}>
+                                    {renderMarkdown(sec.content)}
                                   </div>
                                   {sec.callout && (
                                     <div style={{
