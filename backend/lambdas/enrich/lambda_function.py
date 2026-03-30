@@ -1359,7 +1359,7 @@ Provide your analysis in structured, technical format. Follow these formatting r
      01 CLIENT PROFILE -- who they are, what they do, scale of operations, key context from documents
      02 THE OPERATIONAL CRISIS -- the specific pain points driving this engagement, with evidence from their data
      03 WHY STANDARD AI CANNOT BE USED HERE -- why off-the-shelf AI (ChatGPT, generic automation) fails for their specific domain, regulatory, or operational requirements
-     04 THE XO DEPLOYMENT: ARCHITECTURE & OODA WORKFLOW -- how XO's Observe-Orient-Decide-Act loop applies to their operations, with specific workflow steps
+     04 THE XO DEPLOYMENT: ARCHITECTURE & OODA WORKFLOW -- how XO's Observe-Orient-Decide-Act loop applies to their operations, with specific workflow steps. IMPORTANT: Include the Proposed Architecture ASCII diagram from your technical analysis as a fenced code block (``` ... ```) within this section's content. Reproduce the full diagram, do not summarize it.
      05 CONSTITUTIONAL SAFETY -- how the XO platform enforces domain-specific rules, compliance guardrails, and human oversight for their industry
      06 PROOF OF CONCEPT & NEXT STEPS -- concrete POC scope, timeline (7/14/21 day), success criteria, and what happens after
    - Each section can include a callout box highlighting a key insight or competitive advantage

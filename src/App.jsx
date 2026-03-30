@@ -8298,24 +8298,39 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
 // ============================================================
 function renderMarkdown(text) {
   if (!text) return null
-  // Split into paragraphs, render inline markdown
-  return text.split('\n\n').map((para, i) => {
-    if (!para.trim()) return null
-    // Handle bullet lines
-    const lines = para.split('\n')
-    const isBulletBlock = lines.every(l => /^\s*[-*]\s/.test(l) || !l.trim())
-    if (isBulletBlock) {
+  // Split on fenced code blocks first, then process each segment
+  const segments = text.split(/(```[\s\S]*?```)/g)
+  let blockKey = 0
+  return segments.map((segment) => {
+    // Fenced code block
+    if (segment.startsWith('```') && segment.endsWith('```')) {
+      const code = segment.replace(/^```\w*\n?/, '').replace(/\n?```$/, '')
       return (
-        <ul key={i} style={{ margin: '0.5rem 0 0.75rem 1.5rem', fontSize: '0.9rem', lineHeight: 1.7 }}>
-          {lines.filter(l => l.trim()).map((l, j) => (
-            <li key={j} dangerouslySetInnerHTML={{ __html: l.replace(/^\s*[-*]\s/, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-          ))}
-        </ul>
+        <pre key={blockKey++} style={{
+          fontFamily: 'Monaco, Menlo, Consolas, monospace', whiteSpace: 'pre',
+          overflowX: 'auto', background: 'var(--bg-card-alt, #f5f5f5)',
+          border: '1px solid var(--border-color, #e0e0e0)',
+          padding: '12px', borderRadius: 4, fontSize: '0.75rem', lineHeight: 1.5, margin: '0.75rem 0'
+        }}>{code}</pre>
       )
     }
-    // Regular paragraph with bold rendering
-    const html = para.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>')
-    return <p key={i} style={{ margin: '0.5rem 0', fontSize: '0.9rem', lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: html }} />
+    // Regular content — split into paragraphs
+    return segment.split('\n\n').map((para) => {
+      if (!para.trim()) return null
+      const lines = para.split('\n')
+      const isBulletBlock = lines.every(l => /^\s*[-*]\s/.test(l) || !l.trim())
+      if (isBulletBlock) {
+        return (
+          <ul key={blockKey++} style={{ margin: '0.5rem 0 0.75rem 1.5rem', fontSize: '0.9rem', lineHeight: 1.7 }}>
+            {lines.filter(l => l.trim()).map((l, j) => (
+              <li key={j} dangerouslySetInnerHTML={{ __html: l.replace(/^\s*[-*]\s/, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+            ))}
+          </ul>
+        )
+      }
+      const html = para.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>')
+      return <p key={blockKey++} style={{ margin: '0.5rem 0', fontSize: '0.9rem', lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: html }} />
+    })
   })
 }
 
