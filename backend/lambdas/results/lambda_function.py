@@ -9,10 +9,15 @@ import re
 import boto3
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
-    from crypto_helper import unwrap_client_key, decrypt_s3_body
+    from crypto_helper import unwrap_client_key, decrypt_s3_body, client_decrypt, client_decrypt_json
 except ImportError:
     def unwrap_client_key(x): return None
     def decrypt_s3_body(k, b): return b if isinstance(b, str) else b.decode('utf-8', errors='replace') if b else ''
+    def client_decrypt(k, x): return x
+    def client_decrypt_json(k, x):
+        if not x: return None
+        try: return json.loads(x)
+        except: return None
 
 s3_client = boto3.client('s3')
 BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data-mv')
@@ -120,6 +125,40 @@ def _handle_results(event, user):
         results, error_resp = _get_enrichment_results(client_id, user)
         if error_resp:
             return error_resp
+
+        # Inject client metadata from database
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT company_name, industry, description, contact_name, contact_email,
+                       encryption_key, contacts_json
+                FROM clients WHERE s3_folder = %s
+            """, (client_id,))
+            crow = cur.fetchone()
+            cur.close()
+            conn.close()
+            if crow:
+                ck = unwrap_client_key(crow[5]) if crow[5] else None
+                results['company_name'] = client_decrypt(ck, crow[0]) if ck and crow[0] else (crow[0] or '')
+                results['client_industry'] = client_decrypt(ck, crow[1]) if ck and crow[1] else (crow[1] or '')
+                results['client_description'] = client_decrypt(ck, crow[2]) if ck and crow[2] else (crow[2] or '')
+                results['client_contact'] = client_decrypt(ck, crow[3]) if ck and crow[3] else (crow[3] or '')
+                results['client_email'] = client_decrypt(ck, crow[4]) if ck and crow[4] else (crow[4] or '')
+                # Parse contacts_json for primary contact
+                contacts = client_decrypt_json(ck, crow[6]) if crow[6] else None
+                if contacts and isinstance(contacts, list) and len(contacts) > 0:
+                    primary = contacts[0]
+                    fn = primary.get('firstName', '')
+                    ln = primary.get('lastName', '')
+                    if fn or ln:
+                        results['client_contact'] = f"{fn} {ln}".strip()
+                    if primary.get('email') and not results.get('client_email'):
+                        results['client_email'] = primary['email']
+                    if primary.get('title'):
+                        results['client_contact_title'] = primary['title']
+        except Exception as e:
+            print(f"Failed to inject client metadata (non-fatal): {e}")
 
         return {
             'statusCode': 200,

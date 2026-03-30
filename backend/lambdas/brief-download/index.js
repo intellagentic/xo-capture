@@ -400,18 +400,26 @@ function assembleBrief(results) {
   const industry = results.industry || results.client_industry || 'this domain';
   const description = results.description || results.client_description || '';
 
+  // Meeting date from enrichment completion
+  let meetingDate = 'TBD';
+  if (results.analyzed_at) {
+    try { meetingDate = new Date(results.analyzed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }); } catch(e) {}
+  }
+
   return { clientName, industry, description, problems, primary, planPhases,
     summary: results.summary || results.executive_summary || '',
     bottomLine: results.bottom_line || '',
     architecture: results.architecture_diagram || '',
     streamline: results.streamline_applications || '',
     contactName: results.client_contact || '',
+    contactTitle: results.client_contact_title || '',
+    meetingDate,
   };
 }
 
 // ── Build Document ──
 function buildDocument(brief) {
-  const { clientName, industry, description, problems, primary, planPhases, summary, bottomLine, architecture, streamline, contactName } = brief;
+  const { clientName, industry, description, problems, primary, planPhases, summary, bottomLine, architecture, streamline, contactName, meetingDate } = brief;
   const stripNum = t => (t || '').replace(/^\d+\.\s*/, '');
 
   // Cover
@@ -419,7 +427,7 @@ function buildDocument(brief) {
     clientName, description || industry,
     primary.title || 'Operational Transformation',
     bottomLine ? bottomLine.split('.').slice(0, 2).join('.') + '.' : '',
-    contactName || clientName, 'TBD'
+    contactName || clientName, meetingDate
   );
 
   // Body
