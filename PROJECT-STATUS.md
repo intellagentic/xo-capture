@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.00)
+**Status:** Deployed & Operational (v2.01)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3095,6 +3095,68 @@ Enrichment note deduplication (v2.00):
 Testing: 55 pytest regression tests covering Private App auth, sync push/pull, batch API, field mapping, firstName/lastName handling, honorific filtering, LinkedIn mapping, phone country code preference, dedup with URL normalization, timestamp-based conflict resolution, webhook auth, pull-only mode, accurate counters, enrichment note dedup
 
 Verified: Full sync pushed 2 partners + 12 clients via batch API. Steady-state sync: 0 pushed, 0 updated. Webhook pull-only operational. FC Dynamics contact fully synced both directions. Enrichment note pushed once, skipped on repeat push (verified via logs).
+
+**v2.01 -- Deployment Brief Generation (March 30, 2026)**
+
+Feature: Client-ready XO Deployment Brief on the Results page with branded .docx download.
+
+Architecture:
+- Enrichment produces standard analysis (summary, problems, architecture, plan, streamline_applications)
+- Frontend assembleBrief() maps analysis results into 7-section brief structure -- no Bedrock call, instant render
+- Static templates for Section 03 (Why Standard AI) and Section 05 (Constitutional Safety) with domain terms swapped in
+- Node.js Lambda (xo-brief-download) generates branded .docx using docx npm package
+- Results Lambda injects client metadata (company_name, industry, description, contacts) from encrypted DB into API response
+- Download button on Results page calls POST /results/{id}/brief, receives base64-encoded .docx in JSON
+
+Brief sections (7 total):
+- 01 CLIENT PROFILE -- executive summary + company context from DB
+- 02 THE OPERATIONAL CRISIS -- problems identified with severity, evidence, recommendations
+- 03 WHY STANDARD AI CANNOT BE USED HERE -- static XO positioning with domain terms
+- 04 THE XO DEPLOYMENT: ARCHITECTURE & OODA WORKFLOW -- ASCII diagram + 4-phase OODA loop
+- 05 CONSTITUTIONAL SAFETY -- guardrails framework with domain adaptation
+- 06 INTELLISTACK STREAMLINE APPLICATIONS -- parsed from streamline_applications field
+- 07 PROOF OF CONCEPT & NEXT STEPS -- 7/14/21 day plan + POC timeline table + success metric
+
+Branded .docx formatting (from brief-formatting skill):
+- Dark navy cover page (#0D0D0D) with INTELLAGENTICXO header, teal accent, CONFIDENTIAL tag
+- All "XO" text rendered in red (#CC0000) via xoTextRuns() helper
+- Section headers with navy number badge + teal number
+- Key metrics row (borderless table, large teal numbers)
+- Teal callout boxes (THE PRINCIPLE, THE GUARANTEE, SUCCESS METRIC) -- cantSplit + keepNext
+- Red risk callout boxes -- cantSplit to prevent page-break splits
+- OODA phases with emoji icons, teal bold phase names, indented sub-bullets
+- Streamline Applications with colored labels (Problem: red, Workflow: blue)
+- POC timeline table with navy header row, alternating shading, column widths 720/1350/6956 DXA
+- CONFIDENTIAL header + page numbers on all body pages
+- ASCII architecture diagram in Courier New 14pt on F5F5F5 background, same page as section header
+- Cover metadata: client name, Intellagentic Limited, enrichment date
+
+Infrastructure changes:
+- New Lambda: xo-brief-download (Node.js 20, eu-west-2, 256MB, 30s timeout)
+- API Gateway: POST /results/{id}/brief routed to xo-brief-download with Lambda invoke permission
+- IAM: xo-brief-invoke-results policy allows cross-Lambda invocation of xo-results
+- Admin bypass on enrichment Lambda client lookup (admins can enrich any client)
+- Bedrock model IDs updated to EU inference profiles (eu.anthropic.claude-opus-4-6-v1, etc.)
+- Bedrock API switched from InvokeModel to Converse API (required for EU profiles)
+- Enrichment Lambda timeout increased to 900s, Bedrock socket timeout to 840s
+- IAM: xo-enrich-self-invoke policy for async Phase 2 self-invocation
+- Legal pages: /terms, /privacy, /security -- public, no auth, SPA-routed via CloudFront
+- Mobile landscape overflow fixes on dashboard and header
+
+Enrichment fixes (v2.01):
+- Admin bypass: admins can enrich any client regardless of user_id ownership
+- Bedrock EU model IDs: eu.anthropic.claude-opus-4-6-v1, eu.anthropic.claude-sonnet-4-5-20250929-v1:0
+- Converse API: replaced InvokeModel (required for EU inference profiles)
+- Lambda timeout: 300s to 900s for Opus 4.6 analysis with deployment brief
+- Self-invoke IAM permission for async enrichment Phase 2
+
+Frontend additions (v2.01):
+- Deployment Brief collapsible section on Results page with teal cover, metrics, numbered sections, OODA grid, POC table
+- renderMarkdown() function: bold, bullets, numbered lists, fenced code blocks, backslash escape stripping
+- assembleBrief() maps analysis results to brief structure -- zero API calls, instant render
+- Legal pages (/terms, /privacy, /security) with shared styling, cross-links, company footer
+- Login screen footer links (Terms, Privacy, Security)
+- Mobile landscape overflow fixes (filter bar wrapping, hide-narrow CSS, header position:fixed)
 
 **Next Step:** Web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode).
 
