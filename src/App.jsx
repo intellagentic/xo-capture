@@ -7298,11 +7298,7 @@ const COLORS = [
   { name: 'Gray',   value: '#334155' }
 ]
 
-const DEFAULT_BUTTONS = [
-  { id: 1, label: 'Enrich', icon: 'Sparkles', color: '#22c55e', url: '/enrich', showOn: ['welcome'] },
-  { id: 2, label: 'Skills', icon: 'Database', color: '#334155', url: '/skills', showOn: ['welcome'] },
-  { id: 3, label: 'Rapid Prototype', icon: 'Download', color: '#dc2626', url: '/results', showOn: ['welcome'] }
-]
+const DEFAULT_BUTTONS = []
 
 const BUTTON_PAGE_OPTIONS = [
   { value: 'welcome', label: 'Welcome' },
@@ -7647,7 +7643,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
 
   // ── System Button Operations ─────────────────────────────
   const addSysButton = () => {
-    const newBtn = { id: Date.now(), label: 'New Button', color: '#3b82f6', icon: 'Zap', url: '', showOn: ['welcome'] }
+    const newBtn = { id: Date.now(), label: 'New Button', color: '#3b82f6', icon: 'Zap', url: '', showOn: [] }
     let newButtons = [...systemButtons, newBtn]
     setSystemButtons(newButtons)
     setSysEditingId(newBtn.id)
@@ -7800,9 +7796,30 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                     <div>
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Show on pages</label>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {/* None option */}
+                        {(() => {
+                          const showOn = btn.showOn || btn.show_on || ['welcome']
+                          const isNone = !Array.isArray(showOn) || showOn.length === 0
+                          return (
+                            <label style={{
+                              display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                              borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                              background: isNone ? '#ef444415' : C.bg,
+                              border: `1px solid ${isNone ? '#ef4444' : C.border}`,
+                              color: isNone ? '#ef4444' : C.muted, fontWeight: isNone ? 600 : 400,
+                            }}>
+                              <input type="checkbox" checked={isNone}
+                                onChange={() => onUpdate(btn.id, 'showOn', isNone ? ['welcome'] : [])}
+                                style={{ width: 14, height: 14, accentColor: '#ef4444' }}
+                              />
+                              None
+                            </label>
+                          )
+                        })()}
                         {BUTTON_PAGE_OPTIONS.map(opt => {
                           const showOn = btn.showOn || btn.show_on || ['welcome']
-                          const checked = Array.isArray(showOn) && showOn.includes(opt.value)
+                          const isNone = !Array.isArray(showOn) || showOn.length === 0
+                          const checked = !isNone && showOn.includes(opt.value)
                           return (
                             <label key={opt.value} style={{
                               display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
@@ -7810,12 +7827,13 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                               background: checked ? `${btn.color || '#3b82f6'}15` : C.bg,
                               border: `1px solid ${checked ? (btn.color || '#3b82f6') : C.border}`,
                               color: checked ? (btn.color || '#3b82f6') : C.muted, fontWeight: checked ? 600 : 400,
+                              opacity: isNone ? 0.4 : 1,
                             }}>
-                              <input type="checkbox" checked={checked}
+                              <input type="checkbox" checked={checked} disabled={isNone}
                                 onChange={() => {
-                                  const curr = Array.isArray(showOn) ? [...showOn] : ['welcome']
+                                  const curr = Array.isArray(showOn) ? [...showOn] : []
                                   const next = checked ? curr.filter(v => v !== opt.value) : [...curr, opt.value]
-                                  onUpdate(btn.id, 'showOn', next.length > 0 ? next : ['welcome'])
+                                  onUpdate(btn.id, 'showOn', next)
                                 }}
                                 style={{ width: 14, height: 14, accentColor: btn.color || '#3b82f6' }}
                               />
