@@ -2640,6 +2640,14 @@ export default function App() {
           </div>
         )}
 
+        {/* Page Action Buttons (filtered by showOn for current screen) */}
+        <PageActionButtons
+          page={currentScreen === 'upload' ? 'welcome' : currentScreen}
+          systemButtons={systemButtons}
+          configButtons={configButtons}
+          onNavigate={navigateTo}
+        />
+
         {/* Screen Content */}
         {currentScreen === 'dashboard' && (
           <DashboardScreen
@@ -7291,9 +7299,19 @@ const COLORS = [
 ]
 
 const DEFAULT_BUTTONS = [
-  { id: 1, label: 'Enrich', icon: 'Sparkles', color: '#22c55e', url: '/enrich' },
-  { id: 2, label: 'Skills', icon: 'Database', color: '#334155', url: '/skills' },
-  { id: 3, label: 'Rapid Prototype', icon: 'Download', color: '#dc2626', url: '/results' }
+  { id: 1, label: 'Enrich', icon: 'Sparkles', color: '#22c55e', url: '/enrich', showOn: ['welcome'] },
+  { id: 2, label: 'Skills', icon: 'Database', color: '#334155', url: '/skills', showOn: ['welcome'] },
+  { id: 3, label: 'Rapid Prototype', icon: 'Download', color: '#dc2626', url: '/results', showOn: ['welcome'] }
+]
+
+const BUTTON_PAGE_OPTIONS = [
+  { value: 'welcome', label: 'Welcome' },
+  { value: 'dashboard', label: 'Dashboard' },
+  { value: 'sources', label: 'Sources' },
+  { value: 'enrich', label: 'Enrich' },
+  { value: 'results', label: 'Results' },
+  { value: 'skills', label: 'Skills' },
+  { value: 'configuration', label: 'Configuration' },
 ]
 
 // Internal route map for button navigation
@@ -7305,6 +7323,41 @@ const ROUTE_MAP = {
   '/results': 'results',
   '/skills': 'skills',
   '/configuration': 'configuration'
+}
+
+function PageActionButtons({ page, systemButtons, configButtons, onNavigate }) {
+  const allButtons = [...(systemButtons || []), ...(configButtons || [])]
+  const filtered = allButtons.filter(btn => {
+    const showOn = btn.showOn || btn.show_on || ['welcome']
+    return Array.isArray(showOn) && showOn.includes(page)
+  })
+  if (filtered.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+      {filtered.map((btn, i) => {
+        const IconComp = ICON_MAP[btn.icon] || Zap
+        const isRoute = btn.url && btn.url.startsWith('/') && ROUTE_MAP[btn.url]
+        return (
+          <button
+            key={btn.id || i}
+            onClick={() => {
+              if (isRoute && onNavigate) onNavigate(ROUTE_MAP[btn.url])
+              else if (btn.url) window.open(btn.url, '_blank')
+            }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.9rem',
+              background: btn.color || '#3b82f6', color: '#fff', border: 'none', borderRadius: 8,
+              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500,
+              boxShadow: `0 2px 8px ${btn.color || '#3b82f6'}30`, transition: 'all 0.2s'
+            }}
+          >
+            <IconComp size={15} />
+            {btn.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 function SystemSkillsPanel({ C }) {
@@ -7594,7 +7647,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
 
   // ── System Button Operations ─────────────────────────────
   const addSysButton = () => {
-    const newBtn = { id: Date.now(), label: 'New Button', color: '#3b82f6', icon: 'Zap', url: '' }
+    const newBtn = { id: Date.now(), label: 'New Button', color: '#3b82f6', icon: 'Zap', url: '', showOn: ['welcome'] }
     let newButtons = [...systemButtons, newBtn]
     setSystemButtons(newButtons)
     setSysEditingId(newBtn.id)
@@ -7740,6 +7793,34 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                               color: btn.icon === iconName ? btn.color : C.muted,
                               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s'
                             }}><Icon size={16} /></button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Show on pages</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {BUTTON_PAGE_OPTIONS.map(opt => {
+                          const showOn = btn.showOn || btn.show_on || ['welcome']
+                          const checked = Array.isArray(showOn) && showOn.includes(opt.value)
+                          return (
+                            <label key={opt.value} style={{
+                              display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                              borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                              background: checked ? `${btn.color || '#3b82f6'}15` : C.bg,
+                              border: `1px solid ${checked ? (btn.color || '#3b82f6') : C.border}`,
+                              color: checked ? (btn.color || '#3b82f6') : C.muted, fontWeight: checked ? 600 : 400,
+                            }}>
+                              <input type="checkbox" checked={checked}
+                                onChange={() => {
+                                  const curr = Array.isArray(showOn) ? [...showOn] : ['welcome']
+                                  const next = checked ? curr.filter(v => v !== opt.value) : [...curr, opt.value]
+                                  onUpdate(btn.id, 'showOn', next.length > 0 ? next : ['welcome'])
+                                }}
+                                style={{ width: 14, height: 14, accentColor: btn.color || '#3b82f6' }}
+                              />
+                              {opt.label}
+                            </label>
                           )
                         })}
                       </div>
