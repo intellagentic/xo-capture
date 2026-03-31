@@ -19,7 +19,7 @@
 
 7. **Source citations** -- Every claim must cite its source in parentheses: (customer_list.csv row 142), (billing_export.xlsx Sheet 2), (company website), (inferred from revenue data + industry benchmarks).
 
-8. **Bottom line** -- End with a direct, CEO-level summary. One paragraph. What to do first. What it will cost. What outcome to expect. No hedging.
+8. **Bottom line** -- One paragraph. Do NOT restate the problem or findings from the Executive Summary. Start with the recommended first action, estimated cost, expected financial outcome, and timeline. Numbers only -- no narrative. No hedging.
 
 ## XO + Streamline Architecture in Output
 

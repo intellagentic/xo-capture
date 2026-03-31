@@ -1323,8 +1323,9 @@ Provide your analysis in structured, technical format. Follow these formatting r
    - Include expected cost or effort level where possible
 
 6. BOTTOM LINE
-   - One paragraph: what to do first, what it will cost, what outcome to expect
-   - Be direct -- this is the slide the CEO reads
+   - One paragraph. Do NOT repeat the problem statement or findings from the Executive Summary
+   - Start directly with the recommended first action, estimated cost, expected financial outcome, and timeline
+   - Numbers only -- no narrative. This is the slide the CEO reads
 
 7. CLIENT SUMMARY (XO Summary for Client)
    - A concise, client-ready summary that could be shared directly with the client
@@ -1389,7 +1390,7 @@ Return ONLY valid JSON in this exact structure. The "summary", "architecture_dia
       "actions": ["1. Specific action with measurable outcome", "2. Another action"]
     }}
   ],
-  "bottom_line": "Direct summary: what to do first, what it costs, what to expect...",
+  "bottom_line": "Recommended action, cost, financial outcome, and timeline. No problem restatement. Numbers only.",
   "client_summary": "Based on the information provided, XO has identified the following opportunities for [Company Name]:\\n\\n- First value proposition as a business outcome\\n- Second value proposition\\n- Third value proposition\\n\\nForward-looking closing statement about next steps.",
   "streamline_applications": "Based on [Company Name]'s operational needs, Streamline can automate the following workflows:\\n\\n**1. [Application Title]**\\nProblem: [Business problem in their language]\\nWorkflow: [Steps used e.g. Forms → Logic → Documents → Sign → Notifications]\\nIntegrations: [e.g. Salesforce, Google Drive, Slack]\\nOutcome: [What changes day-to-day]\\n\\n**2. [Application Title]**\\n...\\n\\nThese applications are ordered by ease of implementation.",
   "sources": [
