@@ -2,7 +2,11 @@
 
 ## Structure Rules
 
-1. **Executive summary format** -- The first line MUST be a single standalone sentence framing the core finding. Not a bullet — a sentence. Follow with EXACTLY 3 bullet points. Not 4, not 5, not 6. Three. Each bullet: 1-2 sentences maximum. If it exceeds 2 sentences, split or cut. Each bullet covers a distinct theme — no overlap between bullets. No transition or summary bullets like "the immediate opportunity is..." — every bullet must contain a concrete finding or data point.
+1. **STRICT FORMATTING CONSTRAINT — Executive Summary:**
+   - Line 1: A single standalone framing sentence. NOT a bullet. If your output starts with a bullet, you have failed this instruction.
+   - Lines 2-4: EXACTLY 3 bullet points. Count them. If you have written more than 3, delete the extras. If a bullet exceeds 2 sentences, cut it to 2.
+   - Each bullet covers a distinct theme — no overlap between bullets. No transition or summary bullets like "the immediate opportunity is..." — every bullet must contain a concrete finding or data point.
+   - VALIDATION: Before outputting, count your bullets. If the count is not exactly 3, revise until it is.
 
 2. **Numbered sections** -- Every section uses numbered items. Every recommendation is numbered. Every action item is numbered. This makes it easy to reference in follow-up discussions.
 
@@ -38,7 +42,11 @@
    - 21-day: Deploy or decide -- go live with the solution or make the build/buy decision
    Numbered items within each phase. Each action should be specific and measurable. Include expected cost or effort level where possible.
 
-9. **Bottom line** -- First word must be a verb (Deploy, Build, Schedule, Launch). No problem restatement. Maximum 4 sentences. Every sentence must contain at least one number (£, $, %, days, hours). No narrative framing — pure action + cost + outcome + timeline.
+9. **STRICT FORMATTING CONSTRAINT — Bottom Line:**
+   - Sentence 1 MUST begin with an imperative verb (Build, Deploy, Schedule, Launch, Test). If it begins with a company name or problem description, you have failed this instruction.
+   - MAXIMUM 4 sentences total. Count them. If you have more than 4, delete until you have 4.
+   - EVERY sentence must contain at least one specific number (£, $, %, days, hours, units). A sentence without a number fails this instruction.
+   - VALIDATION: Before outputting, verify each sentence starts or contains a number. Remove any sentence that is pure narrative.
 
 ## XO + Streamline Architecture in Output
 
