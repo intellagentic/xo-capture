@@ -7325,7 +7325,10 @@ function PageActionButtons({ page, systemButtons, configButtons, onNavigate }) {
   const allButtons = [...(systemButtons || []), ...(configButtons || [])]
   const filtered = allButtons.filter(btn => {
     const showOn = btn.showOn || btn.show_on || ['welcome']
-    return Array.isArray(showOn) && showOn.includes(page)
+    if (!Array.isArray(showOn) || !showOn.includes(page)) return false
+    // Rapid Prototype renders inside Technical Section, not in generic bar
+    if ((btn.label === 'Rapid Prototype' || btn.name === 'Rapid Prototype') && page === 'results') return false
+    return true
   })
   if (filtered.length === 0) return null
   return (
@@ -9111,6 +9114,15 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 </div>
 
               </div>
+              {item.id === 'technicalSection' && systemButtons && systemButtons.filter(b => b.label === 'Rapid Prototype' || b.name === 'Rapid Prototype').map((btn, bi) => {
+                const BtnIcon = ICON_MAP[btn.icon] || Download
+                return (
+                  <button key={bi} onClick={(e) => { e.stopPropagation(); if (btn.url && btn.url.startsWith('/')) { /* handled by page nav */ } else if (btn.url) window.open(btn.url, '_blank') }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: btn.color || '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                    <BtnIcon size={13} /> {btn.label}
+                  </button>
+                )
+              })}
               {exp ? (
                   <ChevronDown size={20} style={{color: 'var(--text-secondary)', flexShrink: 0}}/>
               ) : (
