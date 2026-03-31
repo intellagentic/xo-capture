@@ -39,6 +39,8 @@ def _run_button_migrations():
         cur.execute("ALTER TABLE buttons ALTER COLUMN user_id DROP NOT NULL;")
         # Index for client_id lookups
         cur.execute("CREATE INDEX IF NOT EXISTS idx_buttons_client_id ON buttons(client_id);")
+        # show_on column for page-agnostic buttons
+        cur.execute("""ALTER TABLE buttons ADD COLUMN IF NOT EXISTS show_on TEXT DEFAULT '["welcome"]'""")
         conn.commit()
         cur.close()
         conn.close()
@@ -94,7 +96,7 @@ def handle_get(event, user):
         if scope == 'system':
             # System buttons only (user_id IS NULL + client_id IS NULL)
             cur.execute("""
-                SELECT id, name, icon, color, url, sort_order, client_id
+                SELECT id, name, icon, color, url, sort_order, client_id, show_on
                 FROM buttons
                 WHERE client_id IS NULL AND user_id IS NULL
                 ORDER BY sort_order ASC
@@ -102,7 +104,7 @@ def handle_get(event, user):
         elif scope == 'client' and client_id:
             # Client-specific buttons only
             cur.execute("""
-                SELECT id, name, icon, color, url, sort_order, client_id
+                SELECT id, name, icon, color, url, sort_order, client_id, show_on
                 FROM buttons
                 WHERE client_id = %s
                 ORDER BY sort_order ASC
@@ -110,16 +112,16 @@ def handle_get(event, user):
         elif client_id:
             # Combined: system buttons first, then client buttons (for Welcome screen)
             cur.execute("""
-                (SELECT id, name, icon, color, url, sort_order, client_id
+                (SELECT id, name, icon, color, url, sort_order, client_id, show_on
                  FROM buttons WHERE client_id IS NULL AND user_id IS NULL ORDER BY sort_order ASC)
                 UNION ALL
-                (SELECT id, name, icon, color, url, sort_order, client_id
+                (SELECT id, name, icon, color, url, sort_order, client_id, show_on
                  FROM buttons WHERE client_id = %s ORDER BY sort_order ASC)
             """, (client_id,))
         else:
             # Legacy: user's own buttons
             cur.execute("""
-                SELECT id, name, icon, color, url, sort_order, client_id
+                SELECT id, name, icon, color, url, sort_order, client_id, show_on
                 FROM buttons
                 WHERE user_id = %s
                 ORDER BY sort_order ASC
@@ -127,6 +129,13 @@ def handle_get(event, user):
 
         buttons = []
         for row in cur.fetchall():
+            # Parse show_on from JSON string, default to ["welcome"]
+            show_on = ['welcome']
+            if row[7]:
+                try:
+                    show_on = json.loads(row[7])
+                except (json.JSONDecodeError, TypeError):
+                    show_on = ['welcome']
             buttons.append({
                 'id': str(row[0]),
                 'label': row[1],
@@ -134,7 +143,8 @@ def handle_get(event, user):
                 'color': row[3],
                 'url': decrypt(row[4]) or '',
                 'sort_order': row[5],
-                'scope': 'system' if row[6] is None else 'client'
+                'scope': 'system' if row[6] is None else 'client',
+                'showOn': show_on,
             })
 
         cur.close()
@@ -178,15 +188,17 @@ def handle_sync(event, user):
             cur.execute("DELETE FROM buttons WHERE client_id IS NULL AND user_id IS NULL")
             # Insert new system buttons
             for i, btn in enumerate(buttons):
+                show_on = json.dumps(btn.get('showOn', btn.get('show_on', ['welcome'])))
                 cur.execute("""
-                    INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order)
-                    VALUES (NULL, NULL, %s, %s, %s, %s, %s)
+                    INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order, show_on)
+                    VALUES (NULL, NULL, %s, %s, %s, %s, %s, %s)
                 """, (
                     btn.get('label', btn.get('name', 'Button')),
                     btn.get('icon', 'Zap'),
                     btn.get('color', '#3b82f6'),
                     encrypt(btn.get('url', '')),
-                    btn.get('sort_order', i)
+                    btn.get('sort_order', i),
+                    show_on,
                 ))
             print(f"Synced {len(buttons)} system buttons by {user['email']}")
 
@@ -194,9 +206,10 @@ def handle_sync(event, user):
             # Client-specific buttons
             cur.execute("DELETE FROM buttons WHERE client_id = %s", (client_id,))
             for i, btn in enumerate(buttons):
+                show_on = json.dumps(btn.get('showOn', btn.get('show_on', ['welcome'])))
                 cur.execute("""
-                    INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order, show_on)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     user['user_id'],
                     client_id,
@@ -204,7 +217,8 @@ def handle_sync(event, user):
                     btn.get('icon', 'Zap'),
                     btn.get('color', '#3b82f6'),
                     encrypt(btn.get('url', '')),
-                    btn.get('sort_order', i)
+                    btn.get('sort_order', i),
+                    show_on,
                 ))
             print(f"Synced {len(buttons)} client buttons for {client_id} by {user['email']}")
 
@@ -212,16 +226,18 @@ def handle_sync(event, user):
             # Legacy: user-level buttons (only delete user's own, not system buttons)
             cur.execute("DELETE FROM buttons WHERE user_id = %s", (user['user_id'],))
             for i, btn in enumerate(buttons):
+                show_on = json.dumps(btn.get('showOn', btn.get('show_on', ['welcome'])))
                 cur.execute("""
-                    INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order)
-                    VALUES (%s, NULL, %s, %s, %s, %s, %s)
+                    INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order, show_on)
+                    VALUES (%s, NULL, %s, %s, %s, %s, %s, %s)
                 """, (
                     user['user_id'],
                     btn.get('label', btn.get('name', 'Button')),
                     btn.get('icon', 'Zap'),
                     btn.get('color', '#3b82f6'),
                     encrypt(btn.get('url', '')),
-                    btn.get('sort_order', i)
+                    btn.get('sort_order', i),
+                    show_on,
                 ))
             print(f"Synced {len(buttons)} buttons for user {user['email']}")
 

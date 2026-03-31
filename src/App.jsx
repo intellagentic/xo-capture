@@ -2640,6 +2640,14 @@ export default function App() {
           </div>
         )}
 
+        {/* Page Action Buttons (filtered by showOn for current screen) */}
+        <PageActionButtons
+          page={currentScreen === 'upload' ? 'welcome' : currentScreen}
+          systemButtons={systemButtons}
+          configButtons={configButtons}
+          onNavigate={navigateTo}
+        />
+
         {/* Screen Content */}
         {currentScreen === 'dashboard' && (
           <DashboardScreen
@@ -7290,10 +7298,16 @@ const COLORS = [
   { name: 'Gray',   value: '#334155' }
 ]
 
-const DEFAULT_BUTTONS = [
-  { id: 1, label: 'Enrich', icon: 'Sparkles', color: '#22c55e', url: '/enrich' },
-  { id: 2, label: 'Skills', icon: 'Database', color: '#334155', url: '/skills' },
-  { id: 3, label: 'Rapid Prototype', icon: 'Download', color: '#dc2626', url: '/results' }
+const DEFAULT_BUTTONS = []
+
+const BUTTON_PAGE_OPTIONS = [
+  { value: 'welcome', label: 'Welcome' },
+  { value: 'dashboard', label: 'Dashboard' },
+  { value: 'sources', label: 'Sources' },
+  { value: 'enrich', label: 'Enrich' },
+  { value: 'results', label: 'Results' },
+  { value: 'skills', label: 'Skills' },
+  { value: 'configuration', label: 'Configuration' },
 ]
 
 // Internal route map for button navigation
@@ -7305,6 +7319,45 @@ const ROUTE_MAP = {
   '/results': 'results',
   '/skills': 'skills',
   '/configuration': 'configuration'
+}
+
+function PageActionButtons({ page, systemButtons, configButtons, onNavigate }) {
+  const allButtons = [...(systemButtons || []), ...(configButtons || [])]
+  const filtered = allButtons.filter(btn => {
+    const showOn = btn.showOn || btn.show_on || ['welcome']
+    if (!Array.isArray(showOn) || !showOn.includes(page)) return false
+    // These render inside their respective section headers, not in generic bar
+    if (page === 'results' && (btn.label === 'Rapid Prototype' || btn.name === 'Rapid Prototype')) return false
+    if (page === 'results' && (btn.label === 'Download .docx' || btn.name === 'Download .docx')) return false
+    return true
+  })
+  if (filtered.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem', justifyContent: 'flex-end' }}>
+      {filtered.map((btn, i) => {
+        const IconComp = ICON_MAP[btn.icon] || Zap
+        const isRoute = btn.url && btn.url.startsWith('/') && ROUTE_MAP[btn.url]
+        return (
+          <button
+            key={btn.id || i}
+            onClick={() => {
+              if (isRoute && onNavigate) onNavigate(ROUTE_MAP[btn.url])
+              else if (btn.url) window.open(btn.url, '_blank')
+            }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.9rem',
+              background: btn.color || '#3b82f6', color: '#fff', border: 'none', borderRadius: 8,
+              cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500,
+              boxShadow: `0 2px 8px ${btn.color || '#3b82f6'}30`, transition: 'all 0.2s'
+            }}
+          >
+            <IconComp size={15} />
+            {btn.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 function SystemSkillsPanel({ C }) {
@@ -7594,7 +7647,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
 
   // ── System Button Operations ─────────────────────────────
   const addSysButton = () => {
-    const newBtn = { id: Date.now(), label: 'New Button', color: '#3b82f6', icon: 'Zap', url: '' }
+    const newBtn = { id: Date.now(), label: 'New Button', color: '#3b82f6', icon: 'Zap', url: '', showOn: [] }
     let newButtons = [...systemButtons, newBtn]
     setSystemButtons(newButtons)
     setSysEditingId(newBtn.id)
@@ -7740,6 +7793,56 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                               color: btn.icon === iconName ? btn.color : C.muted,
                               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s'
                             }}><Icon size={16} /></button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Show on pages</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {/* None option */}
+                        {(() => {
+                          const showOn = btn.showOn || btn.show_on || ['welcome']
+                          const isNone = !Array.isArray(showOn) || showOn.length === 0
+                          return (
+                            <label style={{
+                              display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                              borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                              background: isNone ? '#ef444415' : C.bg,
+                              border: `1px solid ${isNone ? '#ef4444' : C.border}`,
+                              color: isNone ? '#ef4444' : C.muted, fontWeight: isNone ? 600 : 400,
+                            }}>
+                              <input type="checkbox" checked={isNone}
+                                onChange={() => onUpdate(btn.id, 'showOn', isNone ? ['welcome'] : [])}
+                                style={{ width: 14, height: 14, accentColor: '#ef4444' }}
+                              />
+                              None
+                            </label>
+                          )
+                        })()}
+                        {BUTTON_PAGE_OPTIONS.map(opt => {
+                          const showOn = btn.showOn || btn.show_on || ['welcome']
+                          const isNone = !Array.isArray(showOn) || showOn.length === 0
+                          const checked = !isNone && showOn.includes(opt.value)
+                          return (
+                            <label key={opt.value} style={{
+                              display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                              borderRadius: 6, fontSize: 12, cursor: 'pointer',
+                              background: checked ? `${btn.color || '#3b82f6'}15` : C.bg,
+                              border: `1px solid ${checked ? (btn.color || '#3b82f6') : C.border}`,
+                              color: checked ? (btn.color || '#3b82f6') : C.muted, fontWeight: checked ? 600 : 400,
+                              opacity: isNone ? 0.4 : 1,
+                            }}>
+                              <input type="checkbox" checked={checked} disabled={isNone}
+                                onChange={() => {
+                                  const curr = Array.isArray(showOn) ? [...showOn] : []
+                                  const next = checked ? curr.filter(v => v !== opt.value) : [...curr, opt.value]
+                                  onUpdate(btn.id, 'showOn', next)
+                                }}
+                                style={{ width: 14, height: 14, accentColor: btn.color || '#3b82f6' }}
+                              />
+                              {opt.label}
+                            </label>
                           )
                         })}
                       </div>
@@ -8679,17 +8782,18 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
 
   const displayResults = results || mockResults
 
-  let displaySummary = displayResults.summary;
-  displaySummary = displaySummary.replaceAll("\n","------");
-  displaySummary = displaySummary.replaceAll(": ",": ------");
-  displaySummary = displaySummary.replaceAll(". ",". ------");
-
-  const segmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
-  const segments = segmenter.segment(displayResults.summary);
+  // Split summary into bullet points — preserve model's intended groupings
   let displayPhrases = [];
-  for (const segment of segments) {
-    let segmentText = segment.segment;
-    if(segmentText.trim()!=="") displayPhrases.push(segment.segment)
+  const rawSummary = displayResults.summary || '';
+  if (rawSummary.includes('\n')) {
+    // Model returned structured bullets — split on newlines, keep multi-sentence bullets together
+    displayPhrases = rawSummary.split(/\n{1,2}/).map(s => s.trim()).filter(s => s.length > 0)
+  } else {
+    // Legacy: no newlines — fall back to sentence segmenter
+    const segmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
+    for (const segment of segmenter.segment(rawSummary)) {
+      if (segment.segment.trim()) displayPhrases.push(segment.segment)
+    }
   }
 
   if (loading) {
@@ -9012,6 +9116,38 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 </div>
 
               </div>
+              {item.id === 'technicalSection' && systemButtons && systemButtons.filter(b => b.label === 'Rapid Prototype' || b.name === 'Rapid Prototype').map((btn, bi) => {
+                const BtnIcon = ICON_MAP[btn.icon] || Download
+                return (
+                  <button key={bi} onClick={(e) => { e.stopPropagation(); if (btn.url && btn.url.startsWith('/')) { /* handled by page nav */ } else if (btn.url) window.open(btn.url, '_blank') }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: btn.color || '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                    <BtnIcon size={13} /> {btn.label}
+                  </button>
+                )
+              })}
+              {item.id === 'deploymentBrief' && (
+                <button onClick={async (e) => {
+                  e.stopPropagation()
+                  setBriefDownloading('docx')
+                  try {
+                    const res = await fetch(`${API_BASE}/results/${clientId}/brief`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ format: 'docx' }) })
+                    const data = await res.json()
+                    if (!res.ok) throw new Error(data.error || 'Download failed')
+                    const byteChars = atob(data.content_base64)
+                    const byteArray = new Uint8Array(byteChars.length)
+                    for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i)
+                    const blob = new Blob([byteArray], { type: data.content_type })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a'); a.href = url; a.download = data.filename; a.click()
+                    URL.revokeObjectURL(url)
+                  } catch (err) { alert('Download failed: ' + err.message) }
+                  setBriefDownloading(null)
+                }}
+                disabled={briefDownloading}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: briefDownloading ? 'wait' : 'pointer', flexShrink: 0, opacity: briefDownloading ? 0.7 : 1 }}>
+                  {briefDownloading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .docx
+                </button>
+              )}
               {exp ? (
                   <ChevronDown size={20} style={{color: 'var(--text-secondary)', flexShrink: 0}}/>
               ) : (
@@ -9485,48 +9621,6 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                         <div style={{ padding: '1.25rem' }}>
                           {(() => { const brief = assembleBrief(displayResults, currentClient); return brief ? (
                             <div>
-                              {/* Download bar */}
-                              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                                <button
-                                  onClick={async () => {
-                                    setBriefDownloading('docx')
-                                    try {
-                                      const res = await fetch(`${API_BASE}/results/${clientId}/brief`, {
-                                        method: 'POST',
-                                        headers: getAuthHeaders(),
-                                        body: JSON.stringify({ format: 'docx' })
-                                      })
-                                      const data = await res.json()
-                                      if (!res.ok) throw new Error(data.error || 'Download failed')
-                                      const byteChars = atob(data.content_base64)
-                                      const byteArray = new Uint8Array(byteChars.length)
-                                      for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i)
-                                      const blob = new Blob([byteArray], { type: data.content_type })
-                                      const url = URL.createObjectURL(blob)
-                                      const a = document.createElement('a')
-                                      a.href = url
-                                      a.download = data.filename
-                                      a.click()
-                                      URL.revokeObjectURL(url)
-                                    } catch (err) {
-                                      console.error('Brief download failed:', err)
-                                      alert('Download failed: ' + err.message)
-                                    }
-                                    setBriefDownloading(null)
-                                  }}
-                                  disabled={briefDownloading}
-                                  style={{
-                                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                                    padding: '0.5rem 1rem', fontSize: '0.8rem', fontWeight: 600,
-                                    background: '#0F969C', color: '#fff', border: 'none', borderRadius: 6, cursor: briefDownloading ? 'wait' : 'pointer',
-                                    opacity: briefDownloading ? 0.7 : 1
-                                  }}
-                                >
-                                  {briefDownloading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
-                                  Download .docx
-                                </button>
-                              </div>
-
                               <div id="deployment-brief-content">
                               {/* Cover */}
                               {brief.cover && (

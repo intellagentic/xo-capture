@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS buttons (
 );
 
 CREATE INDEX IF NOT EXISTS idx_buttons_user_id ON buttons(user_id);
+ALTER TABLE buttons ADD COLUMN IF NOT EXISTS show_on TEXT DEFAULT '["welcome"]';
 
 -- ============================================================
 -- GOOGLE DRIVE INTEGRATION (migration)
