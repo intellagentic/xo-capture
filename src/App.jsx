@@ -8782,17 +8782,18 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
 
   const displayResults = results || mockResults
 
-  let displaySummary = displayResults.summary;
-  displaySummary = displaySummary.replaceAll("\n","------");
-  displaySummary = displaySummary.replaceAll(": ",": ------");
-  displaySummary = displaySummary.replaceAll(". ",". ------");
-
-  const segmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
-  const segments = segmenter.segment(displayResults.summary);
+  // Split summary into bullet points — preserve model's intended groupings
   let displayPhrases = [];
-  for (const segment of segments) {
-    let segmentText = segment.segment;
-    if(segmentText.trim()!=="") displayPhrases.push(segment.segment)
+  const rawSummary = displayResults.summary || '';
+  if (rawSummary.includes('\n')) {
+    // Model returned structured bullets — split on newlines, keep multi-sentence bullets together
+    displayPhrases = rawSummary.split(/\n{1,2}/).map(s => s.trim()).filter(s => s.length > 0)
+  } else {
+    // Legacy: no newlines — fall back to sentence segmenter
+    const segmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
+    for (const segment of segmenter.segment(rawSummary)) {
+      if (segment.segment.trim()) displayPhrases.push(segment.segment)
+    }
   }
 
   if (loading) {
