@@ -1273,7 +1273,7 @@ def analyze_with_claude(company_name, website, contact_name, contact_title,
         pain_point_section = f"\n\nPRIORITY: The client has identified this as their immediate pain point: '{pain_point}'. Make this the #1 problem in your analysis. Lead the executive summary with it, ensure it appears first in the problems list with specific evidence and a concrete recommendation, and front-load the 7-day action plan with steps that directly address it."
 
     prompt = f"""You are an MBA-level business analyst conducting an XO Capture analysis. You have been given access to internal documents from a company. Analyze this business and provide strategic insights.
-{system_skills_section}
+
 COMPANY INFORMATION:
 Company Name: {company_name}
 {enrichment_section}
@@ -1284,78 +1284,13 @@ CLIENT DATA (Uploaded Documents):
 TASK:
 Analyze this business like an MBA analyst presenting on Monday morning.{pain_point_section}
 
-Provide your analysis in structured, technical format. Follow these formatting rules strictly:
-
-1. EXECUTIVE SUMMARY
-   - Open with one lead-in sentence that frames the core finding
-   - Follow with 3-4 bullet points maximum, each 1-2 sentences
-   - Each bullet must be a distinct insight -- do not repeat themes across bullets
-   - No transition bullets like "every recommendation below ties to..." -- every bullet must contain a concrete finding or data point
-   - Reference specific data from the source documents where possible
-
-2. PROBLEMS IDENTIFIED (top 3-5)
-   For each problem provide:
-   - Title (clear, specific)
-   - Severity (high/medium/low)
-   - Evidence: cite specific data from the documents (row counts, dollar amounts, percentages)
-   - Recommendation: concrete action with expected outcome
-
-3. PROPOSED ARCHITECTURE
-   - Provide an ASCII diagram showing the proposed system architecture using box-drawing characters (+, -, |, v, >)
-   - Show data flow between components
-   - Example format:
-     +----------+     +----------+     +---------+
-     | Source A  |---->| Process  |---->| Output  |
-     +----------+     +----------+     +---------+
-
-4. PROPOSED DATA SCHEMA
-   - For each table, use this format:
-     Table: table_name -- purpose
-     | Column | Type | Description |
-     |--------|------|-------------|
-     | id | UUID | Primary key |
-   - Show relationships between tables after the table definitions
-
-5. 7/14/21 DAY ACTION PLAN
-   - 7-day: Build and demo -- prototype the solution to the primary pain point, get it on screen, show it live
-   - 14-day: Validate and connect -- incorporate feedback, validate data connections, prepare for real deployment
-   - 21-day: Deploy or decide -- go live with the solution or make the build/buy decision
-   - Numbered items within each phase
-   - Each action should be specific and measurable
-   - Include expected cost or effort level where possible
-
-6. BOTTOM LINE
-   - One paragraph. Do NOT restate the problem or findings from the Executive Summary
-   - Start with the single recommended first action and timeline
-   - Include specific currency amounts, percentages, and number of days -- no qualitative language like "the exact pound value" or "nothing but time"
-   - Format: action + cost + expected financial outcome (with numbers) + timeline + first step. This is the slide the CEO reads
-
-7. CLIENT SUMMARY (XO Summary for Client)
-   - A concise, client-ready summary that could be shared directly with the client
-   - Open with: "Based on the information provided, XO has identified the following opportunities for [Company Name]:"
-   - 3-5 bullet points, each a clear value proposition framed as a business outcome
-   - Use plain business language -- no technical jargon, no architecture, no tools
-   - NEVER include cost estimates, pricing, timelines, or build specifications
-   - NEVER reference internal tools, frameworks, or technology stack
-   - Frame everything as business outcomes and operational improvements
-   - Close with a forward-looking statement about next steps
-   - Keep under one page (150-250 words)
-
-8. POTENTIAL STREAMLINE APPLICATIONS
-   - Evaluate the client's pain points, business context, and your analysis to identify 3-5 practical workflow automations using Intellistack Streamline
-   - Streamline steps: Forms, Documents, Collaboration, Sign, Notifications, Logic, Transform, Data Search, Deliver Data, Extract Data from Files, Incoming Webhook, Outbound Webhook
-   - Streamline integrations: Salesforce, Google Drive, Google Sheets, Google Calendar, Amazon S3, Dropbox, OneDrive, SharePoint, Excel Online, Slack, SendGrid, SMTP, SFTP, Twilio, Microsoft Outlook
-   - For each application: title, business problem (in their language), workflow steps used, integrations that apply, operational outcome
-   - Rank by ease of implementation and business impact -- low-hanging fruit first
-   - Use plain business language -- no technical jargon
-   - NEVER include cost estimates, pricing, or timelines
-   - Keep under 400 words total
-
+Provide your analysis covering: Executive Summary, Problems Identified, Proposed Architecture, Proposed Data Schema, 7/14/21 Day Action Plan, Bottom Line, Client Summary, and Potential Streamline Applications.
+{system_skills_section}
 OUTPUT FORMAT:
-Return ONLY valid JSON in this exact structure. The "summary", "architecture_diagram", and "bottom_line" fields contain plain text. Schema "columns" use table format. All text fields can include newline characters (\\n) for formatting:
+Return ONLY valid JSON in this exact structure. All text fields can include newline characters (\\n) for formatting. Follow the SYSTEM INSTRUCTIONS above for formatting rules:
 {{
   "status": "complete",
-  "summary": "One lead-in sentence followed by 3-4 concise bullet points (1-2 sentences each). No filler or transition bullets.",
+  "summary": "Executive summary text",
   "problems": [
     {{
       "title": "Problem Title",
@@ -1393,9 +1328,9 @@ Return ONLY valid JSON in this exact structure. The "summary", "architecture_dia
       "actions": ["1. Specific action with measurable outcome", "2. Another action"]
     }}
   ],
-  "bottom_line": "Action, cost (specific £/$), expected financial outcome (specific £/$), timeline (specific days). No problem restatement, no qualitative language.",
-  "client_summary": "Based on the information provided, XO has identified the following opportunities for [Company Name]:\\n\\n- First value proposition as a business outcome\\n- Second value proposition\\n- Third value proposition\\n\\nForward-looking closing statement about next steps.",
-  "streamline_applications": "Based on [Company Name]'s operational needs, Streamline can automate the following workflows:\\n\\n**1. [Application Title]**\\nProblem: [Business problem in their language]\\nWorkflow: [Steps used e.g. Forms → Logic → Documents → Sign → Notifications]\\nIntegrations: [e.g. Salesforce, Google Drive, Slack]\\nOutcome: [What changes day-to-day]\\n\\n**2. [Application Title]**\\n...\\n\\nThese applications are ordered by ease of implementation.",
+  "bottom_line": "Bottom line text",
+  "client_summary": "Client-facing summary text",
+  "streamline_applications": "Streamline workflow applications text",
   "sources": [
     {{"type": "client_data", "reference": "filename or data source"}}
   ]
