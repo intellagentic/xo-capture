@@ -3,7 +3,7 @@
 **Date:** March 6, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.01)
+**Status:** Deployed & Operational (v2.02)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3157,6 +3157,50 @@ Frontend additions (v2.01):
 - Legal pages (/terms, /privacy, /security) with shared styling, cross-links, company footer
 - Login screen footer links (Terms, Privacy, Security)
 - Mobile landscape overflow fixes (filter bar wrapping, hide-narrow CSS, header position:fixed)
+
+**v2.02 -- Page-Agnostic Buttons + Skills Authority Refactor (March 31, 2026)**
+
+Page-agnostic configurable buttons:
+- New show_on TEXT column on buttons table (JSON array, default ["welcome"])
+- Auto-migration on Lambda cold start
+- Buttons API returns showOn as parsed array, accepts showOn in PUT body
+- BUTTON_PAGE_OPTIONS: welcome, dashboard, sources, enrich, results, skills, configuration
+- PageActionButtons shared component: filters system + client buttons by showOn for current page
+- Button editor: "Show on pages" checkbox group with None option (empty array = hidden)
+- New buttons default to showOn: [] (None) until admin assigns pages
+- Rapid Prototype: system-scoped, showOn ["results"], renders inside Technical Section header
+- Download .docx: system-scoped, showOn ["results"], renders inside Deployment Brief header
+- Webhook to Streamline: system-scoped, showOn [] (hidden, admin can enable)
+- Enrich/Skills removed from buttons table (duplicates of hardcoded sidebar nav)
+- Buttons right-justified on all pages via justifyContent: flex-end
+
+Skills authority refactor:
+- Moved {system_skills_section} injection from before company data to AFTER TASK section
+- Skill files are now the last instructions the model sees, giving them highest precedence
+- Removed hardcoded Sections 1-8 from enrich Lambda (Executive Summary, Problems, Architecture, Schema, Action Plan, Bottom Line, Client Summary, Streamline Applications)
+- All formatting intelligence now lives exclusively in skill .md files
+- JSON output schema descriptions stripped to field purpose only (no formatting instructions)
+- output-format.md expanded: problems structure (title/severity/evidence/recommendation), architecture ASCII example, schema table format example, 7/14/21 day action plan phase definitions
+- Prompt order: persona -> company data -> client skills -> TASK -> system skills -> JSON schema
+
+Prompt tuning:
+- Executive summary: lead-in sentence + 3-4 bullet points, no filler/transition bullets
+- Bottom line: no problem restatement, specific costs in currency, specific timeline in days
+- Frontend bullet splitting: replaced Intl.Segmenter sentence splitting with newline-based splitting to preserve model's intended bullet groupings
+- Fallback to sentence segmenter for legacy results without newlines
+
+Current system buttons:
+- Webhook to Streamline (showOn: [], hidden)
+- Rapid Prototype (showOn: ["results"], Technical Section header)
+- Download .docx (showOn: ["results"], Deployment Brief header)
+
+System skill files (6 total, bundled in enrich Lambda):
+- analysis-framework.md (65 lines) -- XO + Streamline architecture, analysis methodology
+- authority-boundaries.md (34 lines) -- what to recommend vs defer
+- client-facing-summary.md (32 lines) -- client_summary field format
+- enrichment-process.md (22 lines) -- data source hierarchy, trust levels
+- output-format.md (56 lines) -- all formatting rules (executive summary, problems, schema, architecture, action plan, bottom line, XO+Streamline framing)
+- streamline-applications.md (90 lines) -- Streamline workflow recommendations
 
 **Next Step:** Web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode).
 
