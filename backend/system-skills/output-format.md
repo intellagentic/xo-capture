@@ -2,7 +2,7 @@
 
 ## Structure Rules
 
-1. **Executive summary format** -- Open with one lead-in sentence that frames the core finding. Follow with 3-4 bullet points maximum, each 1-2 sentences. Each bullet must be a distinct insight with concrete data. No transition bullets like "every recommendation below ties to..." -- every bullet must contain a finding or data point.
+1. **Executive summary format** -- The first line MUST be a single standalone sentence framing the core finding. Not a bullet — a sentence. Follow with EXACTLY 3 bullet points. Not 4, not 5, not 6. Three. Each bullet: 1-2 sentences maximum. If it exceeds 2 sentences, split or cut. Each bullet covers a distinct theme — no overlap between bullets. No transition or summary bullets like "the immediate opportunity is..." — every bullet must contain a concrete finding or data point.
 
 2. **Numbered sections** -- Every section uses numbered items. Every recommendation is numbered. Every action item is numbered. This makes it easy to reference in follow-up discussions.
 
@@ -38,7 +38,7 @@
    - 21-day: Deploy or decide -- go live with the solution or make the build/buy decision
    Numbered items within each phase. Each action should be specific and measurable. Include expected cost or effort level where possible.
 
-9. **Bottom line** -- One paragraph. Do NOT restate the problem or Executive Summary findings. Recommended first action, specific cost in £/$, specific expected financial outcome in £/$, specific timeline in days. No qualitative language, no hedging. Numbers are mandatory.
+9. **Bottom line** -- First word must be a verb (Deploy, Build, Schedule, Launch). No problem restatement. Maximum 4 sentences. Every sentence must contain at least one number (£, $, %, days, hours). No narrative framing — pure action + cost + outcome + timeline.
 
 ## XO + Streamline Architecture in Output
 
