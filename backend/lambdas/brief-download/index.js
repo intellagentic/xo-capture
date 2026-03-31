@@ -164,11 +164,11 @@ function calloutBox(label, content) {
   const contentRuns = typeof content === 'string' ? xoTextRuns(content, { fontSize: 22 }) : content;
   return new Table({
     width: { size: PAGE.contentWidth, type: WidthType.DXA }, columnWidths: [PAGE.contentWidth],
-    rows: [new TableRow({ children: [new TableCell({
+    rows: [new TableRow({ cantSplit: true, children: [new TableCell({
       borders: tealBorders, shading: { fill: B.calloutBg, type: ShadingType.CLEAR },
       margins: calloutMargins, width: { size: PAGE.contentWidth, type: WidthType.DXA },
       children: [
-        new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: label, font: "Calibri", size: 22, color: B.teal, bold: true })] }),
+        new Paragraph({ spacing: { after: 80 }, keepNext: true, children: [new TextRun({ text: label, font: "Calibri", size: 22, color: B.teal, bold: true })] }),
         new Paragraph({ spacing: { after: 0 }, children: contentRuns }),
       ]
     })]})],
@@ -179,11 +179,11 @@ function riskCallout(label, content) {
   const contentRuns = typeof content === 'string' ? xoTextRuns(content, { fontSize: 22 }) : content;
   return new Table({
     width: { size: PAGE.contentWidth, type: WidthType.DXA }, columnWidths: [PAGE.contentWidth],
-    rows: [new TableRow({ children: [new TableCell({
+    rows: [new TableRow({ cantSplit: true, children: [new TableCell({
       borders: redBorders, shading: { fill: B.riskBg, type: ShadingType.CLEAR },
       margins: calloutMargins, width: { size: PAGE.contentWidth, type: WidthType.DXA },
       children: [
-        new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: "\u26A0 " + label, font: "Calibri", size: 22, color: B.xoRed, bold: true })] }),
+        new Paragraph({ spacing: { after: 80 }, keepNext: true, children: [new TextRun({ text: "\u26A0 " + label, font: "Calibri", size: 22, color: B.xoRed, bold: true })] }),
         new Paragraph({ spacing: { after: 0 }, children: contentRuns }),
       ]
     })]})],
