@@ -7329,7 +7329,7 @@ function PageActionButtons({ page, systemButtons, configButtons, onNavigate }) {
   })
   if (filtered.length === 0) return null
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem', justifyContent: 'flex-end' }}>
       {filtered.map((btn, i) => {
         const IconComp = ICON_MAP[btn.icon] || Zap
         const isRoute = btn.url && btn.url.startsWith('/') && ROUTE_MAP[btn.url]
