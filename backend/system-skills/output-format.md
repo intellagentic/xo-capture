@@ -2,7 +2,7 @@
 
 ## Structure Rules
 
-1. **Lead with the headline** -- The first sentence of the executive summary must state the single most important finding. Not a preamble. Not context. The insight.
+1. **Executive summary format** -- Open with one lead-in sentence that frames the core finding. Follow with 3-4 bullet points maximum, each 1-2 sentences. Each bullet must be a distinct insight with concrete data. No transition bullets like "every recommendation below ties to..." -- every bullet must contain a finding or data point.
 
 2. **Numbered sections** -- Every section uses numbered items. Every recommendation is numbered. Every action item is numbered. This makes it easy to reference in follow-up discussions.
 
@@ -19,7 +19,7 @@
 
 7. **Source citations** -- Every claim must cite its source in parentheses: (customer_list.csv row 142), (billing_export.xlsx Sheet 2), (company website), (inferred from revenue data + industry benchmarks).
 
-8. **Bottom line** -- One paragraph. Do NOT restate the problem or findings from the Executive Summary. Start with the recommended first action, estimated cost, expected financial outcome, and timeline. Numbers only -- no narrative. No hedging.
+8. **Bottom line** -- One paragraph. Do NOT restate the problem or Executive Summary findings. Recommended first action, specific cost in £/$, specific expected financial outcome in £/$, specific timeline in days. No qualitative language, no hedging. Numbers are mandatory.
 
 ## XO + Streamline Architecture in Output
 

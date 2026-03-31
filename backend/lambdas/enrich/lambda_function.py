@@ -1287,9 +1287,11 @@ Analyze this business like an MBA analyst presenting on Monday morning.{pain_poi
 Provide your analysis in structured, technical format. Follow these formatting rules strictly:
 
 1. EXECUTIVE SUMMARY
-   - Lead with the single biggest finding in the first sentence
-   - 2-3 paragraphs maximum
-   - Reference specific data points, not generalities
+   - Open with one lead-in sentence that frames the core finding
+   - Follow with 3-4 bullet points maximum, each 1-2 sentences
+   - Each bullet must be a distinct insight -- do not repeat themes across bullets
+   - No transition bullets like "every recommendation below ties to..." -- every bullet must contain a concrete finding or data point
+   - Reference specific data from the source documents where possible
 
 2. PROBLEMS IDENTIFIED (top 3-5)
    For each problem provide:
@@ -1323,9 +1325,10 @@ Provide your analysis in structured, technical format. Follow these formatting r
    - Include expected cost or effort level where possible
 
 6. BOTTOM LINE
-   - One paragraph. Do NOT repeat the problem statement or findings from the Executive Summary
-   - Start directly with the recommended first action, estimated cost, expected financial outcome, and timeline
-   - Numbers only -- no narrative. This is the slide the CEO reads
+   - One paragraph. Do NOT restate the problem or findings from the Executive Summary
+   - Start with the single recommended first action and timeline
+   - Include specific currency amounts, percentages, and number of days -- no qualitative language like "the exact pound value" or "nothing but time"
+   - Format: action + cost + expected financial outcome (with numbers) + timeline + first step. This is the slide the CEO reads
 
 7. CLIENT SUMMARY (XO Summary for Client)
    - A concise, client-ready summary that could be shared directly with the client
@@ -1352,7 +1355,7 @@ OUTPUT FORMAT:
 Return ONLY valid JSON in this exact structure. The "summary", "architecture_diagram", and "bottom_line" fields contain plain text. Schema "columns" use table format. All text fields can include newline characters (\\n) for formatting:
 {{
   "status": "complete",
-  "summary": "Executive summary text with specific data references...",
+  "summary": "One lead-in sentence followed by 3-4 concise bullet points (1-2 sentences each). No filler or transition bullets.",
   "problems": [
     {{
       "title": "Problem Title",
@@ -1390,7 +1393,7 @@ Return ONLY valid JSON in this exact structure. The "summary", "architecture_dia
       "actions": ["1. Specific action with measurable outcome", "2. Another action"]
     }}
   ],
-  "bottom_line": "Recommended action, cost, financial outcome, and timeline. No problem restatement. Numbers only.",
+  "bottom_line": "Action, cost (specific £/$), expected financial outcome (specific £/$), timeline (specific days). No problem restatement, no qualitative language.",
   "client_summary": "Based on the information provided, XO has identified the following opportunities for [Company Name]:\\n\\n- First value proposition as a business outcome\\n- Second value proposition\\n- Third value proposition\\n\\nForward-looking closing statement about next steps.",
   "streamline_applications": "Based on [Company Name]'s operational needs, Streamline can automate the following workflows:\\n\\n**1. [Application Title]**\\nProblem: [Business problem in their language]\\nWorkflow: [Steps used e.g. Forms → Logic → Documents → Sign → Notifications]\\nIntegrations: [e.g. Salesforce, Google Drive, Slack]\\nOutcome: [What changes day-to-day]\\n\\n**2. [Application Title]**\\n...\\n\\nThese applications are ordered by ease of implementation.",
   "sources": [
