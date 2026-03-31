@@ -7326,8 +7326,9 @@ function PageActionButtons({ page, systemButtons, configButtons, onNavigate }) {
   const filtered = allButtons.filter(btn => {
     const showOn = btn.showOn || btn.show_on || ['welcome']
     if (!Array.isArray(showOn) || !showOn.includes(page)) return false
-    // Rapid Prototype renders inside Technical Section, not in generic bar
-    if ((btn.label === 'Rapid Prototype' || btn.name === 'Rapid Prototype') && page === 'results') return false
+    // These render inside their respective section headers, not in generic bar
+    if (page === 'results' && (btn.label === 'Rapid Prototype' || btn.name === 'Rapid Prototype')) return false
+    if (page === 'results' && (btn.label === 'Download .docx' || btn.name === 'Download .docx')) return false
     return true
   })
   if (filtered.length === 0) return null
@@ -9123,6 +9124,29 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   </button>
                 )
               })}
+              {item.id === 'deploymentBrief' && (
+                <button onClick={async (e) => {
+                  e.stopPropagation()
+                  setBriefDownloading('docx')
+                  try {
+                    const res = await fetch(`${API_BASE}/results/${clientId}/brief`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ format: 'docx' }) })
+                    const data = await res.json()
+                    if (!res.ok) throw new Error(data.error || 'Download failed')
+                    const byteChars = atob(data.content_base64)
+                    const byteArray = new Uint8Array(byteChars.length)
+                    for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i)
+                    const blob = new Blob([byteArray], { type: data.content_type })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a'); a.href = url; a.download = data.filename; a.click()
+                    URL.revokeObjectURL(url)
+                  } catch (err) { alert('Download failed: ' + err.message) }
+                  setBriefDownloading(null)
+                }}
+                disabled={briefDownloading}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: briefDownloading ? 'wait' : 'pointer', flexShrink: 0, opacity: briefDownloading ? 0.7 : 1 }}>
+                  {briefDownloading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .docx
+                </button>
+              )}
               {exp ? (
                   <ChevronDown size={20} style={{color: 'var(--text-secondary)', flexShrink: 0}}/>
               ) : (
@@ -9596,48 +9620,6 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                         <div style={{ padding: '1.25rem' }}>
                           {(() => { const brief = assembleBrief(displayResults, currentClient); return brief ? (
                             <div>
-                              {/* Download bar */}
-                              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                                <button
-                                  onClick={async () => {
-                                    setBriefDownloading('docx')
-                                    try {
-                                      const res = await fetch(`${API_BASE}/results/${clientId}/brief`, {
-                                        method: 'POST',
-                                        headers: getAuthHeaders(),
-                                        body: JSON.stringify({ format: 'docx' })
-                                      })
-                                      const data = await res.json()
-                                      if (!res.ok) throw new Error(data.error || 'Download failed')
-                                      const byteChars = atob(data.content_base64)
-                                      const byteArray = new Uint8Array(byteChars.length)
-                                      for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i)
-                                      const blob = new Blob([byteArray], { type: data.content_type })
-                                      const url = URL.createObjectURL(blob)
-                                      const a = document.createElement('a')
-                                      a.href = url
-                                      a.download = data.filename
-                                      a.click()
-                                      URL.revokeObjectURL(url)
-                                    } catch (err) {
-                                      console.error('Brief download failed:', err)
-                                      alert('Download failed: ' + err.message)
-                                    }
-                                    setBriefDownloading(null)
-                                  }}
-                                  disabled={briefDownloading}
-                                  style={{
-                                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                                    padding: '0.5rem 1rem', fontSize: '0.8rem', fontWeight: 600,
-                                    background: '#0F969C', color: '#fff', border: 'none', borderRadius: 6, cursor: briefDownloading ? 'wait' : 'pointer',
-                                    opacity: briefDownloading ? 0.7 : 1
-                                  }}
-                                >
-                                  {briefDownloading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
-                                  Download .docx
-                                </button>
-                              </div>
-
                               <div id="deployment-brief-content">
                               {/* Cover */}
                               {brief.cover && (
