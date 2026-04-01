@@ -8423,20 +8423,20 @@ function renderMarkdown(text) {
     return segment.split('\n\n').map((para) => {
       if (!para.trim()) return null
       const lines = para.split('\n')
-      const isBulletBlock = lines.every(l => /^\s*[-*]\s/.test(l) || !l.trim())
+      const isBulletBlock = lines.every(l => /^\s*[-*·•]\s/.test(l) || !l.trim())
       const isNumberedBlock = lines.every(l => /^\s*\d+\.\s/.test(l) || !l.trim())
       if (isBulletBlock) {
         return (
-          <ul key={blockKey++} style={{ margin: '0.5rem 0 0.75rem 1.5rem', fontSize: '0.9rem', lineHeight: 1.7 }}>
+          <ul key={blockKey++} style={{ margin: '0.5rem 0 0.75rem 1.5rem', fontSize: '0.95rem', lineHeight: 1.7, listStyleType: 'disc' }}>
             {lines.filter(l => l.trim()).map((l, j) => (
-              <li key={j} dangerouslySetInnerHTML={{ __html: l.replace(/^\s*[-*]\s/, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+              <li key={j} dangerouslySetInnerHTML={{ __html: l.replace(/^\s*[-*·•]\s/, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
             ))}
           </ul>
         )
       }
       if (isNumberedBlock) {
         return (
-          <ol key={blockKey++} style={{ margin: '0.5rem 0 0.75rem 1.5rem', fontSize: '0.9rem', lineHeight: 1.7 }}>
+          <ol key={blockKey++} style={{ margin: '0.5rem 0 0.75rem 1.5rem', fontSize: '0.95rem', lineHeight: 1.7 }}>
             {lines.filter(l => l.trim()).map((l, j) => (
               <li key={j} dangerouslySetInnerHTML={{ __html: l.replace(/^\s*\d+\.\s/, '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
             ))}
@@ -8444,7 +8444,7 @@ function renderMarkdown(text) {
         )
       }
       const html = para.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>')
-      return <p key={blockKey++} style={{ margin: '0.5rem 0', fontSize: '0.9rem', lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: html }} />
+      return <p key={blockKey++} style={{ margin: '0.5rem 0', fontSize: '0.95rem', lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: html }} />
     })
   })
 }
@@ -9119,9 +9119,22 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
               {item.id === 'technicalSection' && systemButtons && systemButtons.filter(b => b.label === 'Rapid Prototype' || b.name === 'Rapid Prototype').map((btn, bi) => {
                 const BtnIcon = ICON_MAP[btn.icon] || Download
                 return (
-                  <button key={bi} onClick={(e) => { e.stopPropagation(); if (btn.url && btn.url.startsWith('/')) { /* handled by page nav */ } else if (btn.url) window.open(btn.url, '_blank') }}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: btn.color || '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                    <BtnIcon size={13} /> {btn.label}
+                  <button key={bi} onClick={async (e) => {
+                    e.stopPropagation()
+                    setProtoDownloading(true)
+                    try {
+                      const res = await fetch(`${API_BASE}/rapid-prototype/${clientId}`, { headers: getAuthHeaders() })
+                      if (!res.ok) throw new Error('Failed to generate spec')
+                      const blob = await res.blob()
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a'); a.href = url; a.download = 'PROTOTYPE-SPEC.md'; a.click()
+                      URL.revokeObjectURL(url)
+                    } catch (err) { alert('Prototype download failed: ' + err.message) }
+                    setProtoDownloading(false)
+                  }}
+                  disabled={protoDownloading}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: btn.color || '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: protoDownloading ? 'wait' : 'pointer', flexShrink: 0, opacity: protoDownloading ? 0.7 : 1 }}>
+                    {protoDownloading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <BtnIcon size={13} />} {btn.label}
                   </button>
                 )
               })}
@@ -9146,6 +9159,29 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 disabled={briefDownloading}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: briefDownloading ? 'wait' : 'pointer', flexShrink: 0, opacity: briefDownloading ? 0.7 : 1 }}>
                   {briefDownloading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .docx
+                </button>
+              )}
+              {item.id === 'deploymentBrief' && (
+                <button onClick={async (e) => {
+                  e.stopPropagation()
+                  setBriefDownloading('deck')
+                  try {
+                    const res = await fetch(`${API_BASE}/results/${clientId}/deck`, { method: 'POST', headers: getAuthHeaders() })
+                    const data = await res.json()
+                    if (!res.ok) throw new Error(data.error || 'Download failed')
+                    const byteChars = atob(data.content_base64)
+                    const byteArray = new Uint8Array(byteChars.length)
+                    for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i)
+                    const blob = new Blob([byteArray], { type: data.content_type })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a'); a.href = url; a.download = data.filename; a.click()
+                    URL.revokeObjectURL(url)
+                  } catch (err) { alert('Deck download failed: ' + err.message) }
+                  setBriefDownloading(null)
+                }}
+                disabled={briefDownloading}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: briefDownloading ? 'wait' : 'pointer', flexShrink: 0, opacity: briefDownloading ? 0.7 : 1 }}>
+                  {briefDownloading === 'deck' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .pptx
                 </button>
               )}
               {exp ? (
@@ -9228,31 +9264,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                 <div>
                                   {expandedSummary.id==="opportunitiesList"?<div>
                                         {displayResults.client_summary && (
-                                            <div className="" style={{ borderRadius: '12px', overflow: 'hidden' }}>
-                                              <div style={{ padding: '1.5rem', background: 'var(--bg-primary)' }}>
-                                                {displayResults.client_summary.split('\n').filter(line => line.trim()).map((line, idx) => {
-                                                  const trimmed = line.trim()
-                                                  if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-                                                    return (
-                                                      <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '0.75rem', paddingLeft: '0.5rem' }}>
-                                                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#dc2626', marginTop: '0.5rem', flexShrink: 0 }} />
-                                                        <div style={{ fontSize: '0.95rem', lineHeight: 1.7, color: 'var(--text-primary)', margin: 0 }}>
-                                                          {trimmed.substring(2).indexOf("**")>=0?
-                                                              <div>{trimmed.substring(2).split("** ").map((ph,phindex)=>{
-                                                                return <span>{phindex===0?<b>{ph.replaceAll("**","")}</b>:" "+ph}</span>
-                                                              })}</div>
-                                                              :trimmed.substring(2)}
-                                                        </div>
-                                                      </div>
-                                                    )
-                                                  }
-                                                  return (
-                                                    <p key={idx} style={{ fontSize: '0.95rem', lineHeight: 1.7, color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
-                                                      {trimmed}
-                                                    </p>
-                                                  )
-                                                })}
-                                              </div>
+                                            <div style={{ padding: '1.5rem', background: 'var(--bg-primary)' }}>
+                                              {renderMarkdown(displayResults.client_summary)}
                                             </div>
                                           )}
                                       </div>:
