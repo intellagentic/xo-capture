@@ -8752,6 +8752,11 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   const [streamlineStatus, setStreamlineStatus] = useState(null) // null | 'sent' | 'error'
   const [protoDownloading, setProtoDownloading] = useState(false)
   const [briefDownloading, setBriefDownloading] = useState(null) // null | 'docx' | 'pdf'
+  const [showReviewModal, setShowReviewModal] = useState(null) // null | 'brief' | 'deck'
+  const [reviewText, setReviewText] = useState('')
+  const [reviewSaving, setReviewSaving] = useState(false)
+  const [reviewStatus, setReviewStatus] = useState(null) // null | 'saved' | 'approved'
+  const [approving, setApproving] = useState(false)
   const [currentClient,setCurrentClient]=useState(null)
   const [expandedResult,setExpandedResult]= useState({id:"executiveSummary",name:"Executive Summary",shortDescription:"Here is our understanding of your business",severity: 'high'});
   const [formattedResults,setFormattedResults] = useState([
@@ -8782,6 +8787,52 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
         console.error('Failed to fetch client:', err)
       }
     }
+  }
+
+  const isDraft = !currentClient?.approved_at
+
+  const handleSaveCorrections = async () => {
+    if (!reviewText.trim() || !clientId) return
+    setReviewSaving(true)
+    try {
+      const label = showReviewModal === 'deck' ? 'Factual Corrections - Deck' : 'Factual Corrections - Brief'
+      const fileName = `${label.replace(/\s+/g, '_')}_${Date.now()}.txt`
+      const blob = new Blob([reviewText], { type: 'text/plain' })
+      const file = new globalThis.File([blob], fileName, { type: 'text/plain' })
+      const res = await fetch(`${API_BASE}/upload`, {
+        method: 'POST', headers: getAuthHeaders(),
+        body: JSON.stringify({ client_id: clientId, files: [{ name: file.name, type: file.type, size: file.size }] })
+      })
+      if (!res.ok) throw new Error('Upload request failed')
+      const data = await res.json()
+      const uploadUrl = (data.upload_urls || [])[0]
+      if (!uploadUrl) throw new Error('No upload URL returned')
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': 'text/plain' } })
+      setReviewText('')
+      setReviewStatus('saved')
+      setTimeout(() => { setReviewStatus(null); setShowReviewModal(null) }, 2000)
+    } catch (err) {
+      alert('Failed to save corrections: ' + err.message)
+    }
+    setReviewSaving(false)
+  }
+
+  const handleApprove = async () => {
+    if (!clientId || !currentClient) return
+    setApproving(true)
+    try {
+      await fetch(`${API_BASE}/clients`, {
+        method: 'PUT', headers: getAuthHeaders(),
+        body: JSON.stringify({ client_id: clientId, company_name: currentClient.company_name, approved: true })
+      })
+      await fetchClient(clientId)
+      setReviewStatus('approved')
+      setShowReviewModal(null)
+      setTimeout(() => setReviewStatus(null), 3000)
+    } catch (err) {
+      alert('Approval failed: ' + err.message)
+    }
+    setApproving(false)
   }
 
   const toggleResult = (item) => {
@@ -9377,6 +9428,22 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   {briefDownloading === 'deck' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .pptx
                 </button>
               )}
+              {isDraft && (item.id === 'deploymentBrief' || item.id === 'growthDeck') && (
+                <button onClick={(e) => { e.stopPropagation(); setShowReviewModal(item.id === 'growthDeck' ? 'deck' : 'brief') }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                  <Edit2 size={13} /> Review
+                </button>
+              )}
+              {isDraft && (item.id === 'deploymentBrief' || item.id === 'growthDeck') && (
+                <button onClick={(e) => { e.stopPropagation(); handleApprove() }}
+                  disabled={approving}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: approving ? 'wait' : 'pointer', flexShrink: 0, opacity: approving ? 0.7 : 1 }}>
+                  {approving ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <CheckCircle size={13} />} Approve
+                </button>
+              )}
+              {!isDraft && (item.id === 'deploymentBrief' || item.id === 'growthDeck') && (
+                <span style={{ fontSize: '0.65rem', background: '#dcfce7', color: '#16a34a', padding: '0.15rem 0.5rem', borderRadius: 4, fontWeight: 600, flexShrink: 0 }}>APPROVED</span>
+              )}
               {exp ? (
                   <ChevronDown size={20} style={{color: 'var(--text-secondary)', flexShrink: 0}}/>
               ) : (
@@ -9824,7 +9891,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                           </div>
                         </div>:
                     (expandedResult.id==="deploymentBrief"?
-                        <div style={{ padding: '1.25rem' }}>
+                        <div style={{ padding: '1.25rem', position: 'relative' }}>
+                          {isDraft && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 10, overflow: 'hidden' }}><span style={{ fontSize: '6rem', fontWeight: 900, color: 'rgba(200,200,200,0.2)', transform: 'rotate(-30deg)', userSelect: 'none', whiteSpace: 'nowrap', letterSpacing: '0.2em' }}>DRAFT</span></div>}
                           {(() => { const brief = assembleBrief(displayResults, currentClient); return brief ? (
                             <div>
                               <div id="deployment-brief-content">
@@ -9964,7 +10032,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                           )})()}
                         </div>:
                     (expandedResult.id==="growthDeck"?
-                        <div style={{ padding: '1.25rem' }}>
+                        <div style={{ padding: '1.25rem', position: 'relative' }}>
+                          {isDraft && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 10, overflow: 'hidden' }}><span style={{ fontSize: '6rem', fontWeight: 900, color: 'rgba(200,200,200,0.2)', transform: 'rotate(-30deg)', userSelect: 'none', whiteSpace: 'nowrap', letterSpacing: '0.2em' }}>DRAFT</span></div>}
                           {(() => { const deck = assembleDeckData(displayResults, currentClient); return deck ? (
                             <div>
                               {/* Slide 1: Title */}
@@ -10586,6 +10655,58 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
           </div>
         </div>
       </div>*/}
+
+      {/* Review & Correct Modal */}
+      {showReviewModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => { setShowReviewModal(null); setReviewText(''); setReviewStatus(null) }} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', background: 'var(--bg-card, #fff)', borderRadius: 16, padding: '1.5rem', width: '90%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>Review & Correct — {showReviewModal === 'deck' ? 'Growth Deck' : 'Deployment Brief'}</h3>
+              <button onClick={() => { setShowReviewModal(null); setReviewText(''); setReviewStatus(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={18} /></button>
+            </div>
+            {reviewStatus === 'saved' ? (
+              <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+                <CheckCircle size={40} style={{ color: '#22c55e', margin: '0 auto 0.75rem' }} />
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>Corrections saved to Your Data</p>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Re-enrich to update results.</p>
+              </div>
+            ) : reviewStatus === 'approved' ? (
+              <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+                <CheckCircle size={40} style={{ color: '#22c55e', margin: '0 auto 0.75rem' }} />
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>Approved — DRAFT watermark removed</p>
+              </div>
+            ) : (
+              <>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                  Add factual corrections below. They will be saved as a data source and included in the next enrichment.
+                </p>
+                <textarea
+                  value={reviewText}
+                  onChange={e => setReviewText(e.target.value)}
+                  rows={6}
+                  placeholder="Enter corrections (e.g., 'John Smith is still the CEO — the analysis incorrectly stated he left the company')..."
+                  style={{
+                    width: '100%', padding: '0.625rem', border: '1px solid var(--border-color)',
+                    borderRadius: 8, fontSize: '0.85rem', fontFamily: 'inherit', color: 'var(--text-primary)',
+                    background: 'var(--bg-input, #fff)', resize: 'vertical', outline: 'none', marginBottom: '1rem'
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                  <button onClick={handleSaveCorrections} disabled={reviewSaving || !reviewText.trim()}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem', background: reviewText.trim() ? '#f59e0b' : '#e5e7eb', color: reviewText.trim() ? '#fff' : '#9ca3af', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: reviewText.trim() && !reviewSaving ? 'pointer' : 'not-allowed' }}>
+                    {reviewSaving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={14} />} Submit Corrections
+                  </button>
+                  <button onClick={handleApprove} disabled={approving}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: approving ? 'wait' : 'pointer' }}>
+                    {approving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <CheckCircle size={14} />} Approve
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

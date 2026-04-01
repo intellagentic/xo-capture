@@ -132,7 +132,7 @@ def _handle_results(event, user):
             cur = conn.cursor()
             cur.execute("""
                 SELECT company_name, industry, description, contact_name, contact_email,
-                       encryption_key, contacts_json
+                       encryption_key, contacts_json, approved_at
                 FROM clients WHERE s3_folder = %s
             """, (client_id,))
             crow = cur.fetchone()
@@ -157,6 +157,7 @@ def _handle_results(event, user):
                         results['client_email'] = primary['email']
                     if primary.get('title'):
                         results['client_contact_title'] = primary['title']
+                results['approved_at'] = crow[7].isoformat() if crow[7] else None
         except Exception as e:
             print(f"Failed to inject client metadata (non-fatal): {e}")
 

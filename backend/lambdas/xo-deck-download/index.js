@@ -643,8 +643,17 @@ function buildSlide8_NextSteps(pres, data) {
   });
 }
 
+// ── Draft Watermark Helper ──
+function addDraftWatermark(slide, pres) {
+  slide.addText("DRAFT", {
+    x: 1.5, y: 1.5, w: 7, h: 3,
+    fontSize: 72, fontFace: "Arial", color: "C0C0C0", bold: true,
+    align: "center", valign: "middle", rotate: -30, transparency: 70,
+  });
+}
+
 // ── Build Full Deck ──
-function buildDeck(data) {
+function buildDeck(data, isDraft) {
   const pres = new pptxgen();
   pres.layout = "LAYOUT_16x9";
   pres.author = "IntellagenticXO";
@@ -658,6 +667,12 @@ function buildDeck(data) {
   buildSlide6_BeforeAfter(pres, data);
   buildSlide7_POC(pres, data);
   buildSlide8_NextSteps(pres, data);
+
+  if (isDraft) {
+    // Add DRAFT watermark to each slide - PptxGenJS exposes _slides array
+    const slides = pres._slides || pres.slides || [];
+    slides.forEach(s => addDraftWatermark(s, pres));
+  }
 
   return pres;
 }
@@ -701,8 +716,9 @@ exports.handler = async (event) => {
     // 2. Map analysis JSON → slide data (pure JS, no AI call)
     const slideData = assembleDeckData(results);
 
-    // 3. Build .pptx
-    const pres = buildDeck(slideData);
+    // 3. Build .pptx (draft watermark if not yet approved)
+    const isDraft = !results.approved_at;
+    const pres = buildDeck(slideData, isDraft);
     const buffer = await pres.write({ outputType: "nodebuffer" });
 
     const companyName = (results.company_name || "Client").replace(/\s+/g, "_");

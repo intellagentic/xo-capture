@@ -235,6 +235,10 @@ def _handle_enrich_request(event, user):
             RETURNING id
         """, (db_client_id,))
         enrichment_id = str(cur.fetchone()[0])
+
+        # Reset approval on re-enrichment
+        cur.execute("UPDATE clients SET approved_at = NULL, approved_by = NULL WHERE id = %s", (db_client_id,))
+
         conn.commit()
         cur.close()
         conn.close()

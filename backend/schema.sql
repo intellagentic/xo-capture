@@ -230,3 +230,7 @@ CREATE TABLE IF NOT EXISTS hubspot_sync_log (
 
 CREATE INDEX IF NOT EXISTS idx_hubspot_sync_log_direction ON hubspot_sync_log(sync_direction);
 CREATE INDEX IF NOT EXISTS idx_hubspot_sync_log_record ON hubspot_sync_log(record_type, record_id);
+
+-- Approval flow
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_by TEXT;

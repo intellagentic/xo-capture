@@ -346,7 +346,7 @@ function mdToParagraphs(text) {
 }
 
 // ── Document Config ──
-function createBriefConfig(clientName, coverChildren, bodyChildren) {
+function createBriefConfig(clientName, coverChildren, bodyChildren, isDraft) {
   return {
     styles: {
       default: { document: { run: { font: "Calibri", size: 22, color: B.bodyText } } },
@@ -368,7 +368,12 @@ function createBriefConfig(clientName, coverChildren, bodyChildren) {
       { properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: { top: PAGE.margin, right: PAGE.margin, bottom: PAGE.margin, left: PAGE.margin } } },
         children: coverChildren },
       { properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: { top: PAGE.margin, right: PAGE.margin, bottom: PAGE.margin, left: PAGE.margin } } },
-        headers: { default: new Header({ children: [new Paragraph({
+        headers: { default: new Header({ children: [
+          ...(isDraft ? [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: "DRAFT", size: 72, color: "D0D0D0", bold: true, font: "Arial" })],
+          })] : []),
+          new Paragraph({
           alignment: AlignmentType.LEFT, spacing: { after: 200 },
           border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: B.teal, space: 4 } },
           children: xoTextRuns(`INTELLAGENTICXO \u00B7 ${clientName} \u00B7 XO Deployment Brief \u00B7 CONFIDENTIAL`, { fontSize: 16, fontFace: "Calibri", color: B.mutedGray })
@@ -418,7 +423,7 @@ function assembleBrief(results) {
 }
 
 // ── Build Document ──
-function buildDocument(brief) {
+function buildDocument(brief, isDraft) {
   const { clientName, industry, description, problems, primary, planPhases, summary, bottomLine, architecture, streamline, contactName, meetingDate } = brief;
   const stripNum = t => (t || '').replace(/^\d+\.\s*/, '');
 
@@ -564,7 +569,7 @@ function buildDocument(brief) {
     : 'The pilot is successful when the primary operational bottleneck is resolved through automated XO processing.';
   body.push(calloutBox("SUCCESS METRIC", successMetric));
 
-  return new Document(createBriefConfig(clientName, cover, body));
+  return new Document(createBriefConfig(clientName, cover, body, isDraft));
 }
 
 // ── Lambda Handler ──
@@ -609,9 +614,10 @@ exports.handler = async (event) => {
       return { statusCode: 404, headers: CORS_HEADERS, body: JSON.stringify({ error: 'Analysis not complete' }) };
     }
 
-    // Assemble and build
+    // Assemble and build (draft watermark if not yet approved)
+    const isDraft = !results.approved_at;
     const brief = assembleBrief(results);
-    const doc = buildDocument(brief);
+    const doc = buildDocument(brief, isDraft);
     const buffer = await Packer.toBuffer(doc);
 
     const filename = `${(brief.clientName || 'Client').replace(/\s+/g, '_')}_XO_Deployment_Brief.docx`;

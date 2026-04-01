@@ -880,7 +880,8 @@ def handle_get_client(event, user):
                            streamline_webhook_url, partner_id, COALESCE(intellagentic_lead, FALSE),
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
-                           COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at
+                           COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
+                           approved_at
                     FROM clients WHERE s3_folder = %s
                 """, (client_id,))
             elif user.get('is_partner') and user.get('partner_id'):
@@ -893,7 +894,8 @@ def handle_get_client(event, user):
                            streamline_webhook_url, partner_id, COALESCE(intellagentic_lead, FALSE),
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
-                           COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at
+                           COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
+                           approved_at
                     FROM clients WHERE s3_folder = %s AND partner_id = %s
                 """, (client_id, user['partner_id']))
             else:
@@ -906,7 +908,8 @@ def handle_get_client(event, user):
                            streamline_webhook_url, partner_id, COALESCE(intellagentic_lead, FALSE),
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
-                           COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at
+                           COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
+                           approved_at
                     FROM clients WHERE s3_folder = %s AND user_id = %s
                 """, (client_id, user['user_id']))
         else:
@@ -920,7 +923,8 @@ def handle_get_client(event, user):
                        streamline_webhook_url, partner_id, COALESCE(intellagentic_lead, FALSE),
                        future_plans, pain_points_json, invite_webhook_url,
                        encryption_key, updated_by,
-                       COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at
+                       COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
+                       approved_at
                 FROM clients WHERE user_id = %s
                 ORDER BY created_at DESC LIMIT 1
             """, (user['user_id'],))
@@ -1045,7 +1049,8 @@ def handle_get_client(event, user):
                 'updated_by': (decrypt(row[26]) or '') if len(row) > 26 else '',
                 'ndaSigned': bool(row[27]) if len(row) > 27 else False,
                 'existingApps': (row[28] or '') if len(row) > 28 else '',
-                'ndaSignedAt': row[29].isoformat() if len(row) > 29 and row[29] else None
+                'ndaSignedAt': row[29].isoformat() if len(row) > 29 and row[29] else None,
+                'approved_at': row[30].isoformat() if len(row) > 30 and row[30] else None
             })
         }
     except Exception as e:
@@ -1165,6 +1170,15 @@ def handle_update_client(event, user):
                 set_fields.append("nda_signed_at = NOW()")
             else:
                 set_fields.append("nda_signed_at = NULL")
+
+        if 'approved' in body:
+            if body['approved']:
+                set_fields.append("approved_at = NOW()")
+                set_fields.append("approved_by = %s")
+                params.append(encrypt(user.get('name', '') or user.get('email', '')))
+            else:
+                set_fields.append("approved_at = NULL")
+                set_fields.append("approved_by = NULL")
 
         if 'existingApps' in body:
             set_fields.append("existing_apps = %s")
