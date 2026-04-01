@@ -637,8 +637,8 @@ function buildSlide8_NextSteps(pres, data) {
   });
 
   // Contact (y:5.65 per PHP reference)
-  s.addText("alan.moore@intellagentic.io", {
-    x: 0.7, y: 5.65, w: 5, h: 0.3,
+  s.addText("alan.moore@intellagentic.io   \u00B7   ken.scott@intellagentic.io", {
+    x: 0.7, y: 5.65, w: 8, h: 0.3,
     fontSize: 10, fontFace: "Arial", color: "B0BEC5", margin: 0,
   });
 }

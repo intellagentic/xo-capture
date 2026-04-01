@@ -10138,7 +10138,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                 <div style={{ background: '#E8F4F8', borderRadius: 6, padding: '0.4rem', textAlign: 'center', marginTop: '0.75rem' }}>
                                   <span style={{ fontSize: '0.7rem', fontStyle: 'italic', color: '#2E75B6' }}>XO is priced against the cost of the problem, not the cost of the technology.</span>
                                 </div>
-                                <div style={{ fontSize: '0.7rem', color: '#B0BEC5', marginTop: '0.5rem' }}>alan.moore@intellagentic.io</div>
+                                <div style={{ fontSize: '0.7rem', color: '#B0BEC5', marginTop: '0.5rem' }}>alan.moore@intellagentic.io  ·  ken.scott@intellagentic.io</div>
                               </div>
                             </div>
                           ) : (
