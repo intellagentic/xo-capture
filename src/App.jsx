@@ -8470,6 +8470,177 @@ function renderMarkdown(text) {
   })
 }
 
+// ── Growth Deck data helpers (ported from xo-deck-download Lambda) ──
+function cleanDeckText(text) {
+  if (!text) return ''
+  return text
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
+    .replace(/^#+\s+/gm, '')
+    .replace(/^(?:Problem|Workflow|Outcome|Solution|Issue):\s*/i, '')
+    .replace(/^\d+\.\s*/, '')
+    .trim()
+}
+
+function firstDeckSentence(text, maxLen) {
+  if (!text) return ''
+  const cleaned = cleanDeckText(text)
+  const m = cleaned.match(/^((?:[^.!?\n]|\.(?=\d))+[.!?]?)/)
+  let s = m ? m[1].trim() : cleaned.substring(0, 120).trim()
+  if (maxLen && s.length > maxLen) s = s.substring(0, maxLen).replace(/\s+\S*$/, '')
+  return s
+}
+
+function truncateDeck(text, maxLen) {
+  if (!text || text.length <= maxLen) return text || ''
+  return text.substring(0, maxLen).replace(/\s+\S*$/, '') + '\u2026'
+}
+
+function truncateDeckClean(text, maxLen) {
+  if (!text || text.length <= maxLen) return text || ''
+  return text.substring(0, maxLen).replace(/\s+\S*$/, '')
+}
+
+function cleanDeckPlanItem(text) {
+  let s = cleanDeckText(text)
+  s = s.replace(/\[.*?\]\s*/g, '')
+  s = s.replace(/:.*$/, '').trim()
+  return truncateDeckClean(s, 60)
+}
+
+function parseDeckWorkflows(md, count) {
+  if (!md) return []
+  const items = []
+  const sections = md.split(/\*\*\d*\.?\s*/)
+  for (const section of sections) {
+    if (!section.trim()) continue
+    const titleEnd = section.indexOf('**')
+    if (titleEnd < 0) continue
+    const title = section.substring(0, titleEnd).trim()
+    if (!title || title.length > 80 || title.includes('\n')) continue
+    const body = section.substring(titleEnd + 2).trim()
+    let desc = ''
+    const wfLine = body.match(/(?:Workflow|Outcome|Solution):\s*(.+)/i)
+    if (wfLine) desc = cleanDeckText(wfLine[1])
+    else {
+      const firstLine = body.split('\n').find(l => l.trim() && !l.trim().startsWith('Problem:'))
+      desc = cleanDeckText(firstLine || '')
+    }
+    items.push({ title: cleanDeckText(title), desc: firstDeckSentence(desc, 120) })
+    if (items.length >= count) break
+  }
+  const generics = [
+    { title: 'Document Intelligence', desc: 'Automated extraction and classification of operational documents' },
+    { title: 'Compliance Monitoring', desc: 'Continuous scanning against regulatory requirements' },
+    { title: 'Decision Support', desc: 'Evidence-based recommendations bounded by domain rules' },
+    { title: 'Workflow Automation', desc: 'Protocol-driven task execution with audit trail' },
+    { title: 'Knowledge Capture', desc: 'Encoding institutional expertise into reusable protocols' },
+    { title: 'Performance Analytics', desc: 'Real-time operational dashboards for stakeholders' },
+  ]
+  while (items.length < count) items.push(generics[items.length % generics.length])
+  return items.slice(0, count)
+}
+
+function assembleDeckData(results, client) {
+  if (!results) return null
+  const problems = results.problems || results.problems_identified || []
+  const plan = results.plan || results.action_plan || {}
+  let planPhases = []
+  if (Array.isArray(plan)) planPhases = plan
+  else if (typeof plan === 'object') planPhases = Object.entries(plan).map(([phase, actions]) => ({ phase, actions }))
+
+  const clientName = (client && client.company_name) || results.company_name || 'Client'
+  const industry = (client && client.industry) || results.client_industry || 'this domain'
+  const contactName = (client && client.contact_name) || results.client_contact || clientName
+  const bottomLine = results.bottom_line || ''
+  const streamline = results.streamline_applications || ''
+  const shortName = clientName.length > 20 ? clientName.split(/\s+/).slice(0, 2).join(' ') : clientName
+
+  let dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+  if (results.analyzed_at) { try { dateStr = new Date(results.analyzed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) } catch(e) {} }
+
+  const highSev = problems.filter(p => (p.severity || '').toLowerCase() === 'high').length
+  const medSev = problems.filter(p => (p.severity || '').toLowerCase() === 'medium').length
+  const workflows = parseDeckWorkflows(streamline, 6)
+
+  const stats = [
+    { num: String(problems.length), label: 'Issues Identified', sub: `${highSev} high severity` },
+    { num: highSev > 0 ? 'HIGH' : medSev > 0 ? 'MEDIUM' : 'LOW', label: 'Risk Level', sub: `${highSev} critical, ${medSev} moderate` },
+    { num: String(workflows.length), label: 'XO Workflows', sub: 'Automated via Streamline' },
+    { num: '21 days', label: 'Proof of Concept', sub: 'Capture \u2192 Prototype \u2192 Deploy' },
+  ]
+
+  const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
+  const sorted = [...problems].sort((a, b) => (severityOrder[(a.severity || 'low').toLowerCase()] || 3) - (severityOrder[(b.severity || 'low').toLowerCase()] || 3))
+  const challenges = sorted.slice(0, 4).map(p => ({
+    title: truncateDeckClean(cleanDeckText(p.title || 'Operational Gap'), 60),
+    desc: firstDeckSentence(p.evidence || p.description || p.recommendation || '', 150),
+  }))
+
+  const accentCycle = ['BLUE', 'RED', 'GREEN']
+  const workflowData = workflows.map((w, i) => ({ title: truncateDeck(w.title, 45), desc: truncateDeck(w.desc, 120), accent: accentCycle[i % 3] }))
+
+  const comparisons = []
+  for (let i = 0; i < Math.min(6, Math.max(problems.length, workflows.length)); i++) {
+    const prob = problems[i] || problems[problems.length - 1] || {}
+    const wf = workflows[i] || workflows[workflows.length - 1] || {}
+    comparisons.push({
+      before: truncateDeck(cleanDeckText(prob.title || 'Manual process with no audit trail'), 60),
+      after: truncateDeck(wf.title ? `XO automates ${wf.title.toLowerCase()}` : 'Protocol-driven automation with audit trail', 60),
+    })
+  }
+  while (comparisons.length < 6) comparisons.push({ before: 'Manual review with key-person dependency', after: 'XO protocol-driven automation with audit trail' })
+
+  const phases = []
+  const weekTitles = ['Capture & Quick Wins', 'Prototype & Validate', 'Deploy & Decide']
+  const defaults = [
+    [`Knowledge Abstraction \u2014 extract ${contactName}'s ${industry} expertise`, 'Map current manual workflows', 'Identify quick-win automations', 'Baseline metrics for ROI measurement'],
+    [`XO shadows live operations \u2014 parallel run alongside manual process`, 'Validate protocol accuracy with domain experts', 'Iterate on constitutional safety rules', 'Stakeholder review of prototype outputs'],
+    [`Full ${industry} dashboard deployed to stakeholders`, 'Operator training and handover', 'Performance metrics vs baseline', 'Evidence-based business case for full deployment'],
+  ]
+  for (let w = 0; w < 3; w++) {
+    const pp = planPhases[w] || {}
+    let items = []
+    if (Array.isArray(pp.actions)) items = pp.actions.slice(0, 4).map(a => cleanDeckPlanItem(typeof a === 'string' ? a : a.action || a.description || a.title || String(a)))
+    else if (typeof pp.actions === 'string') items = pp.actions.split(/[;\n]/).filter(s => s.trim()).slice(0, 4).map(s => cleanDeckPlanItem(s))
+    while (items.length < 4) items.push(defaults[w][items.length])
+    phases.push({ week: `WEEK ${w + 1}`, title: cleanDeckText(pp.phase || weekTitles[w]), items: items.slice(0, 4) })
+  }
+
+  const firstActionsArr = planPhases[0]?.actions || []
+  const firstActionRaw = Array.isArray(firstActionsArr) ? (typeof firstActionsArr[0] === 'string' ? firstActionsArr[0] : firstActionsArr[0]?.action || firstActionsArr[0]?.description || '') : ''
+  const firstAction = truncateDeckClean(cleanDeckText(firstActionRaw), 80)
+
+  return {
+    title: `Operational Briefing:\nScaling ${clientName}`,
+    contactLine: `Prepared for ${contactName}  |  ${dateStr}`,
+    slideTitle: `Where ${shortName} Stands Today`,
+    oodaTitle: shortName,
+    stats,
+    challengeTitle: `The ${industry.charAt(0).toUpperCase() + industry.slice(1)} Challenge`,
+    challenges,
+    problemCallout: problems.length > 0 ? `The cost of these ${problems.length} gaps compounds as ${clientName} scales \u2014 each manual workaround adds latency, risk, and key-person dependency.` : `Operational gaps compound as ${clientName} scales.`,
+    oodaPhases: [
+      { phase: 'OBSERVE', desc: truncateDeck(`24/7 sentinel scanning ${clientName}'s ${industry} data sources. Data gated by risk classification.`, 150) },
+      { phase: 'ORIENT', desc: truncateDeck(`Mandatory decomposition \u2014 contextualises against ${industry} domain rules. Risks explicitly enumerated.`, 150) },
+      { phase: 'DECIDE', desc: truncateDeck(`Executive framing \u2014 ranks actions, applies ${clientName}'s governance rules. Post-governance validation.`, 150) },
+      { phase: 'ACT', desc: truncateDeck(`Bounded execution via Streamline \u2014 ${contactName}'s team authorises; system executes. Full audit trail.`, 150) },
+    ],
+    maturityStart: `${shortName} starts at L1. You pull us forward as confidence builds.`,
+    workflows: workflowData,
+    comparisons: comparisons.slice(0, 6),
+    impactLine: `Estimated ${problems.length > 3 ? '60' : '40'}% reduction in manual ${industry} operations as ${clientName} scales toward full deployment`,
+    phases,
+    nextSteps: [
+      { num: '1', text: firstAction || `Share ${industry} operational data and system access for knowledge extraction` },
+      { num: '2', text: `Week 1 quick win \u2014 first ${industry} workflow live within 7 days` },
+      { num: '3', text: `21-day pilot \u2014 full ${industry} XO deployment to ${contactName}'s team` },
+    ],
+    successMetric: bottomLine ? truncateDeck(firstDeckSentence(bottomLine, 100), 100) + ' Institutional knowledge encoded into protocol, not people.' : 'Key-person dependency resolved. Institutional knowledge encoded into protocol, not people.',
+    constitutionalSafetyTitle: `Constitutional Safety \u2014 Why This Matters for ${shortName}'s ${industry.charAt(0).toUpperCase() + industry.slice(1)} Operations`,
+    constitutionalSafetyNote: `In ${industry}, a single unchecked decision can cascade into compliance failures, financial exposure, and reputational damage. XO's Two-Brain architecture (Actor + Critic), designed by Dr. Mabrouka Abuhmida, ensures every output is bounded by ${clientName}'s own domain rules \u2014 not advisory guidelines, but hard constitutional constraints with full audit trails.`,
+  }
+}
+
 function assembleBrief(results, client) {
   if (!results || !results.summary) return null
   const problems = results.problems || []
@@ -8589,7 +8760,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
     {id:"whatwecando",icon:"Zap",name:"Potential Streamline Applications",shortDescription:"",severity: 'high'},
     {id:"rapidDeployment",icon:"Package",name:"Rapid Deployment",shortDescription:"Timeline and action plan",severity: 'high'},
     {id:"technicalSection",icon:"Globe",name:"Technical Section",shortDescription:"",severity: 'high'},
-    {id:"deploymentBrief",icon:"FileText",name:"Deployment Brief",shortDescription:"CLIENT-READY XO DEPLOYMENT DOCUMENT",severity: 'high'}
+    {id:"deploymentBrief",icon:"FileText",name:"Deployment Brief",shortDescription:"CLIENT-READY XO DEPLOYMENT DOCUMENT",severity: 'high'},
+    {id:"growthDeck",icon:"Package",name:"Growth Deck",shortDescription:"INVESTOR-READY XO GROWTH PRESENTATION",severity: 'high'}
   ]);
   const [expandedSummary,setExpandedSummary]= useState(null);
   const [formattedSummary,setFormattedSummary] = useState([
@@ -9182,7 +9354,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   {briefDownloading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .docx
                 </button>
               )}
-              {item.id === 'deploymentBrief' && (
+              {item.id === 'growthDeck' && (
                 <button onClick={async (e) => {
                   e.stopPropagation()
                   setBriefDownloading('deck')
@@ -9791,7 +9963,193 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                             </div>
                           )})()}
                         </div>:
-                        <div></div>)))))
+                    (expandedResult.id==="growthDeck"?
+                        <div style={{ padding: '1.25rem' }}>
+                          {(() => { const deck = assembleDeckData(displayResults, currentClient); return deck ? (
+                            <div>
+                              {/* Slide 1: Title */}
+                              <div style={{ background: '#1B2A4A', borderRadius: 12, padding: '2rem', marginBottom: '1rem', position: 'relative', overflow: 'hidden' }}>
+                                <div style={{ position: 'absolute', top: 0, right: 0, width: 200, height: 120, background: 'rgba(46,117,182,0.15)', borderRadius: '0 12px 0 80px' }} />
+                                <div style={{ fontSize: '0.7rem', color: '#B0BEC5', marginBottom: '1rem', letterSpacing: '0.05em' }}>SLIDE 1 OF 8</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '1.5rem' }}>
+                                  <span style={{ fontWeight: 700, color: '#fff', fontSize: '0.9rem' }}>Intellagentic</span>
+                                  <span style={{ fontWeight: 700, color: '#C0392B', fontSize: '0.9rem' }}>XO</span>
+                                </div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#fff', lineHeight: 1.3, marginBottom: '0.75rem', fontFamily: 'Georgia, serif' }}>{deck.title.replace('\n', ' ')}</div>
+                                <div style={{ width: 60, height: 3, background: '#C0392B', marginBottom: '0.75rem' }} />
+                                <div style={{ fontSize: '0.8rem', color: '#B0BEC5', fontStyle: 'italic', marginBottom: '1rem' }}>You are the domain experts. This is our take on status and next steps.</div>
+                                <div style={{ fontSize: '0.85rem', color: '#F0F4F8' }}>{deck.contactLine}</div>
+                                <div style={{ fontSize: '0.7rem', color: '#555', fontStyle: 'italic', marginTop: '0.75rem' }}>CONFIDENTIAL</div>
+                              </div>
+
+                              {/* Slide 2: Status & Challenges */}
+                              <div style={{ background: '#fff', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #e5e7eb' }}>
+                                <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>SLIDE 2 OF 8</div>
+                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1B2A4A', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>{deck.slideTitle}</div>
+                                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                                  {deck.stats.map((st, i) => (
+                                    <div key={i} style={{ flex: '1 1 140px', background: '#EDF2F8', borderRadius: 8, padding: '0.75rem', borderTop: '3px solid #2E75B6' }}>
+                                      <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1B2A4A' }}>{st.num}</div>
+                                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#2E75B6' }}>{st.label}</div>
+                                      <div style={{ fontSize: '0.65rem', color: '#555' }}>{st.sub}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1B2A4A', marginBottom: '0.5rem', fontFamily: 'Georgia, serif' }}>{deck.challengeTitle}</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+                                  {deck.challenges.map((c, i) => (
+                                    <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#C0392B', marginTop: 4, flexShrink: 0 }} />
+                                      <div><span style={{ fontWeight: 600, color: '#1B2A4A', fontSize: '0.8rem' }}>{c.title} </span><span style={{ color: '#555', fontSize: '0.75rem' }}>{c.desc}</span></div>
+                                    </div>
+                                  ))}
+                                </div>
+                                {deck.problemCallout && <div style={{ background: '#FFF3CD', borderRadius: 6, padding: '0.5rem 0.75rem', fontSize: '0.75rem', fontStyle: 'italic', color: '#1B2A4A' }}>{deck.problemCallout}</div>}
+                              </div>
+
+                              {/* Slide 3: Protocol vs Probability */}
+                              <div style={{ background: '#1B2A4A', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem' }}>
+                                <div style={{ fontSize: '0.7rem', color: '#B0BEC5', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>SLIDE 3 OF 8</div>
+                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>Protocol vs Probability</div>
+                                <div style={{ borderRadius: 8, overflow: 'hidden', marginBottom: '1rem' }}>
+                                  {[
+                                    { label: 'Foundation', ai: 'Probability-based (statistical guessing)', xo: 'Protocol-based (codified domain rules)' },
+                                    { label: 'Engagement', ai: 'Passive "Pull Model" (waits for a prompt)', xo: 'Active "Command Loop" (24/7 scanning)' },
+                                    { label: 'Identity', ai: 'Conversational Assistant', xo: 'Sovereign Decision Engine' },
+                                    { label: 'Output', ai: 'High liability, prone to hallucinations', xo: 'Pre-compliant, evidence-bound' },
+                                  ].map((row, i) => (
+                                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr', gap: 0, borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+                                      <div style={{ padding: '0.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#F0F4F8' }}>{row.label}</div>
+                                      <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#B0BEC5', background: 'rgba(255,255,255,0.03)' }}>{row.ai}</div>
+                                      <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: '#F0F4F8', fontWeight: 600, background: 'rgba(46,117,182,0.1)' }}>{row.xo}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div style={{ background: '#1A2030', borderRadius: 8, padding: '0.75rem', borderLeft: '3px solid #C0392B' }}>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff', marginBottom: '0.25rem' }}>{deck.constitutionalSafetyTitle}</div>
+                                  <div style={{ fontSize: '0.7rem', color: '#B0BEC5' }}>{deck.constitutionalSafetyNote}</div>
+                                </div>
+                                <div style={{ textAlign: 'center', fontSize: '0.75rem', fontStyle: 'italic', color: '#2E75B6', marginTop: '0.75rem' }}>Every other AI product guesses. We follow your rules.</div>
+                              </div>
+
+                              {/* Slide 4: OODA Loop */}
+                              <div style={{ background: '#fff', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #e5e7eb' }}>
+                                <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>SLIDE 4 OF 8</div>
+                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1B2A4A', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>The XO Command Loop for {deck.oodaTitle}</div>
+                                {deck.oodaPhases.map((o, i) => {
+                                  const colors = { OBSERVE: '#2E75B6', ORIENT: '#1B2A4A', DECIDE: '#C0392B', ACT: '#27AE60' }
+                                  return (
+                                    <div key={i} style={{ background: '#EDF2F8', borderRadius: 8, padding: '0.75rem', marginBottom: '0.5rem', borderLeft: `4px solid ${colors[o.phase] || '#2E75B6'}` }}>
+                                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: colors[o.phase] || '#2E75B6' }}>{o.phase}</div>
+                                      <div style={{ fontSize: '0.7rem', color: '#555' }}>{o.desc}</div>
+                                    </div>
+                                  )
+                                })}
+                                <div style={{ background: '#EDF2F8', borderRadius: 8, padding: '0.75rem', marginTop: '0.75rem', border: '1px solid #2E75B6' }}>
+                                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#1B2A4A' }}>Maturity Roadmap</div>
+                                  <div style={{ fontSize: '0.7rem', color: '#2E75B6', marginTop: '0.25rem' }}>L1: Monitor  →  L2: Recommend  →  L3: Bounded Autonomy  →  L4: Full Autonomous Operation</div>
+                                  <div style={{ fontSize: '0.65rem', color: '#555', fontStyle: 'italic', marginTop: '0.25rem' }}>{deck.maturityStart}</div>
+                                </div>
+                              </div>
+
+                              {/* Slide 5: Workflows */}
+                              <div style={{ background: '#1B2A4A', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem' }}>
+                                <div style={{ fontSize: '0.7rem', color: '#B0BEC5', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>SLIDE 5 OF 8</div>
+                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>Workflows That Encode Institutional Knowledge</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                  {deck.workflows.map((w, i) => {
+                                    const accentColors = { BLUE: '#2E75B6', RED: '#C0392B', GREEN: '#27AE60' }
+                                    return (
+                                      <div key={i} style={{ background: '#1A2030', borderRadius: 8, padding: '0.75rem', borderTop: `3px solid ${accentColors[w.accent] || '#2E75B6'}` }}>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff', marginBottom: '0.25rem' }}>{w.title}</div>
+                                        <div style={{ fontSize: '0.7rem', color: '#B0BEC5' }}>{w.desc}</div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Slide 6: Before & After */}
+                              <div style={{ background: '#fff', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #e5e7eb' }}>
+                                <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>SLIDE 6 OF 8</div>
+                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1B2A4A', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>From System of Record to System of Action</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, borderRadius: 8, overflow: 'hidden' }}>
+                                  <div style={{ background: '#555', padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontWeight: 600, color: '#fff', textAlign: 'center' }}>SYSTEM OF RECORD</div>
+                                  <div style={{ background: '#2E75B6', padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontWeight: 600, color: '#fff', textAlign: 'center' }}>SYSTEM OF ACTION</div>
+                                  {deck.comparisons.map((c, i) => (
+                                    <React.Fragment key={i}>
+                                      <div style={{ padding: '0.4rem 0.75rem', fontSize: '0.7rem', color: '#555', background: i % 2 === 0 ? '#EDF2F8' : '#fff' }}>{c.before}</div>
+                                      <div style={{ padding: '0.4rem 0.75rem', fontSize: '0.7rem', color: '#1B2A4A', fontWeight: 600, background: i % 2 === 0 ? '#EDF2F8' : '#fff' }}>{c.after}</div>
+                                    </React.Fragment>
+                                  ))}
+                                </div>
+                                {deck.impactLine && <div style={{ background: '#1B2A4A', borderRadius: 6, padding: '0.5rem', fontSize: '0.75rem', fontWeight: 600, color: '#fff', textAlign: 'center', marginTop: '0.75rem' }}>{deck.impactLine}</div>}
+                                <div style={{ textAlign: 'center', fontSize: '0.7rem', fontStyle: 'italic', color: '#2E75B6', marginTop: '0.5rem' }}>XO sits on top of existing systems — zero rip-and-replace.</div>
+                              </div>
+
+                              {/* Slide 7: 21-Day POC */}
+                              <div style={{ background: '#EDF2F8', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem' }}>
+                                <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>SLIDE 7 OF 8</div>
+                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1B2A4A', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>21-Day Proof of Concept</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                                  {deck.phases.map((p, i) => {
+                                    const weekColors = ['#2E75B6', '#1B2A4A', '#C0392B']
+                                    return (
+                                      <div key={i} style={{ background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                                        <div style={{ background: weekColors[i], padding: '0.5rem 0.75rem' }}>
+                                          <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{p.week}</div>
+                                          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff' }}>{p.title}</div>
+                                        </div>
+                                        <div style={{ padding: '0.5rem 0.75rem' }}>
+                                          {p.items.map((item, j) => (
+                                            <div key={j} style={{ display: 'flex', gap: '0.4rem', alignItems: 'flex-start', marginBottom: '0.35rem' }}>
+                                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: weekColors[i], marginTop: 4, flexShrink: 0 }} />
+                                              <div style={{ fontSize: '0.7rem', color: '#1B2A4A' }}>{item}</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                                <div style={{ textAlign: 'center', fontSize: '0.7rem', fontStyle: 'italic', color: '#555', marginTop: '0.75rem' }}>Weeks 1–2 are discovery. Commercial engagement begins at prototype sign-off.</div>
+                              </div>
+
+                              {/* Slide 8: Next Steps */}
+                              <div style={{ background: '#1B2A4A', borderRadius: 12, padding: '2rem', marginBottom: '1rem', position: 'relative', overflow: 'hidden' }}>
+                                <div style={{ position: 'absolute', bottom: 0, left: 0, width: 200, height: 140, background: 'rgba(46,117,182,0.15)', borderRadius: '0 80px 0 12px' }} />
+                                <div style={{ fontSize: '0.7rem', color: '#B0BEC5', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>SLIDE 8 OF 8</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '1rem' }}>
+                                  <span style={{ fontWeight: 700, color: '#fff', fontSize: '0.9rem' }}>Intellagentic</span>
+                                  <span style={{ fontWeight: 700, color: '#C0392B', fontSize: '0.9rem' }}>XO</span>
+                                </div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#fff', marginBottom: '0.75rem', fontFamily: 'Georgia, serif' }}>Next Steps</div>
+                                <div style={{ width: 60, height: 3, background: '#C0392B', marginBottom: '1rem' }} />
+                                {deck.nextSteps.map((ns, i) => (
+                                  <div key={i} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.6rem' }}>
+                                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#C0392B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{ns.num}</div>
+                                    <div style={{ fontSize: '0.85rem', color: '#F0F4F8' }}>{ns.text}</div>
+                                  </div>
+                                ))}
+                                <div style={{ background: '#1A2030', borderRadius: 8, padding: '0.75rem', marginTop: '1rem', borderLeft: '3px solid #27AE60' }}>
+                                  <span style={{ fontWeight: 600, color: '#27AE60', fontSize: '0.8rem' }}>Success Metric: </span>
+                                  <span style={{ color: '#F0F4F8', fontSize: '0.8rem' }}>{deck.successMetric}</span>
+                                </div>
+                                <div style={{ background: '#E8F4F8', borderRadius: 6, padding: '0.4rem', textAlign: 'center', marginTop: '0.75rem' }}>
+                                  <span style={{ fontSize: '0.7rem', fontStyle: 'italic', color: '#2E75B6' }}>XO is priced against the cost of the problem, not the cost of the technology.</span>
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: '#B0BEC5', marginTop: '0.5rem' }}>alan.moore@intellagentic.io</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                              <Package size={32} style={{ margin: '0 auto 0.75rem', opacity: 0.5 }} />
+                              <p style={{ fontSize: '0.9rem' }}>Growth Deck not available for this analysis.</p>
+                              <p style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Re-run enrichment to generate a Growth Deck.</p>
+                            </div>
+                          )})()}
+                        </div>:
+                        <div></div>))))))
                   }
                 </div>
             )}
