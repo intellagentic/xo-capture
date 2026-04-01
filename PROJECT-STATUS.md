@@ -1,9 +1,9 @@
 # XO CAPTURE - PROJECT STATUS
 
-**Date:** March 6, 2026
+**Date:** April 1, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.02)
+**Status:** Deployed & Operational (v2.03)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3201,6 +3201,53 @@ System skill files (6 total, bundled in enrich Lambda):
 - enrichment-process.md (22 lines) -- data source hierarchy, trust levels
 - output-format.md (56 lines) -- all formatting rules (executive summary, problems, schema, architecture, action plan, bottom line, XO+Streamline framing)
 - streamline-applications.md (90 lines) -- Streamline workflow recommendations
+
+**v2.03 -- Growth Deck Generation + Consent Flow Cleanup (March 31 -- April 1, 2026)**
+
+Growth Deck (.pptx) generation:
+- xo-deck-download Lambda (Node.js 20, PptxGenJS) -- 8-slide branded Growth Deck
+- assembleDeckData() maps analysis JSON directly to slide data -- no Bedrock call, pure JavaScript
+- Instant synchronous download via POST /results/{id}/deck (same pattern as brief-download)
+- Removed Bedrock on-demand extraction (was 60s, exceeded API Gateway 29s timeout)
+- Removed async self-invoke + S3 polling architecture (handleDeckStart, handleDeckStatus)
+- Removed @aws-sdk/client-bedrock-runtime and @aws-sdk/client-s3 dependencies from Lambda
+- Download .pptx button on Results page alongside existing Download .docx
+- Frontend reverted from polling pattern to simple POST-and-download
+- RAG positioning rules hardcoded in slide builders:
+  -- Protocol vs Probability comparison table
+  -- Constitutional Safety (Two-Brain architecture, Dr. Mabrouka Abuhmida)
+  -- OODA Command Loop (Observe/Orient/Decide/Act) with sector-specific descriptions
+  -- L1-L4 Maturity Roadmap
+  -- Pricing against cost of problem, not cost of technology
+- Sector-specific text derived from client_industry and client_description
+- Reference scripts: reference-pine-fund.js, reference-php-group.js (correct slide positioning)
+- Text parsing helpers: cleanText() strips markdown artifacts, firstSentence() skips "1." numbering
+- parseWorkflows() extracts title/desc from streamline_applications markdown sections
+- cleanPlanItem() strips [XO Setup] tags and truncates after first colon
+- API Gateway route: POST /results/{id}/deck
+
+Enrichment without documents:
+- xo-enrich Lambda no longer errors when no files uploaded
+- Injects "_profile_only" placeholder so Claude analyzes using organization profile only
+- Enables enrichment based on company_name, industry, description, contacts, website_url
+
+Consent flow cleanup:
+- ndaSigned state renamed to consentAgreed throughout UploadScreen component
+- addNDA function renamed to handleConsent
+- Tooltip changed from "Non Disclosure Agreement" to "Data Processing Consent"
+- Drag-and-drop upload zone blocked until consent accepted (handleDrop guard + alert)
+- Click-to-browse disabled until consent accepted
+- handleDragOver suppresses drag highlight before consent
+
+Unsaved changes protection:
+- CompanyInfoModal warns before closing if form has unsaved data
+- Applies to X button, overlay click, and browser beforeunload
+- guardedClose() with window.confirm dialog
+
+Known issues:
+- S3 uploaded source documents stored as plaintext -- encryption fix scoped, waiting on Richie timing
+- Bedrock IAM policy is wildcard Resource:* -- needs tightening to specific EU regions
+- Growth Deck slide formatting is functional but could use further polish on edge cases
 
 **Next Step:** Web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode).
 

@@ -3270,6 +3270,23 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
     onClose()
   }
 
+  // ── Unsaved changes protection ──
+  const hasUnsavedChanges = localData.name.trim() !== '' || localContacts.some(c => c.firstName || c.lastName || c.email) || localAddresses.some(a => a.address1 || a.city) || localData.website.trim() !== '' || localData.industry.trim() !== '' || localData.description.trim() !== ''
+
+  const guardedClose = () => {
+    if (hasUnsavedChanges) {
+      if (!window.confirm('You have unsaved changes. Are you sure you want to close?')) return
+    }
+    onClose()
+  }
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return
+    const handler = (e) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [hasUnsavedChanges])
+
   const brandingDropZoneStyle = {
     border: '2px dashed var(--border-color)',
     borderRadius: '8px',
@@ -3287,14 +3304,14 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={guardedClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Building2 size={20} className="icon-red" />
             <h2>Partner Information</h2>
           </div>
-          <button className="modal-close" onClick={onClose}>
+          <button className="modal-close" onClick={guardedClose}>
             <X size={20} />
           </button>
         </div>
@@ -4971,8 +4988,8 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
   const [replacingId, setReplacingId] = useState(null)
   const [currentClient,setCurrentClient] = useState(null)
 
-  const [ndaSigned, setNdaSigned] = useState(false)
-  const [ndaSignedAt, setNdaSignedAt] = useState('')
+  const [consentAgreed, setConsentAgreed] = useState(false)
+  const [consentAgreedAt, setConsentAgreedAt] = useState('')
   const [existingApps, setExistingApps] = useState('')
 
   // Text input source state
@@ -5023,17 +5040,22 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
   }
 
   // === Upload Handlers ===
-  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true) }
+  const handleDragOver = (e) => { e.preventDefault(); if (consentAgreed) setIsDragging(true) }
   const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false) }
 
   const handleDrop = (e) => {
     e.preventDefault()
     setIsDragging(false)
+    if (!consentAgreed) {
+      alert('Please accept the data processing consent before uploading')
+      return
+    }
     const droppedFiles = Array.from(e.dataTransfer.files)
     uploadFiles(droppedFiles)
   }
 
   const handleFileSelect = (e) => {
+    if (!consentAgreed) return
     const selectedFiles = Array.from(e.target.files)
     uploadFiles(selectedFiles)
     e.target.value = '' // reset so same file can be re-selected
@@ -5290,8 +5312,8 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
         if (res.ok) {
           const data = await res.json();
           setCurrentClient(data);
-          setNdaSigned(data.ndaSigned);
-          setNdaSignedAt(data.ndaSignedAt);
+          setConsentAgreed(data.ndaSigned);
+          setConsentAgreedAt(data.ndaSignedAt);
           setExistingApps(data.existingApps);
           //console.log(data);
         }
@@ -5330,8 +5352,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
     }
   }
 
-  const addNDA = async ()=>{
-    //alert("NDA Signed");
+  const handleConsent = async ()=>{
     if(clientId){
       // Update existing client
       const response = await fetch(`${API_BASE}/clients`, {
@@ -5427,15 +5448,15 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
             {MODEL_LABELS[preferredModel] || preferredModel}
           </span>
           </div>
-          {!ndaSigned && (<button
-              onClick={addNDA}
+          {!consentAgreed && (<button
+              onClick={handleConsent}
               style={{ background: 'var(--action-primary)', border: '2px solid var(--action-primary)',borderRadius:"8px", color: 'white', cursor: 'pointer', padding: '0.45rem' }}
-              title="Non Disclosure Agreement"
+              title="Data Processing Consent"
           >
             <FileScan size={16} /> {"I AGREE"}
           </button>)}
-          {ndaSigned && (<div style={{color:"var(--text-primary)"}}>
-            {ndaSigned?"Consent Agreed: "+formatDateTime(ndaSignedAt):""}
+          {consentAgreed && (<div style={{color:"var(--text-primary)"}}>
+            {consentAgreed?"Consent Agreed: "+formatDateTime(consentAgreedAt):""}
           </div>)}
         </div>
         <div style={{ padding: '1.25rem',color:"var(--text-muted)"}}>
@@ -5743,9 +5764,9 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
               background: isDragging ? 'rgba(220, 38, 38, 0.08)' : 'var(--surface-secondary, rgba(255,255,255,0.03))',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              opacity:ndaSigned?"1":"0.1"
+              opacity:consentAgreed?"1":"0.1"
             }}
-            onClick={() => {if(ndaSigned) document.getElementById('sources-file-input').click()}}
+            onClick={() => {if(consentAgreed) document.getElementById('sources-file-input').click()}}
           >
             <Upload size={36} style={{ color: '#dc2626', opacity: 0.6, marginBottom: '0.5rem' }} />
             <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
@@ -5850,7 +5871,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
             <input
               type="text"
               value={textSourceLabel}
-              disabled={!ndaSigned}
+              disabled={!consentAgreed}
               onChange={(e) => setTextSourceLabel(e.target.value)}
               placeholder="Source label (e.g. Phone call notes, Email thread, Meeting notes, Key applications, Tech stack)"
               style={{
@@ -5864,7 +5885,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
 
             <textarea
               value={textSourceContent}
-              disabled={!ndaSigned}
+              disabled={!consentAgreed}
               onChange={(e) => setTextSourceContent(e.target.value)}
               placeholder="Paste raw text content here — call notes, email threads, chat logs, meeting minutes, application names, technologies used ..."
               rows={5}
@@ -5880,7 +5901,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
 
             <button
               onClick={addTextSource}
-              disabled={textSourceSaving || !textSourceContent.trim() || !ndaSigned}
+              disabled={textSourceSaving || !textSourceContent.trim() || !consentAgreed}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
                 padding: '0.6rem',
@@ -5916,7 +5937,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
         <div style={{ padding: '1.25rem' }}>
          <textarea
              value={existingApps}
-             disabled={!ndaSigned}
+             disabled={!consentAgreed}
              onChange={(e) => setExistingApps(e.target.value)}
              placeholder="List your key apps and upload screenshots in your data section..."
              rows={5}
@@ -5932,7 +5953,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
 
             <button
                 onClick={addExistingApps}
-                disabled={!ndaSigned}
+                disabled={!consentAgreed}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem',
                   padding: '0.6rem',

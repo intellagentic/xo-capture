@@ -408,9 +408,10 @@ def _run_enrichment_pipeline(event):
             print("No audio files found, skipping transcription stage")
 
         if not extracted_text:
-            update_enrichment_stage(conn, enrichment_id, 'error', status='error')
-            conn.close()
-            return {'status': 'error', 'message': 'No files found to analyze'}
+            print("No uploaded documents — enrichment will use organization profile only")
+            extracted_text = {
+                "_profile_only": "No client documents uploaded — analysis based on organization profile and contact information only."
+            }
 
         # Stage: researching (placeholder for future web research)
         update_enrichment_stage(conn, enrichment_id, 'researching')
@@ -418,7 +419,7 @@ def _run_enrichment_pipeline(event):
 
         # Stage: analyzing
         update_enrichment_stage(conn, enrichment_id, 'analyzing')
-        print(f"Analyzing {len(extracted_text)} files for client: {client_id}")
+        print(f"Analyzing {len(extracted_text)} source(s) for client: {client_id}")
         analysis = analyze_with_claude(
             company_name, website, contact_name, contact_title,
             contact_linkedin, industry, description, pain_point, extracted_text, skills,
