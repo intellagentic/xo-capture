@@ -3,7 +3,7 @@
 **Date:** April 1, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.05)
+**Status:** Deployed & Operational (v2.06)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3304,7 +3304,49 @@ Bedrock IAM cleanup:
 - Removed xo-bedrock-invoke inline policy from xo-lambda-role (wildcard Resource:*)
 - No longer needed -- deck generation uses assembleDeckData() pure JavaScript mapping, no Bedrock calls
 
-**Next Step:** Web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode).
+**v2.06 -- Engagements Model (April 1, 2026)**
+
+Engagements model -- multiple deals/divisions per company:
+- Each engagement has own focus area, contacts, enrichment, brief, deck, and approval status
+- engagements table: id (UUID), client_id (FK), name, focus_area, contacts_json, status (active/won/lost/paused), approved_at, approved_by, hubspot_deal_id
+- enrichments table: added engagement_id column (nullable, backward compatible)
+- CRUD API: GET/POST/PUT/DELETE /engagements via clients Lambda
+- API Gateway /engagements resource added with Lambda proxy integration + CORS OPTIONS
+- Auto-migration creates engagements table on Lambda cold start
+
+Frontend engagement management:
+- Engagement cards on welcome page (after Company LinkedIn, before Industry)
+- New Engagement modal: name (required), focus area (textarea directive), status dropdown
+- Edit/delete engagement via card edit button
+- SELECTED badge + CheckCircle vs "Click to select" prompt -- visually distinct from status badge (ACTIVE/WON/LOST/PAUSED)
+- Auto-select when client has exactly one engagement
+- Active Engagement Banner on Enrich, Results, Skills screens with "Change" link back to welcome page
+
+Engagement-scoped enrichment pipeline:
+- POST /enrich accepts optional engagement_id
+- Focus area directive injected into Claude prompt: "ENGAGEMENT FOCUS: {focus_area}"
+- Engagement contacts merged with company contacts (engagement contacts take priority)
+- Results stored at {client_id}/engagements/{engagement_id}/results/analysis.json
+- engagements.approved_at reset on re-enrichment (not clients.approved_at)
+
+Engagement-scoped results and downloads:
+- GET /results/{id}?engagement_id=X reads from engagement-scoped S3 path
+- Returns engagement's approved_at (for DRAFT watermark) and engagement_name
+- Brief download: reads engagement_id from body, passes to results Lambda, includes engagement name in filename
+- Deck download: same pattern as brief
+- Frontend: ResultsScreen passes ?engagement_id=X, isDraft uses engagement approved_at when scoped
+- Download handlers pass engagement_id in POST body
+
+Backward compatibility:
+- engagement_id is optional in every API call
+- When absent, all Lambdas behave exactly as before (company-level paths)
+- Existing enrichment results stay at {client_id}/results/ -- no data moved
+- Company-level uploads shared across engagements (focus_area directive handles relevance filtering)
+
+Deferred to Phase 5:
+- HubSpot Deal sync (engagements -> Deals, associate with parent Company)
+
+**Next Step:** HubSpot Deal sync, web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode).
 
 ---
 
