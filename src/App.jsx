@@ -9444,6 +9444,9 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
               {!isDraft && (item.id === 'deploymentBrief' || item.id === 'growthDeck') && (
                 <span style={{ fontSize: '0.65rem', background: '#dcfce7', color: '#16a34a', padding: '0.15rem 0.5rem', borderRadius: 4, fontWeight: 600, flexShrink: 0 }}>APPROVED</span>
               )}
+              {isDraft && (item.id === 'deploymentBrief' || item.id === 'growthDeck') && (
+                <span style={{ fontSize: '0.6rem', fontStyle: 'italic', color: '#DC2626', flexShrink: 0 }}>Draft — watermarked until reviewed and approved</span>
+              )}
               {exp ? (
                   <ChevronDown size={20} style={{color: 'var(--text-secondary)', flexShrink: 0}}/>
               ) : (
@@ -9891,8 +9894,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                           </div>
                         </div>:
                     (expandedResult.id==="deploymentBrief"?
-                        <div style={{ padding: '1.25rem', position: 'relative' }}>
-                          {isDraft && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 10, overflow: 'hidden' }}><span style={{ fontSize: '6rem', fontWeight: 900, color: 'rgba(200,200,200,0.2)', transform: 'rotate(-30deg)', userSelect: 'none', whiteSpace: 'nowrap', letterSpacing: '0.2em' }}>DRAFT</span></div>}
+                        <div style={{ padding: '1.25rem' }}>
+                          {isDraft && <div style={{ background: '#FEE2E2', border: '2px dashed #DC2626', borderRadius: 8, padding: '0.75rem', marginBottom: '1rem', textAlign: 'center' }}><div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#DC2626', letterSpacing: '0.15em' }}>DRAFT</div><div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.15rem' }}>Watermarked until reviewed and approved</div></div>}
                           {(() => { const brief = assembleBrief(displayResults, currentClient); return brief ? (
                             <div>
                               <div id="deployment-brief-content">
@@ -10032,8 +10035,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                           )})()}
                         </div>:
                     (expandedResult.id==="growthDeck"?
-                        <div style={{ padding: '1.25rem', position: 'relative' }}>
-                          {isDraft && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 10, overflow: 'hidden' }}><span style={{ fontSize: '6rem', fontWeight: 900, color: 'rgba(200,200,200,0.2)', transform: 'rotate(-30deg)', userSelect: 'none', whiteSpace: 'nowrap', letterSpacing: '0.2em' }}>DRAFT</span></div>}
+                        <div style={{ padding: '1.25rem' }}>
+                          {isDraft && <div style={{ background: '#FEE2E2', border: '2px dashed #DC2626', borderRadius: 8, padding: '0.75rem', marginBottom: '1rem', textAlign: 'center' }}><div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#DC2626', letterSpacing: '0.15em' }}>DRAFT</div><div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.15rem' }}>Watermarked until reviewed and approved</div></div>}
                           {(() => { const deck = assembleDeckData(displayResults, currentClient); return deck ? (
                             <div>
                               {/* Slide 1: Title */}
@@ -10685,7 +10688,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   value={reviewText}
                   onChange={e => setReviewText(e.target.value)}
                   rows={6}
-                  placeholder="Enter corrections (e.g., 'John Smith is still the CEO — the analysis incorrectly stated he left the company')..."
+                  placeholder="Enter factual corrections — e.g., incorrect job titles, company details, or outdated figures"
                   style={{
                     width: '100%', padding: '0.625rem', border: '1px solid var(--border-color)',
                     borderRadius: 8, fontSize: '0.85rem', fontFamily: 'inherit', color: 'var(--text-primary)',

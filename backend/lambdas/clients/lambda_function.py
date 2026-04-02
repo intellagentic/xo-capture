@@ -67,10 +67,13 @@ def _run_migrations():
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS nda_signed BOOLEAN DEFAULT FALSE;")
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS nda_signed_at TIMESTAMP;")
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS existing_apps TEXT;")
+        # Approval flow
+        cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;")
+        cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_by TEXT;")
         conn.commit()
         cur.close()
         conn.close()
-        print("Migration complete: streamline_webhook_url + invite_webhook_url + encryption_key + updated_by + nda_signed + existing_apps columns ensured")
+        print("Migration complete: streamline_webhook_url + invite_webhook_url + encryption_key + updated_by + nda_signed + existing_apps + approved_at columns ensured")
     except Exception as e:
         print(f"Migration check (non-fatal): {e}")
 
