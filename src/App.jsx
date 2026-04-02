@@ -2704,10 +2704,12 @@ export default function App() {
             clientId={clientId}
             onComplete={() => setCurrentScreen('results')}
             preferredModel={preferredModel}
+            activeEngagement={activeEngagement}
+            onNavigate={navigateTo}
           />
         )}
-        {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} isAdmin={isAdmin} systemButtons={systemButtons} theme={theme} preferredModel={preferredModel} />}
-        {currentScreen === 'skills' && <SkillsScreen clientId={clientId} isAdmin={isAdmin} preferredModel={preferredModel}/>}
+        {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} isAdmin={isAdmin} systemButtons={systemButtons} theme={theme} preferredModel={preferredModel} activeEngagement={activeEngagement} onNavigate={navigateTo} />}
+        {currentScreen === 'skills' && <SkillsScreen clientId={clientId} isAdmin={isAdmin} preferredModel={preferredModel} activeEngagement={activeEngagement} onNavigate={navigateTo} />}
         {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} systemButtons={systemButtons} setSystemButtons={saveSystemButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} inWorkspace={inWorkspace} isAdmin={isAdmin} companyName={companyData.name} />}
         {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
         {currentScreen === 'partners' && isAdmin && <PartnersScreen partners={partners} setPartners={setPartners} />}
@@ -5175,6 +5177,19 @@ function EngagementForm({ initial, saving, onSave, onDelete }) {
 // ============================================================
 // SOURCES SCREEN — NotebookLM-style Source Library
 // ============================================================
+function ActiveEngagementBanner({ activeEngagement, onNavigate }) {
+  if (!activeEngagement) return null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', marginBottom: '0.75rem', background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 8 }}>
+      <Package size={14} style={{ color: '#dc2626', flexShrink: 0 }} />
+      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Engagement:</span>
+      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>{activeEngagement.name}</span>
+      {activeEngagement.focus_area && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '0.25rem' }}>— {activeEngagement.focus_area.length > 60 ? activeEngagement.focus_area.substring(0, 60) + '...' : activeEngagement.focus_area}</span>}
+      <button onClick={() => onNavigate('upload')} style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', flexShrink: 0 }}>Change</button>
+    </div>
+  )
+}
+
 function getFileIcon(filename) {
   const ext = (filename || '').split('.').pop().toLowerCase()
   const map = {
@@ -6316,7 +6331,7 @@ const MODEL_LABELS = {
   'claude-haiku-4-5-20251001': 'Claude Haiku 4.5'
 }
 
-function EnrichScreen({ clientId, onComplete, preferredModel }) {
+function EnrichScreen({ clientId, onComplete, preferredModel, activeEngagement, onNavigate }) {
   const [jobStatus, setJobStatus] = useState(null) // null | 'processing' | 'complete' | 'error'
   const [jobId, setJobId] = useState(null)
   const [currentStage, setCurrentStage] = useState(null)
@@ -6445,6 +6460,8 @@ function EnrichScreen({ clientId, onComplete, preferredModel }) {
   }
 
   return (
+    <div>
+      <ActiveEngagementBanner activeEngagement={activeEngagement} onNavigate={onNavigate} />
     <div className="panel">
       <div className="panel-header">
         <div className="panel-header-left">
@@ -6770,13 +6787,14 @@ function EnrichScreen({ clientId, onComplete, preferredModel }) {
         )}
       </div>
     </div>
+    </div>
   )
 }
 
 // ============================================================
 // SKILLS SCREEN
 // ============================================================
-function SkillsScreen({ clientId, isAdmin }) {
+function SkillsScreen({ clientId, isAdmin, activeEngagement, onNavigate }) {
   const [skills, setSkills] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -7051,6 +7069,8 @@ function SkillsScreen({ clientId, isAdmin }) {
   }
 
   return (
+    <div>
+      <ActiveEngagementBanner activeEngagement={activeEngagement} onNavigate={onNavigate} />
     <div className="panel">
       <div className="panel-header">
         <div className="panel-header-left">
@@ -7150,6 +7170,7 @@ function SkillsScreen({ clientId, isAdmin }) {
           }}
         />
       )}
+    </div>
     </div>
   )
 }
@@ -8971,7 +8992,7 @@ function assembleBrief(results, client) {
   }
 }
 
-function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,preferredModel }) {
+function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,preferredModel, activeEngagement, onNavigate }) {
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -9321,6 +9342,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
 
   return (
     <div style={{ display: 'grid', gap: '1rem', padding: '0 2rem' }}>
+      <ActiveEngagementBanner activeEngagement={activeEngagement} onNavigate={onNavigate} />
       {/* Header */}
       <div className="panel">
         <div className="panel-header">
