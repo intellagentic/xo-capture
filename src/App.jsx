@@ -2315,12 +2315,14 @@ export default function App() {
       console.error('Failed to fetch client:', err)
     }
     // Fetch engagements for this client
+    let fetchedEngagements = []
     try {
       const engRes = await fetch(`${API_BASE}/engagements?client_id=${client.client_id}`, { headers: getAuthHeaders() })
-      if (engRes.ok) { const engData = await engRes.json(); setEngagements(engData.engagements || []) }
-      else setEngagements([])
-    } catch (e) { setEngagements([]) }
-    setActiveEngagement(null)
+      if (engRes.ok) { const engData = await engRes.json(); fetchedEngagements = engData.engagements || [] }
+    } catch (e) {}
+    setEngagements(fetchedEngagements)
+    // Auto-select if exactly one engagement
+    setActiveEngagement(fetchedEngagements.length === 1 ? fetchedEngagements[0] : null)
     setCurrentScreen('upload')
   }
 
@@ -4762,18 +4764,28 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                  {engagements.map(eng => (
+                  {engagements.map(eng => {
+                    const isSelected = activeEngagement?.id === eng.id
+                    return (
                     <div key={eng.id}
-                      onClick={() => setActiveEngagement(activeEngagement?.id === eng.id ? null : eng)}
+                      onClick={() => setActiveEngagement(isSelected ? null : eng)}
                       style={{
                         padding: '0.5rem 0.625rem', borderRadius: 8, cursor: 'pointer',
-                        border: activeEngagement?.id === eng.id ? '2px solid #dc2626' : '1px solid #e5e7eb',
-                        background: activeEngagement?.id === eng.id ? 'rgba(220,38,38,0.05)' : '#f9fafb',
+                        border: isSelected ? '2px solid #dc2626' : '1px solid #e5e7eb',
+                        background: isSelected ? 'rgba(220,38,38,0.05)' : '#f9fafb',
                         transition: 'all 0.15s'
                       }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>{eng.name}</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          {isSelected && <CheckCircle size={14} style={{ color: '#dc2626', flexShrink: 0 }} />}
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>{eng.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          {isSelected ? (
+                            <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '0.1rem 0.35rem', borderRadius: 4, background: '#dc2626', color: '#fff' }}>SELECTED</span>
+                          ) : (
+                            <span style={{ fontSize: '0.6rem', color: '#9ca3af', fontStyle: 'italic' }}>Click to select</span>
+                          )}
                           <span style={{
                             fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.35rem', borderRadius: 4,
                             background: eng.status === 'won' ? '#dcfce7' : eng.status === 'lost' ? '#fee2e2' : eng.status === 'paused' ? '#fef3c7' : '#dbeafe',
@@ -4788,7 +4800,8 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                       {eng.focus_area && <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.15rem' }}>{eng.focus_area.length > 80 ? eng.focus_area.substring(0, 80) + '...' : eng.focus_area}</div>}
                       {eng.contacts && eng.contacts.length > 0 && <div style={{ fontSize: '0.65rem', color: '#9ca3af', marginTop: '0.15rem' }}>{eng.contacts.length} contact{eng.contacts.length !== 1 ? 's' : ''}</div>}
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
