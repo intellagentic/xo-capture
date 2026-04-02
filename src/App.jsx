@@ -6356,7 +6356,7 @@ function EnrichScreen({ clientId, onComplete, preferredModel, activeEngagement, 
       const response = await fetch(`${API_BASE}/enrich`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ client_id: clientId, model: preferredModel })
+        body: JSON.stringify({ client_id: clientId, model: preferredModel, engagement_id: activeEngagement?.id || undefined })
       })
 
       if (!response.ok) throw new Error('Failed to start enrichment')
@@ -9039,7 +9039,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
     }
   }
 
-  const isDraft = !currentClient?.approved_at
+  const isDraft = activeEngagement ? !activeEngagement.approved_at : !currentClient?.approved_at
 
   const handleSaveCorrections = async () => {
     if (!reviewText.trim() || !clientId) return
@@ -9105,7 +9105,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   const fetchResults = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${API_BASE}/results/${clientId}`, {
+      const engParam = activeEngagement?.id ? `?engagement_id=${activeEngagement.id}` : ''
+      const response = await fetch(`${API_BASE}/results/${clientId}${engParam}`, {
         headers: getAuthHeaders()
       })
       if (!response.ok) throw new Error('Failed to fetch results')
@@ -9638,7 +9639,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   e.stopPropagation()
                   setBriefDownloading('docx')
                   try {
-                    const res = await fetch(`${API_BASE}/results/${clientId}/brief`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ format: 'docx' }) })
+                    const res = await fetch(`${API_BASE}/results/${clientId}/brief`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ format: 'docx', engagement_id: activeEngagement?.id || undefined }) })
                     const data = await res.json()
                     if (!res.ok) throw new Error(data.error || 'Download failed')
                     const byteChars = atob(data.content_base64)
@@ -9661,7 +9662,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   e.stopPropagation()
                   setBriefDownloading('deck')
                   try {
-                    const res = await fetch(`${API_BASE}/results/${clientId}/deck`, { method: 'POST', headers: getAuthHeaders() })
+                    const res = await fetch(`${API_BASE}/results/${clientId}/deck`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ engagement_id: activeEngagement?.id || undefined }) })
                     const data = await res.json()
                     if (!res.ok) throw new Error(data.error || 'Download failed')
                     const byteChars = atob(data.content_base64)

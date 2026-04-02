@@ -23,31 +23,38 @@ s3_client = boto3.client('s3')
 BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data-mv')
 
 
-def _get_enrichment_results(client_id, user):
-    """Fetch latest enrichment results for a client. Returns (results_dict, error_response)."""
+def _get_enrichment_results(client_id, user, engagement_id=None):
+    """Fetch latest enrichment results for a client (optionally scoped to an engagement). Returns (results_dict, error_response)."""
     conn = get_db_connection()
     cur = conn.cursor()
 
     is_admin = user.get('is_admin', False) or user.get('role') == 'admin'
 
+    # Build engagement filter
+    eng_filter = ""
+    eng_params = []
+    if engagement_id:
+        eng_filter = " AND e.engagement_id = %s"
+        eng_params = [engagement_id]
+
     if is_admin:
-        cur.execute("""
+        cur.execute(f"""
             SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
             FROM enrichments e
             JOIN clients c ON e.client_id = c.id
-            WHERE c.s3_folder = %s
+            WHERE c.s3_folder = %s{eng_filter}
             ORDER BY e.started_at DESC
             LIMIT 1
-        """, (client_id,))
+        """, (client_id, *eng_params))
     else:
-        cur.execute("""
+        cur.execute(f"""
             SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
             FROM enrichments e
             JOIN clients c ON e.client_id = c.id
-            WHERE c.s3_folder = %s AND c.user_id = %s
+            WHERE c.s3_folder = %s AND c.user_id = %s{eng_filter}
             ORDER BY e.started_at DESC
             LIMIT 1
-        """, (client_id, user['user_id']))
+        """, (client_id, user['user_id'], *eng_params))
 
     row = cur.fetchone()
     cur.close()
@@ -76,9 +83,15 @@ def _get_enrichment_results(client_id, user):
                 'body': json.dumps({'status': 'error', 'message': 'Enrichment failed'})
             }
 
-        s3_key = results_s3_key or f"{client_id}/results/analysis.json"
+        if engagement_id:
+            s3_key = results_s3_key or f"{client_id}/engagements/{engagement_id}/results/analysis.json"
+        else:
+            s3_key = results_s3_key or f"{client_id}/results/analysis.json"
     else:
-        s3_key = f"{client_id}/results/analysis.json"
+        if engagement_id:
+            s3_key = f"{client_id}/engagements/{engagement_id}/results/analysis.json"
+        else:
+            s3_key = f"{client_id}/results/analysis.json"
 
     try:
         s3_response = s3_client.get_object(Bucket=BUCKET_NAME, Key=s3_key)
@@ -114,6 +127,8 @@ def _handle_results(event, user):
     try:
         path_params = event.get('pathParameters', {})
         client_id = path_params.get('id', '').strip()
+        query_params = event.get('queryStringParameters') or {}
+        engagement_id = query_params.get('engagement_id', '').strip() or None
 
         if not client_id:
             return {
@@ -122,7 +137,7 @@ def _handle_results(event, user):
                 'body': json.dumps({'error': 'client_id is required'})
             }
 
-        results, error_resp = _get_enrichment_results(client_id, user)
+        results, error_resp = _get_enrichment_results(client_id, user, engagement_id=engagement_id)
         if error_resp:
             return error_resp
 
@@ -157,7 +172,22 @@ def _handle_results(event, user):
                         results['client_email'] = primary['email']
                     if primary.get('title'):
                         results['client_contact_title'] = primary['title']
-                results['approved_at'] = crow[7].isoformat() if crow[7] else None
+                # Use engagement-level approved_at when scoped, else client-level
+                if engagement_id:
+                    try:
+                        conn2 = get_db_connection()
+                        cur2 = conn2.cursor()
+                        cur2.execute("SELECT approved_at, name FROM engagements WHERE id = %s", (engagement_id,))
+                        erow = cur2.fetchone()
+                        cur2.close()
+                        conn2.close()
+                        results['approved_at'] = erow[0].isoformat() if erow and erow[0] else None
+                        results['engagement_name'] = erow[1] if erow else ''
+                    except Exception as e2:
+                        print(f"Failed to fetch engagement approved_at: {e2}")
+                        results['approved_at'] = None
+                else:
+                    results['approved_at'] = crow[7].isoformat() if crow[7] else None
         except Exception as e:
             print(f"Failed to inject client metadata (non-fatal): {e}")
 

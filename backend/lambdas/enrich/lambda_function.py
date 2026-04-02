@@ -163,6 +163,7 @@ def _handle_enrich_request(event, user):
         body = json.loads(event.get('body', '{}'))
         client_id = body.get('client_id', '').strip()
         requested_model = body.get('model', '')
+        engagement_id = body.get('engagement_id', '').strip() or None
 
         if not client_id:
             return {
@@ -230,14 +231,27 @@ def _handle_enrich_request(event, user):
 
         # Create enrichment tracking record with stage
         cur.execute("""
-            INSERT INTO enrichments (client_id, status, stage)
-            VALUES (%s, 'processing', 'extracting')
+            INSERT INTO enrichments (client_id, status, stage, engagement_id)
+            VALUES (%s, 'processing', 'extracting', %s)
             RETURNING id
-        """, (db_client_id,))
+        """, (db_client_id, engagement_id))
         enrichment_id = str(cur.fetchone()[0])
 
-        # Reset approval on re-enrichment
-        cur.execute("UPDATE clients SET approved_at = NULL, approved_by = NULL WHERE id = %s", (db_client_id,))
+        # Reset approval on re-enrichment (engagement-level if scoped, else client-level)
+        if engagement_id:
+            cur.execute("UPDATE engagements SET approved_at = NULL, approved_by = NULL WHERE id = %s", (engagement_id,))
+        else:
+            cur.execute("UPDATE clients SET approved_at = NULL, approved_by = NULL WHERE id = %s", (db_client_id,))
+
+        # Load engagement focus_area and contacts if scoped
+        engagement_focus_area = None
+        engagement_contacts = None
+        if engagement_id:
+            cur.execute("SELECT focus_area, contacts_json FROM engagements WHERE id = %s", (engagement_id,))
+            eng_row = cur.fetchone()
+            if eng_row:
+                engagement_focus_area = eng_row[0] or None
+                engagement_contacts = eng_row[1] or None
 
         conn.commit()
         cur.close()
@@ -251,7 +265,10 @@ def _handle_enrich_request(event, user):
             'enrichment_id': enrichment_id,
             'user_id': user['user_id'],
             'model': model_to_use,
-            'active_keys': active_keys
+            'active_keys': active_keys,
+            'engagement_id': engagement_id,
+            'engagement_focus_area': engagement_focus_area,
+            'engagement_contacts': engagement_contacts,
         }
 
         lambda_client.invoke(
@@ -303,6 +320,9 @@ def _run_enrichment_pipeline(event):
     user_id = event['user_id']
     model = event.get('model', 'claude-sonnet-4-5-20250929')
     active_keys = event.get('active_keys', None)
+    engagement_id = event.get('engagement_id')
+    engagement_focus_area = event.get('engagement_focus_area')
+    engagement_contacts_raw = event.get('engagement_contacts')
 
     conn = None
 
@@ -370,6 +390,18 @@ def _run_enrichment_pipeline(event):
             except (json.JSONDecodeError, TypeError):
                 pass
 
+        # Merge engagement contacts if scoped
+        if engagement_contacts_raw:
+            try:
+                eng_contacts = client_decrypt_json(ck, engagement_contacts_raw)
+                if not eng_contacts:
+                    eng_contacts = json.loads(engagement_contacts_raw) if engagement_contacts_raw else []
+                if eng_contacts:
+                    contacts = eng_contacts + contacts
+                    print(f"Merged {len(eng_contacts)} engagement contacts with {len(contacts) - len(eng_contacts)} company contacts")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         streamline_webhook_url = client_decrypt(ck, row[15]) or ''
         if not streamline_webhook_url:
             streamline_webhook_url = _get_system_config_value(conn, 'enrichment_webhook_url')
@@ -428,11 +460,14 @@ def _run_enrichment_pipeline(event):
             company_name, website, contact_name, contact_title,
             contact_linkedin, industry, description, pain_point, extracted_text, skills,
             model=model, client_config=client_config, system_skills=system_skills,
-            contacts=contacts
+            contacts=contacts, focus_area=engagement_focus_area
         )
 
         # Write results to S3 (encrypted with client key)
-        results_key = f"{client_id}/results/analysis.json"
+        if engagement_id:
+            results_key = f"{client_id}/engagements/{engagement_id}/results/analysis.json"
+        else:
+            results_key = f"{client_id}/results/analysis.json"
         results_body = json.dumps(analysis, indent=2)
         s3_client.put_object(
             Bucket=BUCKET_NAME,
@@ -1201,7 +1236,7 @@ def _send_streamline_webhook(company_name, contacts, model, analysis, source_fil
 def analyze_with_claude(company_name, website, contact_name, contact_title,
                         contact_linkedin, industry, description, pain_point, extracted_text, skills=None,
                         model='claude-sonnet-4-5-20250929', client_config=None, system_skills=None,
-                        contacts=None):
+                        contacts=None, focus_area=None):
     """
     Call Claude API with XO Capture Analysis prompt.
     Returns structured analysis JSON.
@@ -1213,6 +1248,11 @@ def analyze_with_claude(company_name, website, contact_name, contact_title,
     ])
 
     enrichment_info = []
+
+    # Engagement focus directive (highest priority — scopes the analysis)
+    if focus_area:
+        enrichment_info.append(f"ENGAGEMENT FOCUS: {focus_area}. Prioritize this analysis around this specific focus area within the organization. Do not analyze the company's broader operations outside this scope.")
+
     if website:
         enrichment_info.append(f"Company Website: {website}")
 

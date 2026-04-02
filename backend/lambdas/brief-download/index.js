@@ -592,17 +592,23 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: 'client_id is required' }) };
     }
 
+    // Read engagement_id from request body or query params
+    let engagementId = null;
+    try { engagementId = JSON.parse(event.body || '{}').engagement_id || null; } catch(e) {}
+    if (!engagementId) engagementId = (event.queryStringParameters || {}).engagement_id || null;
+
     // Get results from the results API (self-call via Lambda invoke or HTTP)
-    // For simplicity, read directly from S3 using the same pattern
     const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
     const lambdaClient = new LambdaClient({ region: 'eu-west-2' });
 
+    const queryParams = engagementId ? { engagement_id: engagementId } : null;
     const resultsResp = await lambdaClient.send(new InvokeCommand({
       FunctionName: 'xo-results',
       Payload: JSON.stringify({
         httpMethod: 'GET',
         path: `/results/${clientId}`,
         pathParameters: { id: clientId },
+        queryStringParameters: queryParams,
         headers: event.headers,
       }),
     }));
@@ -620,7 +626,8 @@ exports.handler = async (event) => {
     const doc = buildDocument(brief, isDraft);
     const buffer = await Packer.toBuffer(doc);
 
-    const filename = `${(brief.clientName || 'Client').replace(/\s+/g, '_')}_XO_Deployment_Brief.docx`;
+    const engName = results.engagement_name ? `_${results.engagement_name.replace(/\s+/g, '_')}` : '';
+    const filename = `${(brief.clientName || 'Client').replace(/\s+/g, '_')}${engName}_XO_Deployment_Brief.docx`;
 
     return {
       statusCode: 200,

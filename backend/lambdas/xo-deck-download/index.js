@@ -694,14 +694,21 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: "Use POST /results/{id}/deck" }) };
     }
 
+    // Read engagement_id from request body or query params
+    let engagementId = null;
+    try { engagementId = JSON.parse(event.body || "{}").engagement_id || null; } catch(e) {}
+    if (!engagementId) engagementId = (event.queryStringParameters || {}).engagement_id || null;
+
     // 1. Get analysis results
     const lambdaClient = new LambdaClient({ region: REGION });
+    const queryParams = engagementId ? { engagement_id: engagementId } : null;
     const resultsResp = await lambdaClient.send(new InvokeCommand({
       FunctionName: "xo-results",
       Payload: JSON.stringify({
         httpMethod: "GET",
         path: `/results/${clientId}`,
         pathParameters: { id: clientId },
+        queryStringParameters: queryParams,
         headers: event.headers || {},
       }),
     }));
@@ -722,7 +729,8 @@ exports.handler = async (event) => {
     const buffer = await pres.write({ outputType: "nodebuffer" });
 
     const companyName = (results.company_name || "Client").replace(/\s+/g, "_");
-    const filename = `${companyName}_XO_Growth_Deck.pptx`;
+    const engName = results.engagement_name ? `_${results.engagement_name.replace(/\s+/g, "_")}` : "";
+    const filename = `${companyName}${engName}_XO_Growth_Deck.pptx`;
 
     // 4. Return base64 (same response shape as xo-brief-download)
     return {
