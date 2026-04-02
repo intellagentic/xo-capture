@@ -3,7 +3,7 @@
 **Date:** April 1, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.04)
+**Status:** Deployed & Operational (v2.05)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3287,6 +3287,22 @@ Backend changes:
 - xo-brief-download Lambda: conditional DRAFT header in .docx when not approved
 - xo-deck-download Lambda: conditional DRAFT watermark on .pptx slides when not approved
 - API Gateway: no new routes (reuses PUT /clients for approval)
+
+**v2.05 -- Company LinkedIn + Bedrock IAM Cleanup (April 1, 2026)**
+
+Company LinkedIn field:
+- company_linkedin TEXT column added to clients table (auto-migration on Lambda cold start)
+- Organization Profile view (welcome page): Company LinkedIn input with ExternalLink icon, autoSave on blur
+- CompanyInfoModal (new client / edit modal): Company LinkedIn input after Website URL
+- GET /clients returns company_linkedin, PUT /clients accepts company_linkedin, POST /clients includes on create
+- HubSpot bi-directional sync: company_linkedin maps to HubSpot standard property linkedin_company_page
+  -- Push: _build_company_properties sends linkedin_company_page to HubSpot
+  -- Pull: _apply_hs_to_xo_update reads linkedin_company_page from HubSpot
+  -- Conflict detection includes company_linkedin field
+
+Bedrock IAM cleanup:
+- Removed xo-bedrock-invoke inline policy from xo-lambda-role (wildcard Resource:*)
+- No longer needed -- deck generation uses assembleDeckData() pure JavaScript mapping, no Bedrock calls
 
 **Next Step:** Web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode).
 
