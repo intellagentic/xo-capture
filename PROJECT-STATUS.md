@@ -3409,6 +3409,23 @@ API Gateway: Add `POST /system-config/s3-encryption-convert` route to clients La
 
 Deployment: (1) Take DB snapshot, (2) Run `migrate_decrypt_db.py`, (3) Deploy all lambdas, (4) Add API Gateway route, (5) Deploy frontend.
 
+**v2.08 -- Engagement Labels, Admin Badge, Results Fix (April 2, 2026)**
+
+Engagement context in output:
+- Results page: engagement name and focus area shown above analysis sections when scoped
+- Brief download (.docx): engagement name on cover page descriptor, bold "Engagement: {name}" in executive summary
+- Deck download (.pptx): engagement name on slide 1 (title slide) below company name in smaller gray text
+
+Admin visibility:
+- XO ADMIN red pill badge added to sidebar between user name and email (isAdmin only)
+
+Bug fixes:
+- Results Lambda (xo-results): cryptography pip package was missing from deployment zip -- rebuilt with full requirements.txt (psycopg2-binary, PyJWT, cryptography) targeting Lambda runtime, CodeSize 370KB -> 9.5MB
+- s3ConvertModal ReferenceError: stale cached bundle -- redeployed with CloudFront invalidation
+
+Design scoped:
+- Multi-tenant auth design: accounts, partner admin, partner user, client contact roles
+
 ---
 
 **END OF PROJECT STATUS**
