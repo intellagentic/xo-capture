@@ -4114,6 +4114,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
     updated_at: companyData.updated_at || '',
     existingApps: companyData.existingApps || '',
     website: companyData.website || '',
+    company_linkedin: companyData.company_linkedin || '',
     industry: companyData.industry || '',
     description: companyData.description || '',
     painPoint: companyData.painPoint || '',
@@ -4146,6 +4147,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
       updated_at: companyData.updated_at || '',
       existingApps: companyData.existingApps || '',
       website: companyData.website || '',
+      company_linkedin: companyData.company_linkedin || '',
       industry: companyData.industry || '',
       description: companyData.description || '',
       painPoint: companyData.painPoint || '',
@@ -4295,6 +4297,36 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 <a href={formData.website.startsWith('http') ? formData.website : `https://${formData.website}`} target="_blank" rel="noopener noreferrer"
                   style={{ color: '#dc2626', padding: '0.25rem', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   title="Open website">
+                  <ExternalLink size={14} />
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* Company LinkedIn */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+              Company LinkedIn
+            </label>
+            <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+              <input
+                type="url"
+                value={formData.company_linkedin}
+                onChange={(e) => setFormData({ ...formData, company_linkedin: e.target.value })}
+                onBlur={autoSave}
+                placeholder="https://www.linkedin.com/company/..."
+                style={{
+                  flex: 1, padding: '0.5rem 0.625rem',
+                  background: '#f9fafb',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px', fontSize: '0.85rem', color: '#111827',
+                  fontFamily: 'inherit', outline: 'none'
+                }}
+              />
+              {formData.company_linkedin && (
+                <a href={formData.company_linkedin.startsWith('http') ? formData.company_linkedin : `https://${formData.company_linkedin}`} target="_blank" rel="noopener noreferrer"
+                  style={{ color: '#dc2626', padding: '0.25rem', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Open LinkedIn page">
                   <ExternalLink size={14} />
                 </a>
               )}
