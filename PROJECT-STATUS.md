@@ -3,7 +3,7 @@
 **Date:** April 1, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.06)
+**Status:** Deployed & Operational (v2.07)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -2515,11 +2515,12 @@ cd backend
 
 4. ~~**Async Job Processing**~~ **DONE (v1.9)** -- Lambda self-invoke async pattern, DB stage tracking, frontend polling
 
-5. **Richie's Encryption**
-   - End-to-end encryption for uploaded files
-   - Client-side encryption before S3 upload
-   - Decrypt in Lambda for processing
-   - Store encrypted results
+5. ~~**Richie's Encryption**~~ **REFACTORED (v2.07)** -- DB encryption removed, S3-only encryption with admin toggle
+   - ~~End-to-end encryption for uploaded files~~
+   - ~~Client-side encryption before S3 upload~~
+   - S3 file encryption with per-client keys (toggleable via admin System Configuration)
+   - DB fields stored as plaintext for searchability; S3 encryption controlled by `s3_encryption_enabled` system_config toggle
+   - Bulk encrypt/decrypt conversion endpoint with progress modal
 
 6. **RAG Integration**
    - Vector embeddings for uploaded documents
@@ -3347,6 +3348,66 @@ Deferred to Phase 5:
 - HubSpot Deal sync (engagements -> Deals, associate with parent Company)
 
 **Next Step:** HubSpot Deal sync, web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode).
+
+---
+
+**v2.07 -- Encryption Refactor: S3-Only Encryption with Admin Toggle (April 2, 2026)**
+
+DB encryption removed — all database fields now stored as plaintext for searchability and simplicity. S3 file encryption retained as an optional, admin-toggleable feature. All encryption functions and keys preserved for future use.
+
+Database changes:
+- Removed all `encrypt()`/`decrypt()`/`search_hash()` calls on DB fields across 6 lambdas (~80+ call sites)
+- auth: user email/name stored plaintext, lookups use `WHERE email = %s` directly (no more email_hash)
+- clients: contact fields, contacts_json, addresses_json, webhook URLs stored plaintext
+- buttons: button URLs stored plaintext
+- gdrive: refresh_token stored plaintext
+- enrich: all client field reads are plaintext (no decrypt on DB reads)
+- results: client metadata reads are plaintext
+- partners: email, phone, contacts_json, addresses_json stored plaintext
+- engagements: contacts_json stored plaintext
+- `migrate_decrypt_db.py`: one-time migration script to decrypt all existing DB fields (users, partners, clients, engagements, buttons, two_factor_codes)
+
+S3 encryption toggle system:
+- New `s3_encryption_enabled` key in system_config table (defaults to true)
+- `is_s3_encryption_enabled(cursor)` helper reads the toggle
+- `maybe_encrypt_s3_body/bytes()` — conditional encryption on writes (skips if toggle is off)
+- `maybe_decrypt_s3_body/bytes()` — always decrypts if `ENC:`/`ENCB:` prefix found (reads always work regardless of toggle)
+- All S3 writes in clients, enrich, gdrive lambdas use `maybe_*` wrappers
+- All S3 reads in clients, enrich, results, rapid-prototype use `maybe_decrypt_*` wrappers
+
+Bulk S3 conversion endpoint:
+- `POST /system-config/s3-encryption-convert` — admin only
+- Accepts `{ "action": "encrypt" | "decrypt" }`
+- Iterates all clients, processes all S3 objects per client
+- Text files (.md, .json, .txt, .csv): `encrypt_s3_body`/`decrypt_s3_body`
+- Binary files: `encrypt_s3_bytes`/`decrypt_s3_bytes`
+- Skips already-encrypted or already-plaintext files (idempotent)
+- Updates `s3_encryption_enabled` toggle on completion
+- Returns per-client results: status, files_converted, errors
+
+Frontend admin UI:
+- S3 File Encryption toggle in System Configuration panel (below Streamline toggle)
+- Clicking toggle opens confirmation modal with action description
+- Progress modal: progress bar + per-client log (company name, file count, status with color coding)
+- Completion state: "Conversion complete" with Done button
+- Modal blocks close while conversion is running
+
+Files changed:
+- `backend/lambdas/shared/crypto_helper.py` — added 5 new functions (toggle helpers)
+- `backend/lambdas/shared/migrate_decrypt_db.py` — new one-time migration script
+- `backend/lambdas/auth/lambda_function.py` — removed DB encryption (~19 call sites)
+- `backend/lambdas/clients/lambda_function.py` — removed DB encryption (~36 call sites), added conversion endpoint, S3 toggle
+- `backend/lambdas/buttons/lambda_function.py` — removed DB encryption (4 call sites)
+- `backend/lambdas/gdrive/lambda_function.py` — removed DB encryption (3 call sites), S3 toggle
+- `backend/lambdas/enrich/lambda_function.py` — removed DB encryption (~18 call sites), S3 toggle
+- `backend/lambdas/results/lambda_function.py` — removed DB encryption (6 call sites), S3 toggle
+- `backend/lambdas/rapid-prototype/lambda_function.py` — S3 toggle
+- `src/App.jsx` — S3 encryption toggle + conversion progress modal
+- `backend/EncryptionRefactor.md` — full proposal document
+
+API Gateway: Add `POST /system-config/s3-encryption-convert` route to clients Lambda.
+
+Deployment: (1) Take DB snapshot, (2) Run `migrate_decrypt_db.py`, (3) Deploy all lambdas, (4) Add API Gateway route, (5) Deploy frontend.
 
 ---
 

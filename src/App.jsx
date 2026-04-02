@@ -7730,6 +7730,12 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
   const [sysEnrichmentUrl, setSysEnrichmentUrl] = useState('')
   const [sysEnrichmentSaving, setSysEnrichmentSaving] = useState(false)
   const [sysEnrichmentSaved, setSysEnrichmentSaved] = useState(false)
+  // S3 Encryption toggle state
+  const [sysS3EncEnabled, setSysS3EncEnabled] = useState(true)
+  const [s3ConvertModal, setS3ConvertModal] = useState(false)
+  const [s3ConvertAction, setS3ConvertAction] = useState(null)
+  const [s3ConvertProgress, setS3ConvertProgress] = useState(null)
+  const [s3ConvertRunning, setS3ConvertRunning] = useState(false)
   // HubSpot integration state
   const [hubspotConnected, setHubspotConnected] = useState(false)
   const [hubspotLastSync, setHubspotLastSync] = useState(null)
@@ -7757,6 +7763,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
             setSysInviteUrl(data.invite_webhook_url || '')
             setSysEnrichmentUrl(data.enrichment_webhook_url || '')
             setSysWebhookEnabled(data.streamline_webhook_enabled === 'true')
+            setSysS3EncEnabled(data.s3_encryption_enabled !== 'false')
           }
         })
         .catch(() => {})
@@ -7855,6 +7862,32 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
       setSysWebhookEnabled(!newValue)
     }
     setSysWebhookSaving(false)
+  }
+
+  const runS3Convert = async () => {
+    setS3ConvertRunning(true)
+    setS3ConvertProgress({ total: 0, completed: 0, results: [] })
+    try {
+      const res = await fetch(`${API_BASE}/system-config/s3-encryption-convert`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ action: s3ConvertAction })
+      })
+      const data = await res.json()
+      const results = data.results || []
+      for (let i = 0; i < results.length; i++) {
+        await new Promise(r => setTimeout(r, 120))
+        setS3ConvertProgress({
+          total: data.total_clients,
+          completed: i + 1,
+          results: results.slice(0, i + 1)
+        })
+      }
+      setSysS3EncEnabled(data.s3_encryption_enabled)
+    } catch (err) {
+      console.error('S3 conversion failed:', err)
+    }
+    setS3ConvertRunning(false)
   }
 
   const saveSysConfig = async (key, value, setSaving, setSaved) => {
@@ -8374,6 +8407,41 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
               <p style={{ fontSize: '0.7rem', color: C.muted, marginTop: '0.625rem', lineHeight: 1.4 }}>
                 Per-client settings (in client Configuration) override these system defaults.
               </p>
+
+              {/* S3 Encryption Toggle */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginTop: '0.75rem', padding: '1rem',
+                background: C.surface, borderRadius: 10, border: `1px solid ${C.border}`
+              }}>
+                <div style={{ flex: 1, marginRight: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>S3 File Encryption</span>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: C.muted, marginTop: 4, lineHeight: 1.4 }}>
+                    Encrypt all client files stored in S3 (skills, configs, results, uploads).
+                    Toggling will convert all existing files.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setS3ConvertAction(sysS3EncEnabled ? 'decrypt' : 'encrypt')
+                    setS3ConvertProgress(null)
+                    setS3ConvertModal(true)
+                  }}
+                  style={{
+                    width: 52, height: 28, borderRadius: 14, border: 'none',
+                    background: sysS3EncEnabled ? '#dc2626' : '#e5e5e5',
+                    position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0
+                  }}
+                >
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%', background: 'white',
+                    position: 'absolute', top: 3, left: sysS3EncEnabled ? 27 : 3,
+                    transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                  }} />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -10973,6 +11041,102 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── S3 Encryption Convert Modal ── */}
+      {s3ConvertModal && (
+        <div className="modal-overlay" onClick={() => !s3ConvertRunning && (setS3ConvertModal(false), setS3ConvertProgress(null))}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>{s3ConvertAction === 'encrypt' ? 'Encrypt' : 'Decrypt'} All S3 Files</h3>
+              {!s3ConvertRunning && (
+                <button className="modal-close" onClick={() => { setS3ConvertModal(false); setS3ConvertProgress(null) }}><X size={18} /></button>
+              )}
+            </div>
+            <div className="modal-body" style={{ padding: '1.25rem' }}>
+
+              {/* Pre-run confirmation */}
+              {!s3ConvertRunning && !s3ConvertProgress && (
+                <>
+                  <p style={{ fontSize: '0.85rem', color: C.text, lineHeight: 1.5, margin: 0 }}>
+                    This will <strong>{s3ConvertAction}</strong> all S3 files for every client.
+                    {s3ConvertAction === 'decrypt'
+                      ? ' Files will be stored as plaintext. This is reversible.'
+                      : " Files will be encrypted with each client's key."}
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', justifyContent: 'flex-end' }}>
+                    <button onClick={() => { setS3ConvertModal(false); setS3ConvertProgress(null) }}
+                      style={{ padding: '0.5rem 1rem', background: C.surface, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: '0.8rem', cursor: 'pointer' }}>
+                      Cancel
+                    </button>
+                    <button onClick={runS3Convert}
+                      style={{ padding: '0.5rem 1rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                      {s3ConvertAction === 'encrypt' ? 'Encrypt All' : 'Decrypt All'}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Running — progress */}
+              {s3ConvertRunning && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                    <span style={{ fontSize: '0.85rem', color: C.text }}>
+                      Converting... {s3ConvertProgress?.completed || 0} / {s3ConvertProgress?.total || '?'} clients
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: 6, background: `${C.muted}30`, borderRadius: 3, overflow: 'hidden', marginBottom: '1rem' }}>
+                    <div style={{
+                      width: `${s3ConvertProgress?.total ? (s3ConvertProgress.completed / s3ConvertProgress.total * 100) : 0}%`,
+                      height: '100%', background: '#dc2626', borderRadius: 3, transition: 'width 0.3s'
+                    }} />
+                  </div>
+                  <div style={{
+                    maxHeight: 250, overflowY: 'auto', fontSize: '0.75rem', fontFamily: 'monospace',
+                    background: C.bg, borderRadius: 6, padding: '0.75rem', border: `1px solid ${C.border}`
+                  }}>
+                    {(s3ConvertProgress?.results || []).map((r, i) => (
+                      <div key={i} style={{
+                        padding: '0.25rem 0', borderBottom: `1px solid ${C.border}`,
+                        color: r.status === 'error' ? '#ef4444' : r.status === 'skipped' ? C.muted : '#22c55e'
+                      }}>
+                        {r.status === 'done' ? '\u2713' : r.status === 'error' ? '\u2717' : '\u2013'}
+                        {' '}{r.company_name} &mdash; {r.files_converted} files
+                        {r.status === 'skipped' ? ` (${r.reason})` : ''}
+                        {r.errors?.length > 0 ? ` [${r.errors.length} errors]` : ''}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Completed */}
+              {!s3ConvertRunning && s3ConvertProgress && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: '#22c55e' }}>
+                    <CheckCircle2 size={20} />
+                    <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Conversion complete</span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: C.muted, marginBottom: '1rem' }}>
+                    {s3ConvertProgress.completed} / {s3ConvertProgress.total} clients processed.
+                    S3 encryption is now <strong>{s3ConvertAction === 'encrypt' ? 'enabled' : 'disabled'}</strong>.
+                  </p>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={() => {
+                      setS3ConvertModal(false)
+                      setS3ConvertProgress(null)
+                      setSysS3EncEnabled(s3ConvertAction === 'encrypt')
+                    }}
+                      style={{ padding: '0.5rem 1rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                      Done
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

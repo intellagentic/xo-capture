@@ -20,12 +20,14 @@ from googleapiclient.http import MediaIoBaseDownload
 
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
-    from crypto_helper import encrypt, decrypt, unwrap_client_key, encrypt_s3_bytes
+    from crypto_helper import encrypt, decrypt, unwrap_client_key, encrypt_s3_bytes, maybe_encrypt_s3_bytes, is_s3_encryption_enabled
 except ImportError:
     def encrypt(x): return x
     def decrypt(x): return x
     def unwrap_client_key(x): return None
     def encrypt_s3_bytes(k, d): return d
+    def maybe_encrypt_s3_bytes(k, d, enabled=True): return encrypt_s3_bytes(k, d) if enabled else d
+    def is_s3_encryption_enabled(cur): return True
 
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
@@ -155,7 +157,7 @@ def handle_callback(event):
                 'body': json.dumps({'error': 'No refresh token received. Please revoke app access in Google and try again.'})
             }
 
-        # Store refresh token in DB (encrypted)
+        # Store refresh token in DB
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
@@ -163,7 +165,7 @@ def handle_callback(event):
                SET google_drive_refresh_token = %s,
                    google_drive_connected_at = %s
                WHERE id = %s""",
-            (encrypt(credentials.refresh_token), datetime.now(timezone.utc), user['user_id'])
+            (credentials.refresh_token, datetime.now(timezone.utc), user['user_id'])
         )
         conn.commit()
         cur.close()
@@ -209,7 +211,7 @@ def handle_list_files(event):
                 'body': json.dumps({'error': 'Google Drive not connected'})
             }
 
-        refresh_token = decrypt(row[0])
+        refresh_token = row[0]
         service = _get_drive_service(refresh_token)
 
         # Get folder_id from query params
@@ -292,6 +294,7 @@ def handle_import(event):
             }
         s3_folder = row[0]
         ck = unwrap_client_key(row[1]) if row[1] else None
+        s3_enc = is_s3_encryption_enabled(cur)
 
         # Get refresh token
         cur.execute(
@@ -308,7 +311,7 @@ def handle_import(event):
                 'body': json.dumps({'error': 'Google Drive not connected'})
             }
 
-        refresh_token = decrypt(token_row[0])
+        refresh_token = token_row[0]
         service = _get_drive_service(refresh_token)
 
         imported_files = []
@@ -347,13 +350,13 @@ def handle_import(event):
 
             buffer.seek(0)
 
-            # Upload to S3 (encrypted with client key)
+            # Upload to S3 (optionally encrypted with client key)
             s3_key = f"{s3_folder}/uploads/{file_name}"
             file_data = buffer.read()
             s3.put_object(
                 Bucket=BUCKET_NAME,
                 Key=s3_key,
-                Body=encrypt_s3_bytes(ck, file_data),
+                Body=maybe_encrypt_s3_bytes(ck, file_data, enabled=s3_enc),
                 ContentType='application/octet-stream'
             )
 

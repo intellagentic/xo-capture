@@ -10,10 +10,11 @@ from datetime import datetime
 import boto3
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
-    from crypto_helper import unwrap_client_key, decrypt_s3_body
+    from crypto_helper import unwrap_client_key, decrypt_s3_body, maybe_decrypt_s3_body
 except ImportError:
     def unwrap_client_key(x): return None
     def decrypt_s3_body(k, b): return b if isinstance(b, str) else b.decode('utf-8', errors='replace') if b else ''
+    def maybe_decrypt_s3_body(k, b, enabled=True): return decrypt_s3_body(k, b)
 
 s3_client = boto3.client('s3')
 BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data-mv')
@@ -100,7 +101,7 @@ def _handle_prototype(event, user):
         try:
             response = s3_client.get_object(Bucket=BUCKET_NAME, Key=s3_key)
             raw = response['Body'].read()
-            decrypted = decrypt_s3_body(ck, raw)
+            decrypted = maybe_decrypt_s3_body(ck, raw)
             analysis = json.loads(decrypted)
         except s3_client.exceptions.NoSuchKey:
             return {

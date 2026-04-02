@@ -333,3 +333,51 @@ def search_hash(value):
     if not value:
         return ''
     return hashlib.sha256(value.lower().strip().encode('utf-8')).hexdigest()
+
+
+# ──────────────────────────────────────────────
+# S3 encryption toggle (system_config driven)
+# ──────────────────────────────────────────────
+
+def is_s3_encryption_enabled(cursor):
+    """Check system_config for s3_encryption_enabled. Defaults to True."""
+    try:
+        cursor.execute(
+            "SELECT config_value FROM system_config WHERE config_key = 's3_encryption_enabled'"
+        )
+        row = cursor.fetchone()
+        return row is None or row[0].lower() != 'false'
+    except Exception:
+        return True
+
+
+def maybe_encrypt_s3_body(client_key, body, enabled=True):
+    """Encrypt S3 text body only if enabled; otherwise pass through."""
+    if not enabled:
+        return body if isinstance(body, bytes) else (body.encode('utf-8') if body else b'')
+    return encrypt_s3_body(client_key, body)
+
+
+def maybe_decrypt_s3_body(client_key, body, enabled=True):
+    """Decrypt S3 text body. Always handles ENC: prefix regardless of toggle
+    so previously-encrypted files can still be read."""
+    # Always attempt decryption if the body has the ENC: marker
+    text = body if isinstance(body, str) else (body.decode('utf-8', errors='replace') if body else '')
+    if text.startswith('ENC:'):
+        return decrypt_s3_body(client_key, body)
+    return text
+
+
+def maybe_encrypt_s3_bytes(client_key, data, enabled=True):
+    """Encrypt S3 binary data only if enabled; otherwise pass through."""
+    if not enabled:
+        return data
+    return encrypt_s3_bytes(client_key, data)
+
+
+def maybe_decrypt_s3_bytes(client_key, data, enabled=True):
+    """Decrypt S3 binary data. Always handles ENCB: prefix regardless of toggle
+    so previously-encrypted files can still be read."""
+    if data and data.startswith(b'ENCB:'):
+        return decrypt_s3_bytes(client_key, data)
+    return data

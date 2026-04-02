@@ -18,7 +18,9 @@ try:
         encrypt, decrypt, encrypt_json, decrypt_json, search_hash,
         generate_client_key, unwrap_client_key,
         client_encrypt, client_decrypt, client_encrypt_json, client_decrypt_json,
-        encrypt_s3_body, decrypt_s3_body, encrypt_s3_bytes, decrypt_s3_bytes
+        encrypt_s3_body, decrypt_s3_body, encrypt_s3_bytes, decrypt_s3_bytes,
+        maybe_encrypt_s3_body, maybe_decrypt_s3_body, maybe_encrypt_s3_bytes, maybe_decrypt_s3_bytes,
+        is_s3_encryption_enabled
     )
 except ImportError:
     # Fallback pass-through stubs if crypto_helper.py not yet deployed
@@ -290,6 +292,8 @@ def _route_clients(event, user, path, method):
     if '/system-config' in path:
         if not user.get('is_admin'):
             return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
+        if path.endswith('/s3-encryption-convert') and method == 'POST':
+            return handle_s3_encryption_convert(event, user)
         if method == 'GET':
             return handle_get_system_config(event, user)
         elif method == 'PUT':
@@ -414,9 +418,9 @@ def handle_get_skills(event, user):
                 try:
                     obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=skill['s3_key'])
                     raw = obj['Body'].read()
-                    # Client skills: decrypt with client key; system skills: read as-is
+                    # Client skills: decrypt with client key if encrypted; system skills: read as-is
                     if skill['scope'] == 'client' and ck:
-                        skill['content'] = decrypt_s3_body(ck, raw)
+                        skill['content'] = maybe_decrypt_s3_body(ck, raw)
                     else:
                         skill['content'] = raw.decode('utf-8', errors='replace')
                 except Exception as e:
@@ -489,7 +493,8 @@ def handle_create_skill(event, user):
             s3_key = f"{client_id}/skills/{name}.md"
             if content:
                 ck = _get_client_key(cur, client_id)
-                s3_client.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=encrypt_s3_body(ck, content), ContentType='application/octet-stream')
+                s3_enc = is_s3_encryption_enabled(cur)
+                s3_client.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=maybe_encrypt_s3_body(ck, content, enabled=s3_enc), ContentType='application/octet-stream')
             cur.execute(
                 "INSERT INTO skills (client_id, name, content, s3_key) VALUES (%s, %s, %s, %s) RETURNING id",
                 (db_client_id, name, content, s3_key)
@@ -559,9 +564,10 @@ def handle_update_skill(event, user):
             if is_system:
                 s3_client.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=content, ContentType='text/markdown')
             else:
-                # Client skill — encrypt with client key
+                # Client skill — optionally encrypt with client key
                 skill_ck = _get_client_key_by_id(cur, row[1]) if row[1] else None
-                s3_client.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=encrypt_s3_body(skill_ck, content), ContentType='application/octet-stream')
+                s3_enc = is_s3_encryption_enabled(cur)
+                s3_client.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=maybe_encrypt_s3_body(skill_ck, content, enabled=s3_enc), ContentType='application/octet-stream')
         elif content and is_system and name:
             s3_key = f"_system/skills/{name}.md"
             s3_client.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=content, ContentType='text/markdown')
@@ -644,16 +650,12 @@ def handle_list_partners(event, user):
             addresses = []
             try:
                 if row[10]:
-                    contacts = decrypt_json(row[10])
-                    if not contacts:
-                        contacts = json.loads(row[10])
+                    contacts = json.loads(row[10]) if isinstance(row[10], str) else row[10]
             except Exception:
                 pass
             try:
                 if row[11]:
-                    addresses = decrypt_json(row[11])
-                    if not addresses:
-                        addresses = json.loads(row[11])
+                    addresses = json.loads(row[11]) if isinstance(row[11], str) else row[11]
             except Exception:
                 pass
             pain_points = []
@@ -664,7 +666,7 @@ def handle_list_partners(event, user):
                 pass
             partners.append({
                 'id': row[0], 'name': row[1] or '', 'company': row[2] or '',
-                'email': decrypt(row[3]) or '', 'phone': decrypt(row[4]) or '', 'industry': row[5] or '',
+                'email': row[3] or '', 'phone': row[4] or '', 'industry': row[5] or '',
                 'notes': row[6] or '',
                 'created_at': row[7].isoformat() if row[7] else None,
                 'updated_at': row[8].isoformat() if row[8] else None,
@@ -705,12 +707,11 @@ def handle_create_partner(event, user):
             INSERT INTO partners (name, company, email, phone, industry, notes, website, contacts_json, addresses_json, description, future_plans, pain_points_json)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
         """, (name, body.get('company', '').strip(),
-              encrypt(body.get('email', '').strip()),
-              encrypt(body.get('phone', '').strip()),
+              body.get('email', '').strip(),
+              body.get('phone', '').strip(),
               body.get('industry', '').strip(), body.get('notes', '').strip(),
               body.get('website', '').strip(),
-              encrypt_json(contacts) if contacts else None,
-              encrypt_json(addresses) if addresses else None,
+              contacts_json, addresses_json,
               body.get('description', '').strip(), body.get('futurePlans', '').strip(),
               json.dumps(p_pain_points) if p_pain_points else None))
         partner_id = cur.fetchone()[0]
@@ -747,12 +748,11 @@ def handle_update_partner(event, user):
                    description=%s, future_plans=%s, pain_points_json=%s, updated_at=NOW()
             WHERE id=%s RETURNING id
         """, (body.get('name', '').strip(), body.get('company', '').strip(),
-              encrypt(body.get('email', '').strip()),
-              encrypt(body.get('phone', '').strip()),
+              body.get('email', '').strip(),
+              body.get('phone', '').strip(),
               body.get('industry', '').strip(), body.get('notes', '').strip(),
               body.get('website', '').strip(),
-              encrypt_json(contacts) if contacts else None,
-              encrypt_json(addresses) if addresses else None,
+              contacts_json, addresses_json,
               body.get('description', '').strip(), body.get('futurePlans', '').strip(),
               json.dumps(u_pain_points) if u_pain_points else None, partner_id))
         row = cur.fetchone()
@@ -859,11 +859,11 @@ def handle_list_clients(event, user):
                 'enrichment_status': row[8] or 'none',
                 'enrichment_date': row[9].isoformat() if row[9] else None,
                 'icon_url': icon_url,
-                'owner_name': decrypt(row[11]) or '',
+                'owner_name': row[11] or '',
                 'partner_name': row[12] or '',
                 'partner_id': row[13],
                 'intellagentic_lead': bool(row[14]),
-                'updated_by': decrypt(row[15]) or '',
+                'updated_by': row[15] or '',
                 'ndaSigned': bool(row[16]),
                 'existingApps': row[17] or '',
                 'ndaSignedAt': row[18].isoformat() if row[18] else None
@@ -1003,9 +1003,9 @@ def handle_get_client(event, user):
         contacts_json_raw = row[17]
         if contacts_json_raw:
             try:
-                contacts = client_decrypt_json(ck, contacts_json_raw)
+                contacts = json.loads(contacts_json_raw) if isinstance(contacts_json_raw, str) else contacts_json_raw
                 if not contacts:
-                    contacts = json.loads(contacts_json_raw)
+                    contacts = []
             except (json.JSONDecodeError, TypeError):
                 contacts = []
         else:
@@ -1013,15 +1013,15 @@ def handle_get_client(event, user):
 
         if not contacts:
             # Construct from legacy fields — split name into firstName/lastName
-            full_name = client_decrypt(ck, row[3]) or ''
+            full_name = row[3] or ''
             space_idx = full_name.find(' ')
             legacy = {
                 'firstName': full_name[:space_idx] if space_idx > 0 else full_name,
                 'lastName': full_name[space_idx + 1:] if space_idx > 0 else '',
-                'title': client_decrypt(ck, row[4]) or '',
-                'linkedin': client_decrypt(ck, row[5]) or '',
-                'email': client_decrypt(ck, row[15]) or '',
-                'phone': client_decrypt(ck, row[16]) or ''
+                'title': row[4] or '',
+                'linkedin': row[5] or '',
+                'email': row[15] or '',
+                'phone': row[16] or ''
             }
             if any(legacy.values()):
                 contacts = [legacy]
@@ -1039,9 +1039,9 @@ def handle_get_client(event, user):
         addresses = []
         if addresses_json_raw:
             try:
-                addresses = client_decrypt_json(ck, addresses_json_raw)
+                addresses = json.loads(addresses_json_raw) if isinstance(addresses_json_raw, str) else addresses_json_raw
                 if not addresses:
-                    addresses = json.loads(addresses_json_raw)
+                    addresses = []
             except (json.JSONDecodeError, TypeError):
                 pass
 
@@ -1073,11 +1073,11 @@ def handle_get_client(event, user):
                 'contactPhone': primary.get('phone', ''),
                 'contacts': contacts,
                 'addresses': addresses,
-                'streamline_webhook_url': client_decrypt(ck, row[19]) or '',
+                'streamline_webhook_url': row[19] or '',
                 'partner_id': row[20],
                 'intellagentic_lead': bool(row[21]),
-                'invite_webhook_url': client_decrypt(ck, row[24]) or '',
-                'updated_by': (decrypt(row[26]) or '') if len(row) > 26 else '',
+                'invite_webhook_url': row[24] or '',
+                'updated_by': (row[26] or '') if len(row) > 26 else '',
                 'ndaSigned': bool(row[27]) if len(row) > 27 else False,
                 'existingApps': (row[28] or '') if len(row) > 28 else '',
                 'ndaSignedAt': row[29].isoformat() if len(row) > 29 and row[29] else None,
@@ -1159,19 +1159,19 @@ def handle_update_client(event, user):
         params = [
             company_name,
             body.get('website', '').strip(),
-            client_encrypt(ck, f"{primary.get('firstName', '')} {primary.get('lastName', '')}".strip()),
-            client_encrypt(ck, primary.get('title', '')),
-            client_encrypt(ck, primary.get('linkedin', '')),
-            client_encrypt(ck, primary.get('email', '')),
-            client_encrypt(ck, primary.get('phone', '')),
-            client_encrypt_json(ck, contacts) if contacts else None,
-            client_encrypt_json(ck, addresses) if addresses else None,
+            f"{primary.get('firstName', '')} {primary.get('lastName', '')}".strip(),
+            primary.get('title', ''),
+            primary.get('linkedin', ''),
+            primary.get('email', ''),
+            primary.get('phone', ''),
+            json.dumps(contacts) if contacts else None,
+            json.dumps(addresses) if addresses else None,
             body.get('industry', '').strip(),
             body.get('description', '').strip(),
             body.get('painPoint', '').strip(),
             body.get('futurePlans', '').strip(),
             json.dumps(pain_points) if pain_points else None,
-            encrypt(user.get('name', '') or user.get('email', '')),
+            user.get('name', '') or user.get('email', ''),
         ]
 
         if 'streamline_webhook_enabled' in body:
@@ -1180,11 +1180,11 @@ def handle_update_client(event, user):
 
         if 'streamline_webhook_url' in body:
             set_fields.append("streamline_webhook_url = %s")
-            params.append(client_encrypt(ck, body['streamline_webhook_url'].strip()))
+            params.append(body['streamline_webhook_url'].strip())
 
         if 'invite_webhook_url' in body:
             set_fields.append("invite_webhook_url = %s")
-            params.append(client_encrypt(ck, body['invite_webhook_url'].strip()))
+            params.append(body['invite_webhook_url'].strip())
 
         if 'partner_id' in body:
             set_fields.append("partner_id = %s")
@@ -1207,7 +1207,7 @@ def handle_update_client(event, user):
             if body['approved']:
                 set_fields.append("approved_at = NOW()")
                 set_fields.append("approved_by = %s")
-                params.append(encrypt(user.get('name', '') or user.get('email', '')))
+                params.append(user.get('name', '') or user.get('email', ''))
             else:
                 set_fields.append("approved_at = NULL")
                 set_fields.append("approved_by = NULL")
@@ -1246,6 +1246,7 @@ def handle_update_client(event, user):
         conn.commit()
 
         # Regenerate client-config.md in S3
+        s3_enc = is_s3_encryption_enabled(cur)
         config_md = generate_client_config(
             company_name,
             body.get('website', '').strip(),
@@ -1265,7 +1266,7 @@ def handle_update_client(event, user):
         s3_client.put_object(
             Bucket=BUCKET_NAME,
             Key=f"{client_id}/client-config.md",
-            Body=encrypt_s3_body(ck, config_md),
+            Body=maybe_encrypt_s3_body(ck, config_md, enabled=s3_enc),
             ContentType='application/octet-stream'
         )
 
@@ -1475,6 +1476,142 @@ def handle_update_system_config(event, user):
                 'body': json.dumps({'error': 'Internal server error', 'message': str(e)})}
 
 
+def handle_s3_encryption_convert(event, user):
+    """POST /system-config/s3-encryption-convert — Bulk encrypt or decrypt all S3 files for all clients.
+    Body: { "action": "encrypt" | "decrypt" }
+    Admin only. Returns per-client progress."""
+    try:
+        body = json.loads(event.get('body', '{}'))
+        action = body.get('action', '').strip()
+
+        if action not in ('encrypt', 'decrypt'):
+            return {'statusCode': 400, 'headers': CORS_HEADERS,
+                    'body': json.dumps({'error': 'action must be "encrypt" or "decrypt"'})}
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("SELECT id, company_name, s3_folder, encryption_key FROM clients WHERE deleted_at IS NULL")
+        clients = cur.fetchall()
+        total = len(clients)
+        results = []
+
+        for idx, (db_id, company_name, s3_folder, enc_key_raw) in enumerate(clients):
+            client_result = {
+                'client_id': str(db_id),
+                'company_name': company_name or '',
+                'status': 'processing',
+                'files_converted': 0,
+                'errors': []
+            }
+
+            if not s3_folder:
+                client_result['status'] = 'skipped'
+                client_result['reason'] = 'no s3_folder'
+                results.append(client_result)
+                continue
+
+            ck = unwrap_client_key(enc_key_raw) if enc_key_raw else None
+            if not ck:
+                client_result['status'] = 'skipped'
+                client_result['reason'] = 'no encryption key'
+                results.append(client_result)
+                continue
+
+            try:
+                s3 = boto3.client('s3')
+                prefix = f"{s3_folder}/"
+                paginator = s3.get_paginator('list_objects_v2')
+                files_converted = 0
+
+                for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=prefix):
+                    for obj in page.get('Contents', []):
+                        key = obj['Key']
+                        if key.endswith('/'):
+                            continue
+                        try:
+                            response = s3.get_object(Bucket=BUCKET_NAME, Key=key)
+                            raw = response['Body'].read()
+
+                            if action == 'decrypt':
+                                # Text files with ENC: prefix
+                                try:
+                                    body_str = raw.decode('utf-8', errors='ignore')
+                                    if body_str.startswith('ENC:'):
+                                        decrypted = decrypt_s3_body(ck, body_str)
+                                        s3.put_object(Bucket=BUCKET_NAME, Key=key, Body=decrypted.encode('utf-8'))
+                                        files_converted += 1
+                                        continue
+                                except Exception:
+                                    pass
+                                # Binary files with ENCB: prefix
+                                if raw[:5] == b'ENCB:':
+                                    decrypted = decrypt_s3_bytes(ck, raw)
+                                    s3.put_object(Bucket=BUCKET_NAME, Key=key, Body=decrypted)
+                                    files_converted += 1
+
+                            elif action == 'encrypt':
+                                # Skip already encrypted
+                                try:
+                                    body_str = raw.decode('utf-8', errors='ignore')
+                                    if body_str.startswith('ENC:'):
+                                        continue
+                                except Exception:
+                                    pass
+                                if raw[:5] == b'ENCB:':
+                                    continue
+                                # Determine text vs binary
+                                is_text = any(key.endswith(ext) for ext in ('.md', '.json', '.txt', '.csv'))
+                                if is_text:
+                                    encrypted = encrypt_s3_body(ck, raw.decode('utf-8', errors='replace'))
+                                    s3.put_object(Bucket=BUCKET_NAME, Key=key, Body=encrypted)
+                                    files_converted += 1
+                                else:
+                                    encrypted = encrypt_s3_bytes(ck, raw)
+                                    s3.put_object(Bucket=BUCKET_NAME, Key=key, Body=encrypted)
+                                    files_converted += 1
+
+                        except Exception as e:
+                            client_result['errors'].append(f"{key}: {str(e)}")
+
+                client_result['files_converted'] = files_converted
+                client_result['status'] = 'done'
+
+            except Exception as e:
+                client_result['status'] = 'error'
+                client_result['errors'].append(str(e))
+
+            results.append(client_result)
+            print(f"S3 {action}: {company_name} — {client_result['files_converted']} files ({idx + 1}/{total})")
+
+        # Update the toggle
+        new_value = 'true' if action == 'encrypt' else 'false'
+        cur.execute("""
+            INSERT INTO system_config (config_key, config_value, updated_at)
+            VALUES ('s3_encryption_enabled', %s, NOW())
+            ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, updated_at = NOW()
+        """, (new_value,))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'action': action,
+                'total_clients': total,
+                'results': results,
+                's3_encryption_enabled': new_value == 'true'
+            })
+        }
+
+    except Exception as e:
+        print(f"S3 encryption convert error: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS,
+                'body': json.dumps({'error': str(e)})}
+
+
 def handle_invite(event):
     """POST /invite — Public invite signup (no auth). Creates client + magic link."""
     try:
@@ -1550,18 +1687,19 @@ def handle_invite(event):
             for folder in [f"{client_id}/uploads/", f"{client_id}/extracted/", f"{client_id}/results/"]:
                 s3_client.put_object(Bucket=BUCKET_NAME, Key=folder, Body='')
 
-            # Client config (encrypted with client key)
+            # Client config (optionally encrypted with client key)
+            s3_enc = is_s3_encryption_enabled(cur)
             config_md = generate_client_config(
                 company_name, '', contact_name, '', linkedin, '', '', '',
                 contact_email=email, contact_phone=phone
             )
             s3_client.put_object(
                 Bucket=BUCKET_NAME, Key=f"{client_id}/client-config.md",
-                Body=encrypt_s3_body(ck, config_md), ContentType='application/octet-stream'
+                Body=maybe_encrypt_s3_body(ck, config_md, enabled=s3_enc), ContentType='application/octet-stream'
             )
 
-            # Default skill (encrypted)
-            copy_default_skill(client_id, client_key=ck)
+            # Default skill
+            copy_default_skill(client_id, client_key=ck, s3_enc=s3_enc)
 
             # Insert client with user_id=NULL, source='invite'
             cur.execute("""
@@ -1571,7 +1709,7 @@ def handle_invite(event):
                     encryption_key
                 ) VALUES (NULL, %s, %s, %s, %s, %s, %s, 'invite', %s)
                 RETURNING id
-            """, (company_name, client_encrypt(ck, contact_name), client_encrypt(ck, email), client_encrypt(ck, phone), client_encrypt(ck, linkedin), client_id, encrypted_client_key))
+            """, (company_name, contact_name, email, phone, linkedin, client_id, encrypted_client_key))
             db_client_id = cur.fetchone()[0]
 
             # Insert default skill into DB
@@ -1728,7 +1866,12 @@ def handle_create_client(event, user):
         for folder in folders:
             s3_client.put_object(Bucket=BUCKET_NAME, Key=folder, Body='')
 
-        # Generate client-config.md (encrypted with client key)
+        # Generate client-config.md (optionally encrypted with client key)
+        conn_tmp = get_db_connection()
+        cur_tmp = conn_tmp.cursor()
+        s3_enc = is_s3_encryption_enabled(cur_tmp)
+        cur_tmp.close()
+        conn_tmp.close()
         config_md = generate_client_config(
             company_name, website, contact_name, contact_title,
             contact_linkedin, industry, description, pain_point,
@@ -1739,12 +1882,12 @@ def handle_create_client(event, user):
         s3_client.put_object(
             Bucket=BUCKET_NAME,
             Key=f"{client_id}/client-config.md",
-            Body=encrypt_s3_body(ck, config_md),
+            Body=maybe_encrypt_s3_body(ck, config_md, enabled=s3_enc),
             ContentType='application/octet-stream'
         )
 
-        # Copy default skill template to client's skills folder (encrypted)
-        copy_default_skill(client_id, client_key=ck)
+        # Copy default skill template to client's skills folder
+        copy_default_skill(client_id, client_key=ck, s3_enc=s3_enc)
 
         # Insert into PostgreSQL
         conn = get_db_connection()
@@ -1767,16 +1910,16 @@ def handle_create_client(event, user):
             RETURNING id
         """, (
             user['user_id'], company_name, website,
-            client_encrypt(ck, contact_name), client_encrypt(ck, contact_title),
-            client_encrypt(ck, contact_linkedin), client_encrypt(ck, contact_email), client_encrypt(ck, contact_phone),
-            client_encrypt_json(ck, contacts) if contacts else None,
-            client_encrypt_json(ck, addresses) if addresses else None,
+            contact_name, contact_title,
+            contact_linkedin, contact_email, contact_phone,
+            json.dumps(contacts) if contacts else None,
+            json.dumps(addresses) if addresses else None,
             industry, description, pain_point, client_id,
             partner_id_val, intellagentic_lead_val,
             future_plans,
             json.dumps(pain_points) if pain_points else None,
             encrypted_client_key,
-            encrypt(user.get('name', '') or user.get('email', '')),
+            user.get('name', '') or user.get('email', ''),
             bool(body.get('ndaSigned', False)),
             datetime.now(timezone.utc) if body.get('ndaSigned', False) else None,
             body.get('existingApps', '').strip(),
@@ -1889,11 +2032,11 @@ What should Claude recommend directly vs. flag for human review?
 """
 
 
-def copy_default_skill(client_id, client_key=None):
+def copy_default_skill(client_id, client_key=None, s3_enc=True):
     """Copy the default skill template to the client's skills folder in S3."""
     try:
         body = DEFAULT_SKILL_TEMPLATE.strip()
-        if client_key:
+        if client_key and s3_enc:
             body = encrypt_s3_body(client_key, body)
             content_type = 'application/octet-stream'
         else:
@@ -2051,12 +2194,11 @@ def _format_engagement(row, client_key=None):
     contacts = []
     if row[4]:
         try:
-            contacts = client_decrypt_json(client_key, row[4]) or []
-        except:
-            try:
-                contacts = json.loads(row[4]) if row[4] else []
-            except:
+            contacts = json.loads(row[4]) if isinstance(row[4], str) else row[4]
+            if not contacts:
                 contacts = []
+        except:
+            contacts = []
 
     return {
         'id': str(row[0]),
@@ -2066,7 +2208,7 @@ def _format_engagement(row, client_key=None):
         'contacts': contacts,
         'status': row[5] or 'active',
         'approved_at': row[6].isoformat() if row[6] else None,
-        'approved_by': (decrypt(row[7]) or '') if row[7] else '',
+        'approved_by': (row[7] or '') if row[7] else '',
         'created_at': row[8].isoformat() if row[8] else None,
         'updated_at': row[9].isoformat() if row[9] else None,
         'hubspot_deal_id': row[10] or '',
@@ -2162,13 +2304,13 @@ def handle_create_engagement(event, user):
         db_client_id = crow[0]
         ck = unwrap_client_key(crow[1]) if crow[1] else None
 
-        encrypted_contacts = client_encrypt_json(ck, contacts) if contacts else None
+        contacts_json_val = json.dumps(contacts) if contacts else None
 
         cur.execute("""
             INSERT INTO engagements (client_id, name, focus_area, contacts_json, status)
             VALUES (%s, %s, %s, %s, %s)
             RETURNING id
-        """, (db_client_id, name, focus_area, encrypted_contacts, status))
+        """, (db_client_id, name, focus_area, contacts_json_val, status))
 
         engagement_id = str(cur.fetchone()[0])
         conn.commit()
@@ -2205,7 +2347,7 @@ def handle_update_engagement(event, user):
             params.append(body['focus_area'].strip())
         if 'contacts' in body:
             set_fields.append("contacts_json = %s")
-            params.append(client_encrypt_json(ck, body['contacts']) if body['contacts'] else None)
+            params.append(json.dumps(body['contacts']) if body['contacts'] else None)
         if 'status' in body:
             set_fields.append("status = %s")
             params.append(body['status'].strip())
@@ -2213,7 +2355,7 @@ def handle_update_engagement(event, user):
             if body['approved']:
                 set_fields.append("approved_at = NOW()")
                 set_fields.append("approved_by = %s")
-                params.append(encrypt(user.get('name', '') or user.get('email', '')))
+                params.append(user.get('name', '') or user.get('email', ''))
             else:
                 set_fields.append("approved_at = NULL")
                 set_fields.append("approved_by = NULL")

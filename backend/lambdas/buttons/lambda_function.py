@@ -141,7 +141,7 @@ def handle_get(event, user):
                 'label': row[1],
                 'icon': row[2],
                 'color': row[3],
-                'url': decrypt(row[4]) or '',
+                'url': row[4] or '',
                 'sort_order': row[5],
                 'scope': 'system' if row[6] is None else 'client',
                 'showOn': show_on,
@@ -196,7 +196,7 @@ def handle_sync(event, user):
                     btn.get('label', btn.get('name', 'Button')),
                     btn.get('icon', 'Zap'),
                     btn.get('color', '#3b82f6'),
-                    encrypt(btn.get('url', '')),
+                    btn.get('url', ''),
                     btn.get('sort_order', i),
                     show_on,
                 ))
@@ -216,7 +216,7 @@ def handle_sync(event, user):
                     btn.get('label', btn.get('name', 'Button')),
                     btn.get('icon', 'Zap'),
                     btn.get('color', '#3b82f6'),
-                    encrypt(btn.get('url', '')),
+                    btn.get('url', ''),
                     btn.get('sort_order', i),
                     show_on,
                 ))
@@ -235,7 +235,7 @@ def handle_sync(event, user):
                     btn.get('label', btn.get('name', 'Button')),
                     btn.get('icon', 'Zap'),
                     btn.get('color', '#3b82f6'),
-                    encrypt(btn.get('url', '')),
+                    btn.get('url', ''),
                     btn.get('sort_order', i),
                     show_on,
                 ))

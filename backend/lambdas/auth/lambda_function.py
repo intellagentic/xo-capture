@@ -104,8 +104,7 @@ def _run_role_migrations():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN DEFAULT FALSE")
         # Seed admin roles for known admin emails (match by email_hash or legacy plaintext email)
         for email in ADMIN_SEED_EMAILS:
-            email_h = search_hash(email)
-            cur.execute("UPDATE users SET role = 'admin' WHERE (email_hash = %s OR email = %s) AND (role IS NULL OR role = 'client')", (email_h, email))
+            cur.execute("UPDATE users SET role = 'admin' WHERE email = %s AND (role IS NULL OR role = 'client')", (email,))
         conn.commit()
         cur.close()
         conn.close()
@@ -346,7 +345,7 @@ def _start_2fa_challenge(user_id, email, name, preferred_model='claude-sonnet-4-
         cur.execute("""
             INSERT INTO two_factor_codes (session_id, user_id, code, email, expires_at)
             VALUES (%s, %s, %s, %s, %s)
-        """, (session_id, str(user_id), code, encrypt(user_context), expires_at))
+        """, (session_id, str(user_id), code, user_context, expires_at))
 
         conn.commit()
         cur.close()
@@ -477,8 +476,8 @@ def handle_verify_2fa(event):
         cur.close()
         conn.close()
 
-        # Decrypt user context and issue JWT
-        context_str = decrypt(encrypted_context)
+        # Read user context and issue JWT
+        context_str = encrypted_context
         try:
             ctx = json.loads(context_str)
         except (json.JSONDecodeError, TypeError):
@@ -508,14 +507,13 @@ def handle_verify_2fa(event):
 
 def _upsert_user(conn, cur, email, name, role='client', partner_id=None):
     """Upsert a user record. Returns user_id."""
-    email_h = search_hash(email)
-    cur.execute("SELECT id FROM users WHERE email_hash = %s OR email = %s", (email_h, email))
+    cur.execute("SELECT id FROM users WHERE email = %s", (email,))
     row = cur.fetchone()
     if row:
         return row[0]
     cur.execute(
-        "INSERT INTO users (email, email_hash, password_hash, name, role, partner_id) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-        (encrypt(email), email_h, 'google-oauth-no-password', encrypt(name), role, partner_id)
+        "INSERT INTO users (email, password_hash, name, role, partner_id) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+        (email, 'google-oauth-no-password', name, role, partner_id)
     )
     user_id = cur.fetchone()[0]
     conn.commit()
@@ -869,16 +867,15 @@ def handle_google_login(event):
         cur = conn.cursor()
 
         # Step 1: Check if user exists in DB with a role
-        email_h = search_hash(email)
         cur.execute(
-            "SELECT id, email, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929'), COALESCE(role, 'client'), partner_id, COALESCE(two_factor_enabled, FALSE) FROM users WHERE email_hash = %s OR email = %s",
-            (email_h, email)
+            "SELECT id, email, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929'), COALESCE(role, 'client'), partner_id, COALESCE(two_factor_enabled, FALSE) FROM users WHERE email = %s",
+            (email,)
         )
         user_row = cur.fetchone()
 
         if user_row:
             user_id, user_email, user_name, preferred_model, role, partner_id, tfa_enabled = (
-                user_row[0], decrypt(user_row[1]), decrypt(user_row[2]),
+                user_row[0], user_row[1], user_row[2],
                 user_row[3], user_row[4], user_row[5], bool(user_row[6])
             )
 
@@ -927,9 +924,9 @@ def handle_google_login(event):
         for row in rows:
             db_client_id, s3_folder, contacts_raw, company_name = row
             try:
-                contacts = decrypt_json(contacts_raw)
+                contacts = json.loads(contacts_raw) if isinstance(contacts_raw, str) else contacts_raw
                 if not contacts:
-                    contacts = json.loads(contacts_raw)
+                    continue
             except (json.JSONDecodeError, TypeError):
                 continue
             for contact in contacts:
@@ -990,10 +987,9 @@ def handle_login(event):
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
 
-        email_h = search_hash(email)
         cur.execute(
-            "SELECT id, email, password_hash, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929'), COALESCE(role, 'client'), partner_id, COALESCE(two_factor_enabled, FALSE) FROM users WHERE email_hash = %s OR email = %s",
-            (email_h, email)
+            "SELECT id, email, password_hash, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929'), COALESCE(role, 'client'), partner_id, COALESCE(two_factor_enabled, FALSE) FROM users WHERE email = %s",
+            (email,)
         )
         row = cur.fetchone()
 
@@ -1001,9 +997,9 @@ def handle_login(event):
             cur.close()
             conn.close()
             user_id = row[0]
-            user_email = decrypt(row[1])
+            user_email = row[1]
             password_hash = row[2]
-            user_name = decrypt(row[3])
+            user_name = row[3]
             preferred_model = row[4]
             role = row[5]
             partner_id = row[6]
@@ -1040,8 +1036,8 @@ def handle_login(event):
             password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
             cur.execute(
-                "INSERT INTO users (email, email_hash, password_hash, name, role) VALUES (%s, %s, %s, %s, 'client') RETURNING id",
-                (encrypt(email), email_h, password_hash, encrypt(name))
+                "INSERT INTO users (email, password_hash, name, role) VALUES (%s, %s, %s, 'client') RETURNING id",
+                (email, password_hash, name)
             )
             user_id = cur.fetchone()[0]
             conn.commit()
@@ -1090,8 +1086,7 @@ def handle_register(event):
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
 
-        email_h = search_hash(email)
-        cur.execute("SELECT id FROM users WHERE email_hash = %s OR email = %s", (email_h, email))
+        cur.execute("SELECT id FROM users WHERE email = %s", (email,))
         if cur.fetchone():
             cur.close()
             conn.close()
@@ -1102,8 +1097,8 @@ def handle_register(event):
             }
 
         cur.execute(
-            "INSERT INTO users (email, email_hash, password_hash, name, role) VALUES (%s, %s, %s, %s, 'client') RETURNING id",
-            (encrypt(email), email_h, password_hash, encrypt(name))
+            "INSERT INTO users (email, password_hash, name, role) VALUES (%s, %s, %s, 'client') RETURNING id",
+            (email, password_hash, name)
         )
         user_id = cur.fetchone()[0]
         conn.commit()
@@ -1146,8 +1141,7 @@ def handle_reset_password(event):
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
 
-        email_h = search_hash(email)
-        cur.execute("SELECT id FROM users WHERE email_hash = %s OR email = %s", (email_h, email))
+        cur.execute("SELECT id FROM users WHERE email = %s", (email,))
         user_row = cur.fetchone()
         if not user_row:
             cur.close()
