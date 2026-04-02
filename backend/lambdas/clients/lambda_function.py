@@ -71,10 +71,27 @@ def _run_migrations():
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;")
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_by TEXT;")
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS company_linkedin TEXT;")
+        # Engagements table
+        cur.execute("""CREATE TABLE IF NOT EXISTS engagements (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+            name VARCHAR(255) NOT NULL,
+            focus_area TEXT,
+            contacts_json TEXT,
+            status VARCHAR(50) DEFAULT 'active',
+            approved_at TIMESTAMP WITH TIME ZONE,
+            approved_by TEXT,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            hubspot_deal_id VARCHAR(50)
+        )""")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_engagements_client_id ON engagements(client_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_engagements_status ON engagements(status)")
+        cur.execute("ALTER TABLE enrichments ADD COLUMN IF NOT EXISTS engagement_id UUID")
         conn.commit()
         cur.close()
         conn.close()
-        print("Migration complete: streamline_webhook_url + invite_webhook_url + encryption_key + updated_by + nda_signed + existing_apps + approved_at columns ensured")
+        print("Migration complete: all client columns + engagements table ensured")
     except Exception as e:
         print(f"Migration check (non-fatal): {e}")
 
@@ -305,6 +322,16 @@ def _route_clients(event, user, path, method):
             return handle_update_skill(event, user)
         elif method == 'DELETE':
             return handle_delete_skill(event, user)
+
+    if '/engagements' in path:
+        if method == 'GET':
+            return handle_list_engagements(event, user)
+        elif method == 'POST':
+            return handle_create_engagement(event, user)
+        elif method == 'PUT':
+            return handle_update_engagement(event, user)
+        elif method == 'DELETE':
+            return handle_delete_engagement(event, user)
 
     if path.endswith('/clients/list') and method == 'GET':
         return handle_list_clients(event, user)
@@ -1998,3 +2025,245 @@ def generate_client_config(company_name, website, contact_name, contact_title,
     sections.append("- Use their company name and industry context throughout the analysis")
 
     return "\n".join(sections) + "\n"
+
+
+# ============================================================
+# ENGAGEMENTS CRUD
+# ============================================================
+
+def _get_client_key_for_engagement(conn, engagement_id):
+    """Get the client encryption key for an engagement's parent client."""
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT c.encryption_key FROM engagements e
+        JOIN clients c ON c.id = e.client_id
+        WHERE e.id = %s
+    """, (engagement_id,))
+    row = cur.fetchone()
+    cur.close()
+    if row and row[0]:
+        return unwrap_client_key(row[0])
+    return None
+
+
+def _format_engagement(row, client_key=None):
+    """Format an engagement DB row into a JSON-serializable dict."""
+    contacts = []
+    if row[4]:
+        try:
+            contacts = client_decrypt_json(client_key, row[4]) or []
+        except:
+            try:
+                contacts = json.loads(row[4]) if row[4] else []
+            except:
+                contacts = []
+
+    return {
+        'id': str(row[0]),
+        'client_id': str(row[1]),
+        'name': row[2] or '',
+        'focus_area': row[3] or '',
+        'contacts': contacts,
+        'status': row[5] or 'active',
+        'approved_at': row[6].isoformat() if row[6] else None,
+        'approved_by': (decrypt(row[7]) or '') if row[7] else '',
+        'created_at': row[8].isoformat() if row[8] else None,
+        'updated_at': row[9].isoformat() if row[9] else None,
+        'hubspot_deal_id': row[10] or '',
+    }
+
+
+def handle_list_engagements(event, user):
+    """GET /engagements?client_id=X — List all engagements for a client."""
+    try:
+        params = event.get('queryStringParameters') or {}
+        client_id = params.get('client_id', '')
+        engagement_id = params.get('engagement_id', '')
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        if engagement_id:
+            # Single engagement fetch
+            cur.execute("""
+                SELECT e.id, e.client_id, e.name, e.focus_area, e.contacts_json,
+                       e.status, e.approved_at, e.approved_by,
+                       e.created_at, e.updated_at, e.hubspot_deal_id
+                FROM engagements e
+                JOIN clients c ON c.id = e.client_id
+                WHERE e.id = %s
+            """, (engagement_id,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if not row:
+                return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Engagement not found'})}
+
+            # Get client key for decryption
+            conn2 = get_db_connection()
+            ck = _get_client_key_for_engagement(conn2, engagement_id)
+            conn2.close()
+
+            return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'engagement': _format_engagement(row, ck)})}
+
+        if not client_id:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'client_id is required'})}
+
+        # Get client encryption key
+        cur.execute("SELECT encryption_key FROM clients WHERE s3_folder = %s", (client_id,))
+        crow = cur.fetchone()
+        ck = unwrap_client_key(crow[0]) if crow and crow[0] else None
+
+        cur.execute("""
+            SELECT e.id, e.client_id, e.name, e.focus_area, e.contacts_json,
+                   e.status, e.approved_at, e.approved_by,
+                   e.created_at, e.updated_at, e.hubspot_deal_id
+            FROM engagements e
+            JOIN clients c ON c.id = e.client_id
+            WHERE c.s3_folder = %s
+            ORDER BY e.created_at DESC
+        """, (client_id,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        engagements = [_format_engagement(r, ck) for r in rows]
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'engagements': engagements})}
+
+    except Exception as e:
+        print(f"Error listing engagements: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_create_engagement(event, user):
+    """POST /engagements — Create a new engagement."""
+    try:
+        body = json.loads(event.get('body', '{}'))
+        client_id = body.get('client_id', '').strip()
+        name = body.get('name', '').strip()
+        focus_area = body.get('focus_area', '').strip()
+        contacts = body.get('contacts', [])
+        status = body.get('status', 'active').strip()
+
+        if not client_id or not name:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'client_id and name are required'})}
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Get DB client id and encryption key
+        cur.execute("SELECT id, encryption_key FROM clients WHERE s3_folder = %s", (client_id,))
+        crow = cur.fetchone()
+        if not crow:
+            cur.close()
+            conn.close()
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Client not found'})}
+
+        db_client_id = crow[0]
+        ck = unwrap_client_key(crow[1]) if crow[1] else None
+
+        encrypted_contacts = client_encrypt_json(ck, contacts) if contacts else None
+
+        cur.execute("""
+            INSERT INTO engagements (client_id, name, focus_area, contacts_json, status)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
+        """, (db_client_id, name, focus_area, encrypted_contacts, status))
+
+        engagement_id = str(cur.fetchone()[0])
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return {'statusCode': 201, 'headers': CORS_HEADERS, 'body': json.dumps({'engagement_id': engagement_id, 'name': name})}
+
+    except Exception as e:
+        print(f"Error creating engagement: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_update_engagement(event, user):
+    """PUT /engagements — Update an engagement."""
+    try:
+        body = json.loads(event.get('body', '{}'))
+        engagement_id = body.get('engagement_id', '').strip()
+
+        if not engagement_id:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'engagement_id is required'})}
+
+        conn = get_db_connection()
+        ck = _get_client_key_for_engagement(conn, engagement_id)
+
+        set_fields = []
+        params = []
+
+        if 'name' in body:
+            set_fields.append("name = %s")
+            params.append(body['name'].strip())
+        if 'focus_area' in body:
+            set_fields.append("focus_area = %s")
+            params.append(body['focus_area'].strip())
+        if 'contacts' in body:
+            set_fields.append("contacts_json = %s")
+            params.append(client_encrypt_json(ck, body['contacts']) if body['contacts'] else None)
+        if 'status' in body:
+            set_fields.append("status = %s")
+            params.append(body['status'].strip())
+        if 'approved' in body:
+            if body['approved']:
+                set_fields.append("approved_at = NOW()")
+                set_fields.append("approved_by = %s")
+                params.append(encrypt(user.get('name', '') or user.get('email', '')))
+            else:
+                set_fields.append("approved_at = NULL")
+                set_fields.append("approved_by = NULL")
+
+        if not set_fields:
+            conn.close()
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'No fields to update'})}
+
+        set_fields.append("updated_at = NOW()")
+        params.append(engagement_id)
+
+        cur = conn.cursor()
+        cur.execute(f"UPDATE engagements SET {', '.join(set_fields)} WHERE id = %s RETURNING id", tuple(params))
+        result = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if not result:
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Engagement not found'})}
+
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'updated': True})}
+
+    except Exception as e:
+        print(f"Error updating engagement: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_delete_engagement(event, user):
+    """DELETE /engagements?engagement_id=X — Delete an engagement."""
+    try:
+        params = event.get('queryStringParameters') or {}
+        engagement_id = params.get('engagement_id', '')
+
+        if not engagement_id:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'engagement_id is required'})}
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM engagements WHERE id = %s RETURNING id", (engagement_id,))
+        result = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if not result:
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Engagement not found'})}
+
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'deleted': True})}
+
+    except Exception as e:
+        print(f"Error deleting engagement: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}

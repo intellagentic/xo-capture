@@ -1940,6 +1940,10 @@ export default function App() {
     ndaSignedAt:''
   })
 
+  // Engagements state
+  const [engagements, setEngagements] = useState([])
+  const [activeEngagement, setActiveEngagement] = useState(null)
+
   // Partners state (for admin partner management & dropdowns)
   const [partners, setPartners] = useState([])
 
@@ -2310,6 +2314,13 @@ export default function App() {
     } catch (err) {
       console.error('Failed to fetch client:', err)
     }
+    // Fetch engagements for this client
+    try {
+      const engRes = await fetch(`${API_BASE}/engagements?client_id=${client.client_id}`, { headers: getAuthHeaders() })
+      if (engRes.ok) { const engData = await engRes.json(); setEngagements(engData.engagements || []) }
+      else setEngagements([])
+    } catch (e) { setEngagements([]) }
+    setActiveEngagement(null)
     setCurrentScreen('upload')
   }
 
@@ -2674,6 +2685,10 @@ export default function App() {
             isAdmin={isAdmin}
             isPartner={isPartner}
             partners={partners}
+            engagements={engagements}
+            setEngagements={setEngagements}
+            activeEngagement={activeEngagement}
+            setActiveEngagement={setActiveEngagement}
           />
         )}
         {currentScreen === 'sources' && (
@@ -4101,10 +4116,13 @@ function BrandingScreen({ clientId, companyData, setCompanyData }) {
 // ============================================================
 // UPLOAD SCREEN
 // ============================================================
-function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onClientCreate, onComplete, onOpenCompanyModal, configButtons, systemButtons, onNavigate, isAdmin, isPartner, onSelectClient, partners }) {
+function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onClientCreate, onComplete, onOpenCompanyModal, configButtons, systemButtons, onNavigate, isAdmin, isPartner, onSelectClient, partners, engagements, setEngagements, activeEngagement, setActiveEngagement }) {
   const [error, setError] = useState(null)
   const [sourceCount, setSourceCount] = useState(0)
   const [activeCount, setActiveCount] = useState(0)
+  const [showEngagementModal, setShowEngagementModal] = useState(false)
+  const [editEngagement, setEditEngagement] = useState(null)
+  const [engagementSaving, setEngagementSaving] = useState(false)
 
   // Inline form state
   const [formData, setFormData] = useState({
@@ -4711,6 +4729,68 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
               </>
             ) : null}
           </div>
+
+          {/* ── ENGAGEMENTS SECTION ── */}
+          {clientId && (
+            <div style={{ marginTop: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Package size={16} style={{ color: '#dc2626' }} />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Engagements</span>
+                  <span style={{ fontSize: '0.65rem', color: '#9ca3af' }}>({engagements.length})</span>
+                </div>
+                <button
+                  onClick={() => setShowEngagementModal(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}>
+                  <Plus size={12} /> New
+                </button>
+              </div>
+
+              {activeEngagement && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', padding: '0.35rem 0.5rem', background: 'rgba(220,38,38,0.1)', borderRadius: 6, border: '1px solid rgba(220,38,38,0.2)' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#dc2626', fontWeight: 600 }}>Active:</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-primary)', fontWeight: 600 }}>{activeEngagement.name}</span>
+                  <button onClick={() => setActiveEngagement(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '0.65rem' }}>Clear</button>
+                </div>
+              )}
+
+              {engagements.length === 0 ? (
+                <div style={{ border: '1px dashed #d1d5db', borderRadius: 8, padding: '0.75rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.75rem' }}>
+                  No engagements yet. Create one to scope enrichment to a specific focus area.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                  {engagements.map(eng => (
+                    <div key={eng.id}
+                      onClick={() => setActiveEngagement(activeEngagement?.id === eng.id ? null : eng)}
+                      style={{
+                        padding: '0.5rem 0.625rem', borderRadius: 8, cursor: 'pointer',
+                        border: activeEngagement?.id === eng.id ? '2px solid #dc2626' : '1px solid #e5e7eb',
+                        background: activeEngagement?.id === eng.id ? 'rgba(220,38,38,0.05)' : '#f9fafb',
+                        transition: 'all 0.15s'
+                      }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>{eng.name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          <span style={{
+                            fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.35rem', borderRadius: 4,
+                            background: eng.status === 'won' ? '#dcfce7' : eng.status === 'lost' ? '#fee2e2' : eng.status === 'paused' ? '#fef3c7' : '#dbeafe',
+                            color: eng.status === 'won' ? '#16a34a' : eng.status === 'lost' ? '#dc2626' : eng.status === 'paused' ? '#d97706' : '#2563eb'
+                          }}>{(eng.status || 'active').toUpperCase()}</span>
+                          <button onClick={(e) => { e.stopPropagation(); setEditEngagement(eng); setShowEngagementModal(true) }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '0.1rem' }}>
+                            <Edit2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                      {eng.focus_area && <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.15rem' }}>{eng.focus_area.length > 80 ? eng.focus_area.substring(0, 80) + '...' : eng.focus_area}</div>}
+                      {eng.contacts && eng.contacts.length > 0 && <div style={{ fontSize: '0.65rem', color: '#9ca3af', marginTop: '0.15rem' }}>{eng.contacts.length} contact{eng.contacts.length !== 1 ? 's' : ''}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* RIGHT COLUMN — Workflow Cards */}
@@ -5001,6 +5081,93 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
         </div>
       )}
 
+      {/* Engagement Modal */}
+      {showEngagementModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => { setShowEngagementModal(false); setEditEngagement(null) }} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', background: 'var(--bg-card, #fff)', borderRadius: 16, padding: '1.5rem', width: '90%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>{editEngagement ? 'Edit Engagement' : 'New Engagement'}</h3>
+              <button onClick={() => { setShowEngagementModal(false); setEditEngagement(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={18} /></button>
+            </div>
+            <EngagementForm
+              initial={editEngagement}
+              saving={engagementSaving}
+              onSave={async (data) => {
+                setEngagementSaving(true)
+                try {
+                  if (editEngagement) {
+                    await fetch(`${API_BASE}/engagements`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ engagement_id: editEngagement.id, ...data }) })
+                  } else {
+                    await fetch(`${API_BASE}/engagements`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ client_id: clientId, ...data }) })
+                  }
+                  // Refresh engagements list
+                  const res = await fetch(`${API_BASE}/engagements?client_id=${clientId}`, { headers: getAuthHeaders() })
+                  if (res.ok) { const d = await res.json(); setEngagements(d.engagements || []) }
+                  setShowEngagementModal(false)
+                  setEditEngagement(null)
+                } catch (err) { alert('Failed to save engagement: ' + err.message) }
+                setEngagementSaving(false)
+              }}
+              onDelete={editEngagement ? async () => {
+                if (!window.confirm(`Delete engagement "${editEngagement.name}"?`)) return
+                try {
+                  await fetch(`${API_BASE}/engagements?engagement_id=${editEngagement.id}`, { method: 'DELETE', headers: getAuthHeaders() })
+                  setEngagements(prev => prev.filter(e => e.id !== editEngagement.id))
+                  if (activeEngagement?.id === editEngagement.id) setActiveEngagement(null)
+                  setShowEngagementModal(false)
+                  setEditEngagement(null)
+                } catch (err) { alert('Failed to delete: ' + err.message) }
+              } : null}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Engagement Form (used inside modal) ──
+function EngagementForm({ initial, saving, onSave, onDelete }) {
+  const [name, setName] = useState(initial?.name || '')
+  const [focusArea, setFocusArea] = useState(initial?.focus_area || '')
+  const [status, setStatus] = useState(initial?.status || 'active')
+
+  const inputStyle = { width: '100%', padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', fontFamily: 'inherit', color: 'var(--text-primary)', background: 'var(--bg-input, #fff)', outline: 'none' }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div>
+        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--text-primary)' }}>Name *</label>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Facilities Management, Phase 2 Rollout" style={inputStyle} />
+      </div>
+      <div>
+        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--text-primary)' }}>Focus Area</label>
+        <textarea value={focusArea} onChange={e => setFocusArea(e.target.value)} placeholder="What should the analysis focus on? e.g., Focus on facilities management operations, maintenance scheduling, and compliance reporting" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+        <p style={{ fontSize: '0.65rem', color: '#9ca3af', marginTop: '0.2rem' }}>This directive is injected into the enrichment prompt to scope the analysis.</p>
+      </div>
+      <div>
+        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--text-primary)' }}>Status</label>
+        <select value={status} onChange={e => setStatus(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+          <option value="active">Active</option>
+          <option value="won">Won</option>
+          <option value="lost">Lost</option>
+          <option value="paused">Paused</option>
+        </select>
+      </div>
+      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+        {onDelete && (
+          <button onClick={onDelete} style={{ padding: '0.5rem 0.75rem', background: 'none', border: '1px solid #ef4444', color: '#ef4444', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', marginRight: 'auto' }}>
+            <Trash2 size={13} style={{ marginRight: '0.25rem', verticalAlign: 'middle' }} /> Delete
+          </button>
+        )}
+        <button
+          onClick={() => { if (name.trim()) onSave({ name: name.trim(), focus_area: focusArea.trim(), status }) }}
+          disabled={saving || !name.trim()}
+          style={{ padding: '0.5rem 1rem', background: name.trim() ? '#dc2626' : '#e5e7eb', color: name.trim() ? '#fff' : '#9ca3af', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: name.trim() && !saving ? 'pointer' : 'not-allowed' }}>
+          {saving ? 'Saving...' : initial ? 'Update' : 'Create Engagement'}
+        </button>
+      </div>
     </div>
   )
 }

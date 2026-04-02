@@ -237,3 +237,21 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_by TEXT;
 
 -- Company LinkedIn
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS company_linkedin TEXT;
+
+-- Engagements
+CREATE TABLE IF NOT EXISTS engagements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    focus_area TEXT,
+    contacts_json TEXT,
+    status VARCHAR(50) DEFAULT 'active',
+    approved_at TIMESTAMP WITH TIME ZONE,
+    approved_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    hubspot_deal_id VARCHAR(50)
+);
+CREATE INDEX IF NOT EXISTS idx_engagements_client_id ON engagements(client_id);
+CREATE INDEX IF NOT EXISTS idx_engagements_status ON engagements(status);
+ALTER TABLE enrichments ADD COLUMN IF NOT EXISTS engagement_id UUID;
