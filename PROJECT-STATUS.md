@@ -3,7 +3,7 @@
 **Date:** April 1, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.03)
+**Status:** Deployed & Operational (v2.04)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3248,6 +3248,45 @@ Known issues:
 - S3 uploaded source documents stored as plaintext -- encryption fix scoped, waiting on Richie timing
 - Bedrock IAM policy is wildcard Resource:* -- needs tightening to specific EU regions
 - Growth Deck slide formatting is functional but could use further polish on edge cases
+
+**v2.04 -- Growth Deck On-Screen Rendering + DRAFT Watermark System (April 1, 2026)**
+
+Growth Deck on-screen rendering:
+- 8 branded slide cards rendered inline on Results page (collapsible section, dark/light alternating)
+- assembleDeckData() ported to frontend from Lambda -- same mapping logic, pure JavaScript
+- Slide content previews: title, stat cards, challenges, Protocol vs Probability table, OODA phases, workflows, before/after comparisons, 21-day POC timeline, next steps + success metric
+- Download .pptx button relocated into Growth Deck section header (previously in Deployment Brief header)
+- Matches Deployment Brief collapsible section pattern
+- ken.scott@intellagentic.io added to Slide 8 footer alongside alan.moore@intellagentic.io (on-screen + .pptx download)
+
+DRAFT watermark system:
+- All Brief and Deck output starts in DRAFT state by default
+- On-screen: DRAFT banner bar at top of each section (red dashed border, "Watermarked until reviewed and approved")
+- Downloads: DRAFT header text in .docx pages, rotated DRAFT watermark on .pptx slides
+- "Draft -- watermarked until reviewed and approved" note in section headers
+- approved_at / approved_by columns added to clients table (auto-migration on Lambda cold start)
+- Re-enrichment resets approved_at to NULL (back to DRAFT state)
+
+Review & Correct modal:
+- "Review" button (amber) in Deployment Brief and Growth Deck section headers
+- Modal with textarea for factual corrections
+- "Submit Corrections" saves as text source on Your Data page:
+  -- "Factual Corrections - Brief" or "Factual Corrections - Deck" as source label
+  -- Uses existing POST /upload presigned URL flow
+  -- Corrections included in next enrichment run
+- "Approve" button (green) in section headers and modal:
+  -- Sets approved_at timestamp via PUT /clients
+  -- Removes DRAFT watermark on-screen immediately
+  -- Future downloads (.docx and .pptx) exclude watermark
+  -- APPROVED badge (green pill) replaces Review/Approve buttons
+
+Backend changes:
+- xo-clients Lambda: GET returns approved_at, PUT handles approved field, auto-migration adds columns
+- xo-enrich Lambda: resets approved_at = NULL on new enrichment
+- xo-results Lambda: passes approved_at through to download Lambdas
+- xo-brief-download Lambda: conditional DRAFT header in .docx when not approved
+- xo-deck-download Lambda: conditional DRAFT watermark on .pptx slides when not approved
+- API Gateway: no new routes (reuses PUT /clients for approval)
 
 **Next Step:** Web enrichment (company website + LinkedIn research), UI for 5 new DB fields (survival metrics, AI persona, strategic objective, tone mode).
 
