@@ -2317,7 +2317,7 @@ export default function App() {
   const handleCreateNewClient = () => {
     setClientId(null)
     sessionStorage.removeItem('xo-client-id')
-    setCompanyData({ name: '', website: '', contacts: [], addresses: [], industry: '', description: '', painPoint: '', futurePlans: '', painPoints: [], logoUrl: null, iconUrl: null, partner_id: null, intellagentic_lead: false })
+    setCompanyData({ name: '', website: '', company_linkedin: '', contacts: [], addresses: [], industry: '', description: '', painPoint: '', futurePlans: '', painPoints: [], logoUrl: null, iconUrl: null, partner_id: null, intellagentic_lead: false })
 
     setShowCompanyModal(true)
   }
@@ -3271,7 +3271,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
   }
 
   // ── Unsaved changes protection ──
-  const hasUnsavedChanges = localData.name.trim() !== '' || localContacts.some(c => c.firstName || c.lastName || c.email) || localAddresses.some(a => a.address1 || a.city) || localData.website.trim() !== '' || localData.industry.trim() !== '' || localData.description.trim() !== ''
+  const hasUnsavedChanges = localData.name.trim() !== '' || localContacts.some(c => c.firstName || c.lastName || c.email) || localAddresses.some(a => a.address1 || a.city) || localData.website.trim() !== '' || (localData.company_linkedin || '').trim() !== '' || localData.industry.trim() !== '' || localData.description.trim() !== ''
 
   const guardedClose = () => {
     if (hasUnsavedChanges) {
@@ -3362,6 +3362,36 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                   <a href={localData.website.startsWith('http') ? localData.website : `https://${localData.website}`} target="_blank" rel="noopener noreferrer"
                     style={{ color: 'var(--accent-color, #3b82f6)', padding: '0.375rem', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     title="Open website">
+                    <ExternalLink size={16} />
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Company LinkedIn */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+                Company LinkedIn
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input
+                  type="url"
+                  value={localData.company_linkedin || ''}
+                  onChange={(e) => setLocalData({ ...localData, company_linkedin: e.target.value })}
+                  placeholder="https://www.linkedin.com/company/..."
+                  style={{
+                    flex: 1,
+                    padding: '0.625rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    fontSize: '0.875rem',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                {localData.company_linkedin && (
+                  <a href={localData.company_linkedin.startsWith('http') ? localData.company_linkedin : `https://${localData.company_linkedin}`} target="_blank" rel="noopener noreferrer"
+                    style={{ color: 'var(--accent-color, #3b82f6)', padding: '0.375rem', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Open LinkedIn page">
                     <ExternalLink size={16} />
                   </a>
                 )}

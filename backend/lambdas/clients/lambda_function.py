@@ -70,6 +70,7 @@ def _run_migrations():
         # Approval flow
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;")
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_by TEXT;")
+        cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS company_linkedin TEXT;")
         conn.commit()
         cur.close()
         conn.close()
@@ -884,7 +885,7 @@ def handle_get_client(event, user):
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
                            COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
-                           approved_at
+                           approved_at, company_linkedin
                     FROM clients WHERE s3_folder = %s
                 """, (client_id,))
             elif user.get('is_partner') and user.get('partner_id'):
@@ -898,7 +899,7 @@ def handle_get_client(event, user):
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
                            COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
-                           approved_at
+                           approved_at, company_linkedin
                     FROM clients WHERE s3_folder = %s AND partner_id = %s
                 """, (client_id, user['partner_id']))
             else:
@@ -912,7 +913,7 @@ def handle_get_client(event, user):
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
                            COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
-                           approved_at
+                           approved_at, company_linkedin
                     FROM clients WHERE s3_folder = %s AND user_id = %s
                 """, (client_id, user['user_id']))
         else:
@@ -1053,7 +1054,8 @@ def handle_get_client(event, user):
                 'ndaSigned': bool(row[27]) if len(row) > 27 else False,
                 'existingApps': (row[28] or '') if len(row) > 28 else '',
                 'ndaSignedAt': row[29].isoformat() if len(row) > 29 and row[29] else None,
-                'approved_at': row[30].isoformat() if len(row) > 30 and row[30] else None
+                'approved_at': row[30].isoformat() if len(row) > 30 and row[30] else None,
+                'company_linkedin': (row[31] or '') if len(row) > 31 else ''
             })
         }
     except Exception as e:
@@ -1186,6 +1188,10 @@ def handle_update_client(event, user):
         if 'existingApps' in body:
             set_fields.append("existing_apps = %s")
             params.append(body['existingApps'].strip())
+
+        if 'company_linkedin' in body:
+            set_fields.append("company_linkedin = %s")
+            params.append(body['company_linkedin'].strip())
 
         if user.get('is_admin') or (user.get('is_client') and user.get('client_id') == client_id):
             params.append(client_id)
@@ -1729,8 +1735,8 @@ def handle_create_client(event, user):
                 contact_linkedin, contact_email, contact_phone,
                 contacts_json, addresses_json, industry, description, pain_point, s3_folder,
                 partner_id, intellagentic_lead, future_plans, pain_points_json,
-                encryption_key, updated_by, nda_signed, nda_signed_at, existing_apps
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                encryption_key, updated_by, nda_signed, nda_signed_at, existing_apps, company_linkedin
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (
             user['user_id'], company_name, website,
@@ -1746,7 +1752,8 @@ def handle_create_client(event, user):
             encrypt(user.get('name', '') or user.get('email', '')),
             bool(body.get('ndaSigned', False)),
             datetime.now(timezone.utc) if body.get('ndaSigned', False) else None,
-            body.get('existingApps', '').strip()
+            body.get('existingApps', '').strip(),
+            body.get('company_linkedin', '').strip()
         ))
 
         db_id = str(cur.fetchone()[0])

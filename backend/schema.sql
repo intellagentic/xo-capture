@@ -234,3 +234,6 @@ CREATE INDEX IF NOT EXISTS idx_hubspot_sync_log_record ON hubspot_sync_log(recor
 -- Approval flow
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_by TEXT;
+
+-- Company LinkedIn
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS company_linkedin TEXT;

@@ -45,6 +45,7 @@ FIELD_MAP_CLIENT_TO_COMPANY = {
     'company_name': 'name',
     'website_url': 'website',
     'description': 'description',
+    'company_linkedin': 'linkedin_company_page',
 }
 
 # Custom properties in HubSpot (XO field -> HS property name)
@@ -207,6 +208,7 @@ def _log_sync(conn, record_type, record_id, hubspot_id, direction, fields_update
 SYNC_COMPARE_FIELDS = {
     'company_name': 'name',
     'website_url': 'website',
+    'company_linkedin': 'linkedin_company_page',
     'industry': 'xo_industry',
     'description': 'description',
     'future_plans': 'xo_future_plans',
@@ -465,6 +467,10 @@ def _build_company_properties(record, record_type, client_key=None):
     website = _decrypt_field(client_key, website)
     if website:
         props['website'] = website
+
+    company_linkedin = record.get('company_linkedin', '') or ''
+    if company_linkedin:
+        props['linkedin_company_page'] = company_linkedin
 
     industry = _decrypt_field(client_key, record.get('industry', ''))
     if industry:
@@ -854,6 +860,7 @@ def _apply_hs_to_xo_update(cur, hs_id, xo_id, props, where_clause, where_params)
     """Apply HubSpot property values to an XO client record (pull update)."""
     name = props.get('name', '')
     website = props.get('website', '')
+    company_linkedin = props.get('linkedin_company_page', '')
     industry = props.get('xo_industry', '')
     description = props.get('description', '')
     status = props.get('xo_status', '')
@@ -870,6 +877,7 @@ def _apply_hs_to_xo_update(cur, hs_id, xo_id, props, where_clause, where_params)
         UPDATE clients SET
             company_name = COALESCE(NULLIF(%s, ''), company_name),
             website_url = COALESCE(NULLIF(%s, ''), website_url),
+            company_linkedin = COALESCE(NULLIF(%s, ''), company_linkedin),
             industry = COALESCE(NULLIF(%s, ''), industry),
             description = COALESCE(NULLIF(%s, ''), description),
             future_plans = COALESCE(NULLIF(%s, ''), future_plans),
@@ -882,13 +890,13 @@ def _apply_hs_to_xo_update(cur, hs_id, xo_id, props, where_clause, where_params)
             hubspot_company_id = %s,
             hubspot_last_sync = NOW()
         WHERE {where_clause}
-    """, (name, website, industry, description, future_plans,
+    """, (name, website, company_linkedin, industry, description, future_plans,
           status, source, nda_bool, lead_bool, pain_points, addresses,
           hs_id, *where_params))
 
     # Return list of fields that had values
     updated_fields = []
-    for label, val in [('company_name', name), ('website_url', website), ('industry', industry),
+    for label, val in [('company_name', name), ('website_url', website), ('company_linkedin', company_linkedin), ('industry', industry),
                        ('description', description), ('future_plans', future_plans),
                        ('status', status), ('source', source), ('pain_points_json', pain_points),
                        ('addresses_json', addresses)]:
@@ -978,14 +986,14 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
         # Both sides changed — detect which fields conflict
         # Read current XO record for comparison
         cur.execute("""
-            SELECT company_name, website_url, industry, description, future_plans,
+            SELECT company_name, website_url, company_linkedin, industry, description, future_plans,
                    status, source, pain_points_json, addresses_json, encryption_key
             FROM clients WHERE id = %s
         """, (xo_id,))
         xo_row = cur.fetchone()
         if not xo_row:
             return None, None
-        xo_cols = ['company_name', 'website_url', 'industry', 'description', 'future_plans',
+        xo_cols = ['company_name', 'website_url', 'company_linkedin', 'industry', 'description', 'future_plans',
                     'status', 'source', 'pain_points_json', 'addresses_json', 'encryption_key']
         xo_record = dict(zip(xo_cols, xo_row))
         client_key = unwrap_client_key(xo_record.pop('encryption_key', None))
@@ -1355,7 +1363,7 @@ def handle_sync(event, user):
                    future_plans, status, source, nda_signed, nda_signed_at,
                    intellagentic_lead, pain_points_json, contacts_json,
                    addresses_json, s3_folder, hubspot_company_id,
-                   hubspot_contact_id, partner_id, encryption_key
+                   hubspot_contact_id, partner_id, encryption_key, company_linkedin
             FROM clients
             WHERE (status != 'deleted' OR status IS NULL)
               AND (hubspot_last_sync IS NULL OR updated_at > hubspot_last_sync)
@@ -1365,7 +1373,7 @@ def handle_sync(event, user):
                        'future_plans', 'status', 'source', 'nda_signed', 'nda_signed_at',
                        'intellagentic_lead', 'pain_points_json', 'contacts_json',
                        'addresses_json', 's3_folder', 'hubspot_company_id',
-                       'hubspot_contact_id', 'partner_id', 'encryption_key']
+                       'hubspot_contact_id', 'partner_id', 'encryption_key', 'company_linkedin']
         clients_pushed = 0
 
         # Separate creates vs updates for batch
@@ -1536,7 +1544,7 @@ def handle_sync_push(event, user):
                    future_plans, status, source, nda_signed, nda_signed_at,
                    intellagentic_lead, pain_points_json, contacts_json,
                    addresses_json, s3_folder, hubspot_company_id,
-                   hubspot_contact_id, partner_id, encryption_key
+                   hubspot_contact_id, partner_id, encryption_key, company_linkedin
             FROM clients WHERE id = %s
         """, (client_id,))
         row = cur.fetchone()
@@ -1553,7 +1561,7 @@ def handle_sync_push(event, user):
                 'future_plans', 'status', 'source', 'nda_signed', 'nda_signed_at',
                 'intellagentic_lead', 'pain_points_json', 'contacts_json',
                 'addresses_json', 's3_folder', 'hubspot_company_id',
-                'hubspot_contact_id', 'partner_id', 'encryption_key']
+                'hubspot_contact_id', 'partner_id', 'encryption_key', 'company_linkedin']
         record = dict(zip(cols, row))
         client_key = unwrap_client_key(record.get('encryption_key')) if record.get('encryption_key') else None
 
@@ -1797,7 +1805,7 @@ def handle_resolve_conflict(event, user):
                        future_plans, status, source, nda_signed, nda_signed_at,
                        intellagentic_lead, pain_points_json, contacts_json,
                        addresses_json, s3_folder, hubspot_company_id,
-                       hubspot_contact_id, partner_id, encryption_key
+                       hubspot_contact_id, partner_id, encryption_key, company_linkedin
                 FROM clients WHERE id = %s
             """, (record_id,))
             row = cur.fetchone()
@@ -1806,7 +1814,7 @@ def handle_resolve_conflict(event, user):
                         'future_plans', 'status', 'source', 'nda_signed', 'nda_signed_at',
                         'intellagentic_lead', 'pain_points_json', 'contacts_json',
                         'addresses_json', 's3_folder', 'hubspot_company_id',
-                        'hubspot_contact_id', 'partner_id', 'encryption_key']
+                        'hubspot_contact_id', 'partner_id', 'encryption_key', 'company_linkedin']
                 record = dict(zip(cols, row))
                 client_key = unwrap_client_key(record.get('encryption_key')) if record.get('encryption_key') else None
                 _push_company(access_token, record, record_type, client_key)
