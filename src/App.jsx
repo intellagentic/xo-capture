@@ -9649,6 +9649,14 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
         </div>
       </div>
 
+      {/* Engagement context */}
+      {activeEngagement && (
+        <div style={{ padding: '0.625rem 1rem', background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.15)', borderRadius: 8 }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}><span style={{ fontWeight: 700 }}>Engagement:</span> {activeEngagement.name}</div>
+          {activeEngagement.focus_area && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{activeEngagement.focus_area}</div>}
+        </div>
+      )}
+
       {/* Concertina sections */}
       <div style={{ padding: '', display: 'grid', gap: '0.75rem' }}>
         {formattedResults?.map((item, index) =>

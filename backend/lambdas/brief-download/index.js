@@ -419,17 +419,19 @@ function assembleBrief(results) {
     contactName: results.client_contact || '',
     contactTitle: results.client_contact_title || '',
     meetingDate,
+    engagementName: results.engagement_name || '',
   };
 }
 
 // ── Build Document ──
 function buildDocument(brief, isDraft) {
-  const { clientName, industry, description, problems, primary, planPhases, summary, bottomLine, architecture, streamline, contactName, meetingDate } = brief;
+  const { clientName, industry, description, problems, primary, planPhases, summary, bottomLine, architecture, streamline, contactName, meetingDate, engagementName } = brief;
   const stripNum = t => (t || '').replace(/^\d+\.\s*/, '');
 
-  // Cover
+  // Cover — include engagement name if scoped
+  const coverDesc = engagementName ? `${engagementName} — ${description || industry}` : (description || industry);
   const cover = buildCoverPage(
-    clientName, description || industry,
+    clientName, coverDesc,
     primary.title || 'Operational Transformation',
     bottomLine ? bottomLine.split('.').slice(0, 2).join('.') + '.' : '',
     contactName || clientName, meetingDate
@@ -440,6 +442,9 @@ function buildDocument(brief, isDraft) {
 
   // Executive Summary
   body.push(para("EXECUTIVE SUMMARY", { heading: HeadingLevel.HEADING_1 }));
+  if (engagementName) {
+    body.push(boldPara("Engagement: ", engagementName));
+  }
   body.push(...mdToParagraphs(summary));
   body.push(spacer());
 

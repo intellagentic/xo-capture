@@ -300,8 +300,16 @@ function buildSlide1_Title(pres, data) {
     lineSpacingMultiple: 1.15, valign: "top", margin: 0,
   });
 
+  // Engagement name (if scoped)
+  if (data.engagementName) {
+    s.addText(data.engagementName, {
+      x: 0.7, y: 3.4, w: 8, h: 0.35,
+      fontSize: 16, fontFace: "Arial", color: "B0BEC5", margin: 0,
+    });
+  }
+
   // Red accent line
-  s.addShape(pres.shapes.LINE, { x: 0.7, y: 3.7, w: 2.5, h: 0, line: { color: RED, width: 3 } });
+  s.addShape(pres.shapes.LINE, { x: 0.7, y: 3.8, w: 2.5, h: 0, line: { color: RED, width: 3 } });
 
   // Briefing positioning phrase
   s.addText("You are the domain experts. This is our take on status and next steps.", {
@@ -722,6 +730,7 @@ exports.handler = async (event) => {
 
     // 2. Map analysis JSON → slide data (pure JS, no AI call)
     const slideData = assembleDeckData(results);
+    slideData.engagementName = results.engagement_name || "";
 
     // 3. Build .pptx (draft watermark if not yet approved)
     const isDraft = !results.approved_at;
