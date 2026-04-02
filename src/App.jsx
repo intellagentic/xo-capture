@@ -4355,6 +4355,79 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
             </div>
           </div>
 
+          {/* ── ENGAGEMENTS SECTION ── */}
+          {clientId && (
+            <div style={{ marginTop: '0.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Package size={16} style={{ color: '#dc2626' }} />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Engagements</span>
+                  <span style={{ fontSize: '0.65rem', color: '#9ca3af' }}>({engagements.length})</span>
+                </div>
+                <button
+                  onClick={() => setShowEngagementModal(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}>
+                  <Plus size={12} /> New
+                </button>
+              </div>
+
+              {activeEngagement && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', padding: '0.35rem 0.5rem', background: 'rgba(220,38,38,0.1)', borderRadius: 6, border: '1px solid rgba(220,38,38,0.2)' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#dc2626', fontWeight: 600 }}>Active:</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-primary)', fontWeight: 600 }}>{activeEngagement.name}</span>
+                  <button onClick={() => setActiveEngagement(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '0.65rem' }}>Clear</button>
+                </div>
+              )}
+
+              {engagements.length === 0 ? (
+                <div style={{ border: '1px dashed #d1d5db', borderRadius: 8, padding: '0.75rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.75rem' }}>
+                  No engagements yet. Create one to scope enrichment to a specific focus area.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                  {engagements.map(eng => {
+                    const isSelected = activeEngagement?.id === eng.id
+                    return (
+                    <div key={eng.id}
+                      onClick={() => setActiveEngagement(isSelected ? null : eng)}
+                      style={{
+                        padding: '0.5rem 0.625rem', borderRadius: 8, cursor: 'pointer',
+                        border: isSelected ? '2px solid #dc2626' : '1px solid #e5e7eb',
+                        background: isSelected ? 'rgba(220,38,38,0.05)' : '#f9fafb',
+                        transition: 'all 0.15s'
+                      }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          {isSelected && <CheckCircle size={14} style={{ color: '#dc2626', flexShrink: 0 }} />}
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>{eng.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                          {isSelected ? (
+                            <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '0.1rem 0.35rem', borderRadius: 4, background: '#dc2626', color: '#fff' }}>SELECTED</span>
+                          ) : (
+                            <span style={{ fontSize: '0.6rem', color: '#9ca3af', fontStyle: 'italic' }}>Click to select</span>
+                          )}
+                          <span style={{
+                            fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.35rem', borderRadius: 4,
+                            background: eng.status === 'won' ? '#dcfce7' : eng.status === 'lost' ? '#fee2e2' : eng.status === 'paused' ? '#fef3c7' : '#dbeafe',
+                            color: eng.status === 'won' ? '#16a34a' : eng.status === 'lost' ? '#dc2626' : eng.status === 'paused' ? '#d97706' : '#2563eb'
+                          }}>{(eng.status || 'active').toUpperCase()}</span>
+                          <button onClick={(e) => { e.stopPropagation(); setEditEngagement(eng); setShowEngagementModal(true) }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '0.1rem' }}>
+                            <Edit2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                      {eng.focus_area && <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.15rem' }}>{eng.focus_area.length > 80 ? eng.focus_area.substring(0, 80) + '...' : eng.focus_area}</div>}
+                      {eng.contacts && eng.contacts.length > 0 && <div style={{ fontSize: '0.65rem', color: '#9ca3af', marginTop: '0.15rem' }}>{eng.contacts.length} contact{eng.contacts.length !== 1 ? 's' : ''}</div>}
+                    </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Industry */}
           <div>
             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
@@ -4734,78 +4807,6 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
             ) : null}
           </div>
 
-          {/* ── ENGAGEMENTS SECTION ── */}
-          {clientId && (
-            <div style={{ marginTop: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Package size={16} style={{ color: '#dc2626' }} />
-                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Engagements</span>
-                  <span style={{ fontSize: '0.65rem', color: '#9ca3af' }}>({engagements.length})</span>
-                </div>
-                <button
-                  onClick={() => setShowEngagementModal(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}>
-                  <Plus size={12} /> New
-                </button>
-              </div>
-
-              {activeEngagement && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', padding: '0.35rem 0.5rem', background: 'rgba(220,38,38,0.1)', borderRadius: 6, border: '1px solid rgba(220,38,38,0.2)' }}>
-                  <span style={{ fontSize: '0.7rem', color: '#dc2626', fontWeight: 600 }}>Active:</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-primary)', fontWeight: 600 }}>{activeEngagement.name}</span>
-                  <button onClick={() => setActiveEngagement(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '0.65rem' }}>Clear</button>
-                </div>
-              )}
-
-              {engagements.length === 0 ? (
-                <div style={{ border: '1px dashed #d1d5db', borderRadius: 8, padding: '0.75rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.75rem' }}>
-                  No engagements yet. Create one to scope enrichment to a specific focus area.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                  {engagements.map(eng => {
-                    const isSelected = activeEngagement?.id === eng.id
-                    return (
-                    <div key={eng.id}
-                      onClick={() => setActiveEngagement(isSelected ? null : eng)}
-                      style={{
-                        padding: '0.5rem 0.625rem', borderRadius: 8, cursor: 'pointer',
-                        border: isSelected ? '2px solid #dc2626' : '1px solid #e5e7eb',
-                        background: isSelected ? 'rgba(220,38,38,0.05)' : '#f9fafb',
-                        transition: 'all 0.15s'
-                      }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                          {isSelected && <CheckCircle size={14} style={{ color: '#dc2626', flexShrink: 0 }} />}
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>{eng.name}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                          {isSelected ? (
-                            <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '0.1rem 0.35rem', borderRadius: 4, background: '#dc2626', color: '#fff' }}>SELECTED</span>
-                          ) : (
-                            <span style={{ fontSize: '0.6rem', color: '#9ca3af', fontStyle: 'italic' }}>Click to select</span>
-                          )}
-                          <span style={{
-                            fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.35rem', borderRadius: 4,
-                            background: eng.status === 'won' ? '#dcfce7' : eng.status === 'lost' ? '#fee2e2' : eng.status === 'paused' ? '#fef3c7' : '#dbeafe',
-                            color: eng.status === 'won' ? '#16a34a' : eng.status === 'lost' ? '#dc2626' : eng.status === 'paused' ? '#d97706' : '#2563eb'
-                          }}>{(eng.status || 'active').toUpperCase()}</span>
-                          <button onClick={(e) => { e.stopPropagation(); setEditEngagement(eng); setShowEngagementModal(true) }}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '0.1rem' }}>
-                            <Edit2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-                      {eng.focus_area && <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.15rem' }}>{eng.focus_area.length > 80 ? eng.focus_area.substring(0, 80) + '...' : eng.focus_area}</div>}
-                      {eng.contacts && eng.contacts.length > 0 && <div style={{ fontSize: '0.65rem', color: '#9ca3af', marginTop: '0.15rem' }}>{eng.contacts.length} contact{eng.contacts.length !== 1 ? 's' : ''}</div>}
-                    </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* RIGHT COLUMN — Workflow Cards */}
