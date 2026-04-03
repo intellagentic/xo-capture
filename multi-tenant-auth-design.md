@@ -135,3 +135,10 @@ Multi-tenant authentication model with self-service user management for partner 
 - Phase 3: Client assignment model + scoped visibility
 - Phase 4: Partner admin self-service UI (Team page)
 - Phase 5: Client contact read-only workspace
+
+## Phase 6: Two-Factor Authentication (2FA/MFA)
+- SMS-based OTP via AWS SNS for login verification
+- Optional per-account enforcement (partner admin can require 2FA for their team)
+- Fallback: authenticator app (TOTP) for users who prefer it
+- Requires: AWS SNS SMS production access, 10DLC registration for US sending, sender ID for UK
+- Prerequisite: SES production access (Phase 2 invite emails) must be live first
