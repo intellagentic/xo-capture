@@ -3495,12 +3495,29 @@ Additional fixes and polish:
 - Fixed invite handler for deactivated users -- reactivates instead of INSERT duplicate
 - Removed duplicate engagement context block on Results page (kept ActiveEngagementBanner only)
 
-Remaining phases:
-- Phase 4: Account admin self-service UI (manage own team without super_admin)
-- Phase 5: Client contact read-only workspace (view results, brief, deck) + client contributor role (complete org profile, upload documents, add pain points, cannot run enrichments or see other clients) + share link generates contributor-level access by default
-- Polish: Google OAuth on accept-invite page, SES production access, remove debug logging, hide "Create Client" for account_user
+**April 3, 2026 -- Phases 4-5 Complete**
 
-Branch: feature/multi-tenant-auth (merge to main when all phases complete)
+Phase 4 complete -- Account admin self-service:
+- PATCH /auth/invite/role endpoint with role hierarchy enforcement (cannot promote above own role)
+- Last-admin protection on both role change and deactivate (409 if last admin on account)
+- Role change dropdown in TeamScreen (scoped by caller's role level, confirm on change)
+
+Phase 5 complete -- Client contact + contributor roles:
+- contributor role added to account_role CHECK constraint (super_admin > account_admin > account_user > contributor > client_contact)
+- All scoped queries updated: clients, results, upload Lambdas include contributor in assignment-based filtering
+- client_contact sidebar: Welcome + Results only (read-only, no upload/enrich/config)
+- contributor sidebar: Welcome + Sources + Results (can upload, cannot enrich/configure)
+- account_user and above: full workspace access (unchanged)
+- Login and page-load routing includes contributor and client_contact -> dashboard
+- Team sidebar remains admin/account_admin only
+- Invite flow supports contributor role with client assignment
+
+Remaining:
+- Phase 6: 2FA/MFA (SMS via SNS + TOTP fallback)
+- Polish: Google OAuth on accept-invite page, SES production access (requested), remove debug logging, hide "Create Client" for contributor/client_contact
+- Merge feature/multi-tenant-auth to main after Phase 6 or when stable
+
+Branch: feature/multi-tenant-auth
 
 ---
 
