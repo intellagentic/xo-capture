@@ -222,6 +222,7 @@ def _run_role_migrations():
         cur.execute("UPDATE users SET name = 'Richie Saville' WHERE email = 'rs@multiversant.com' AND name != 'Richie Saville'")
         cur.execute("UPDATE users SET name = 'Vamsi Nama' WHERE email = 'vn@multiversant.com' AND name != 'Vamsi Nama'")
         cur.execute("UPDATE users SET status = 'deactivated' WHERE email = 'ken.scott@intellagentic.com' AND status != 'deactivated'")
+        cur.execute("UPDATE users SET status = 'deactivated' WHERE email = 'xo@intellagentic.io' AND status != 'deactivated'")
         # Assign users to accounts (idempotent)
         cur.execute("INSERT INTO accounts (name) SELECT 'Intellagentic' WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE name = 'Intellagentic')")
         cur.execute("UPDATE users SET account_id = (SELECT id FROM accounts WHERE name = 'Intellagentic') WHERE email IN ('alan.moore@intellagentic.io', 'ken.scott@intellagentic.io', 'rs@multiversant.com', 'vn@multiversant.com') AND account_id IS NULL")
