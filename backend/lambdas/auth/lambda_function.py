@@ -1091,7 +1091,20 @@ def handle_google_login(event):
                 print(f"Google login successful (partner): {user_email}, account_id={account_id}")
                 return _success_response(user_id, user_email, user_name, preferred_model, role='partner', account_id=account_id)
 
-            # role='client' in DB — still check client contacts below
+            # Check account_role for invited users (account_user, account_admin, contributor, client_contact)
+            cur.execute("SELECT account_role FROM users WHERE id = %s", (user_id,))
+            ar_row = cur.fetchone()
+            ar = ar_row[0] if ar_row else None
+            if ar in ('account_user', 'account_admin', 'contributor', 'client_contact'):
+                cur.close()
+                conn.close()
+                if tfa_enabled:
+                    print(f"Google login valid ({ar}): {user_email}, account_id={account_id} — starting 2FA")
+                    return _start_2fa_challenge(user_id, user_email, user_name, preferred_model, role=role, account_id=account_id)
+                print(f"Google login successful ({ar}): {user_email}, account_id={account_id}")
+                return _success_response(user_id, user_email, user_name, preferred_model, role=role, account_id=account_id)
+
+            # role='client' with no account_role — fall through to client contacts check
 
         # Step 2: Check if email is in ADMIN_SEED_EMAILS (in case user not yet in DB)
         if email.lower() in [e.lower() for e in ADMIN_SEED_EMAILS]:
@@ -1850,6 +1863,7 @@ def handle_invite_list(event):
                 SELECT u.id, u.email, u.name, u.account_role, u.status, u.invited_at, u.account_id, a.name as account_name
                 FROM users u
                 LEFT JOIN accounts a ON u.account_id = a.id
+                WHERE u.email NOT LIKE 'client-token-%%'
                 ORDER BY u.created_at DESC
             """)
         else:
@@ -1857,7 +1871,7 @@ def handle_invite_list(event):
                 SELECT u.id, u.email, u.name, u.account_role, u.status, u.invited_at, u.account_id, a.name as account_name
                 FROM users u
                 LEFT JOIN accounts a ON u.account_id = a.id
-                WHERE u.account_id = %s
+                WHERE u.account_id = %s AND u.email NOT LIKE 'client-token-%%'
                 ORDER BY u.created_at DESC
             """, (caller_account_id,))
 
@@ -2089,7 +2103,7 @@ def handle_role_change(event):
                 cur.close(); conn.close()
                 return {'statusCode': 409, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot demote the last admin on this account'})}
 
-        cur.execute("UPDATE users SET account_role = %s, updated_at = NOW() WHERE id = %s", (new_role, target_user_id))
+        cur.execute("UPDATE users SET account_role = %s WHERE id = %s", (new_role, target_user_id))
         conn.commit()
         cur.close(); conn.close()
 
