@@ -3428,9 +3428,33 @@ function TeamScreen({ isAdmin, user, accounts }) {
           <div style={{ textAlign: 'center', padding: '1.5rem', color: '#9ca3af', fontSize: '0.8rem' }}>
             No users match your filters.
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {filteredUsers.map(u => {
+        ) : (() => {
+          // Group by account, sort within groups: active > invited > deactivated, then alphabetical
+          const statusOrder = { active: 0, invited: 1, deactivated: 2 }
+          const sorted = [...filteredUsers].sort((a, b) => {
+            const sa = statusOrder[a.status] ?? 1, sb = statusOrder[b.status] ?? 1
+            if (sa !== sb) return sa - sb
+            return (a.name || '').localeCompare(b.name || '')
+          })
+          const groups = {}
+          sorted.forEach(u => {
+            const key = u.account_name || (u.account_id ? `Account ${u.account_id}` : '_unassigned')
+            if (!groups[key]) groups[key] = []
+            groups[key].push(u)
+          })
+          const groupKeys = Object.keys(groups).filter(k => k !== '_unassigned').sort()
+          if (groups._unassigned) groupKeys.push('_unassigned')
+
+          return (
+          <div>
+            {groupKeys.map(gk => (
+              <div key={gk} style={{ marginBottom: '1rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', padding: '0.35rem 0', marginBottom: '0.375rem', borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
+                  {gk === '_unassigned' ? 'Unassigned' : gk}
+                  <span style={{ fontWeight: 400, color: '#9ca3af', marginLeft: '0.5rem' }}>({groups[gk].length})</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+            {groups[gk].map(u => {
               const sc = statusColors[u.status] || statusColors.active
               return (
                 <div key={u.id} style={{ padding: '0.625rem 0.75rem', border: '1px solid #e5e7eb', borderRadius: 8, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -3466,7 +3490,6 @@ function TeamScreen({ isAdmin, user, accounts }) {
                       ))}
                     </select>
                   )}
-                  {u.account_name && <span style={{ fontSize: '0.6rem', color: '#9ca3af' }}>{u.account_name}</span>}
                   {u.account_role && ['account_user', 'client_contact', 'contributor'].includes(u.account_role) && u.status === 'active' && (
                     <button onClick={() => openAssignModal(u)} style={{ fontSize: '0.65rem', color: '#2563eb', background: 'none', border: '1px solid #2563eb', borderRadius: 4, cursor: 'pointer', padding: '0.1rem 0.3rem' }}>Clients</button>
                   )}
@@ -3488,8 +3511,12 @@ function TeamScreen({ isAdmin, user, accounts }) {
                 </div>
               )
             })}
+                </div>
+              </div>
+            ))}
           </div>
-        )}
+          )
+        })()}
       </div>
 
       {/* Invite Modal */}
