@@ -2976,9 +2976,9 @@ function AccountsScreen({ accounts, setAccounts }) {
 
   return (
     <div style={{ padding: '1.5rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-          Channel Partners <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>({accounts.length})</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+          Partners <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b7280)', fontSize: '0.8125rem' }}>({accounts.length})</span>
         </h2>
         <button onClick={openAdd} className="action-btn red"><Plus size={14} /> Add Partner</button>
       </div>
