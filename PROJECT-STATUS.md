@@ -3522,6 +3522,28 @@ Phase 5 complete -- Client contact + contributor roles:
 - Data cleanup -- user names corrected (Richie Saville, Vamsi Nama), test accounts deactivated (ken.scott@intellagentic.com, xo@intellagentic.io), users assigned to accounts (Intellagentic created, core team assigned, kscott@scottaffiliated.com to Intellistack)
 - feature/multi-tenant-auth merged to main -- all Phases 1-5 deployed and tested end to end
 
+HubSpot Engagement Results Sync:
+- Approved engagements push as Notes on HubSpot Company records with Opportunities List, Streamline + XO Applications content, and link to XO Capture results
+- _push_engagement_results_for_client reads analysis.json from S3, decrypts, builds HTML note, creates/updates HubSpot Note associated with Company
+- Only syncs approved engagements (approved_at IS NOT NULL) -- DRAFT engagements skipped
+- Idempotent: tracks hubspot_note_id + hubspot_synced_at on engagements table, skips if already synced
+- Runs over all clients with hubspot_company_id (independent of client change detection)
+- Deal sync removed -- engagements are analysis lenses not pipeline items; Deals managed manually in HubSpot
+- HubSpot Private App token updated, deal properties (xo_engagement_id, xo_focus_area) created
+- HubSpot file/attachment scopes added to Private App -- file upload deferred (not needed for partner CRM flow)
+
+Frontend fixes:
+- Approve button fix -- setActiveEngagement prop threaded to ResultsScreen, engagement-level approved_at set correctly (was updating client-level instead of engagement)
+- Independent loading states: briefDownloadLoading, deckDownloadLoading, briefApproveLoading, deckApproveLoading (clicking one no longer spins the other)
+- handleApprove accepts section parameter ('brief' or 'deck') for targeted loading
+
+Engagements feature fully complete (all 5 phases from the original plan):
+- Phase 1: DB + CRUD API
+- Phase 2: Frontend management (cards, modal, selection)
+- Phase 3: Enrich pipeline scoping (focus_area, S3 paths)
+- Phase 4: Results + downloads scoping (engagement_id throughout)
+- Phase 5: HubSpot engagement notes sync
+
 Remaining:
 - Phase 6: 2FA/MFA (SMS via SNS + TOTP fallback)
 - Polish: Google OAuth on accept-invite page, SES production access (requested, pending AWS review), remove debug logging, hide "Create Client" for contributor/client_contact
