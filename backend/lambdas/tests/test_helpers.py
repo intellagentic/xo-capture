@@ -40,24 +40,24 @@ def parse_body(response):
 
 ADMIN_USER = {
     'user_id': 'admin-uuid-001', 'email': 'admin@test.com', 'name': 'Admin User',
-    'role': 'admin', 'is_admin': True, 'is_partner': False, 'is_client': False,
-    'partner_id': None, 'client_id': None,
+    'role': 'admin', 'is_admin': True, 'is_account': False, 'is_client': False,
+    'account_id': None, 'client_id': None,
 }
 
 PARTNER_USER = {
     'user_id': 'partner-uuid-002', 'email': 'partner@test.com', 'name': 'Partner User',
-    'role': 'partner', 'is_admin': False, 'is_partner': True, 'is_client': False,
-    'partner_id': 42, 'client_id': None,
+    'role': 'partner', 'is_admin': False, 'is_account': True, 'is_client': False,
+    'account_id': 42, 'client_id': None,
 }
 
 CLIENT_USER = {
     'user_id': 'client-uuid-003', 'email': 'client@test.com', 'name': 'Client User',
-    'role': 'client', 'is_admin': False, 'is_partner': False, 'is_client': True,
-    'partner_id': None, 'client_id': 'client_123_abc',
+    'role': 'client', 'is_admin': False, 'is_account': False, 'is_client': True,
+    'account_id': None, 'client_id': 'client_123_abc',
 }
 
 REGULAR_USER = {
     'user_id': 'user-uuid-004', 'email': 'user@test.com', 'name': 'Regular User',
-    'role': 'client', 'is_admin': False, 'is_partner': False, 'is_client': False,
-    'partner_id': None, 'client_id': None,
+    'role': 'client', 'is_admin': False, 'is_account': False, 'is_client': False,
+    'account_id': None, 'client_id': None,
 }

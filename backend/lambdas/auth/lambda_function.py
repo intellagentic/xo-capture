@@ -88,15 +88,124 @@ def _run_token_migrations():
 _run_token_migrations()
 
 
-# ── Auto-migration: add role + partner_id columns to users, seed admins ──
+# ── Auto-migration: rename partners table to accounts (idempotent) ──
+def _run_partners_to_accounts_rename():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        # Check current state
+        cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'partners')")
+        has_partners = cur.fetchone()[0]
+        cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'accounts')")
+        has_accounts = cur.fetchone()[0]
+
+        if has_accounts:
+            cur.execute("SELECT count(*) FROM accounts")
+            accounts_count = cur.fetchone()[0]
+        else:
+            accounts_count = 0
+
+        if has_partners:
+            cur.execute("SELECT count(*) FROM partners")
+            partners_count = cur.fetchone()[0]
+        else:
+            partners_count = 0
+
+        print(f"Table rename check: partners={has_partners}({partners_count} rows), accounts={has_accounts}({accounts_count} rows)")
+
+        # If accounts already has data, the rename already happened — skip
+        if has_accounts and accounts_count > 0:
+            print("Accounts table already has data — rename already done, skipping")
+            # Still ensure type column exists
+            cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'partner'")
+            conn.commit()
+            cur.close()
+            conn.close()
+            return
+
+        # If partners has data and accounts is empty, do the rename
+        if has_partners and partners_count > 0:
+            # Drop the empty accounts table if it exists
+            if has_accounts and accounts_count == 0:
+                print(f"Dropping empty accounts table to make room for rename")
+                cur.execute("DROP TABLE IF EXISTS accounts CASCADE")
+
+            # Also need to drop any FKs on clients/users referencing accounts before rename
+            # The CASCADE above handles that
+
+            print(f"Renaming partners ({partners_count} rows) -> accounts")
+            cur.execute("ALTER TABLE partners RENAME TO accounts")
+
+            # Rename partner_id -> account_id on clients table if old column exists
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='clients' AND column_name='partner_id')
+                       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='clients' AND column_name='account_id') THEN
+                        ALTER TABLE clients RENAME COLUMN partner_id TO account_id;
+                    END IF;
+                END $$;
+            """)
+
+            # Add type column
+            cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'partner'")
+            cur.execute("UPDATE accounts SET type = 'platform' WHERE name ILIKE '%intellagentic%'")
+
+            conn.commit()
+
+            # Verify
+            cur.execute("SELECT count(*) FROM accounts")
+            final_count = cur.fetchone()[0]
+            cur.execute("SELECT id, name, type FROM accounts ORDER BY id")
+            rows = cur.fetchall()
+            for r in rows:
+                print(f"  Account: id={r[0]}, name={r[1]}, type={r[2]}")
+            print(f"Partners->accounts rename complete: {final_count} rows migrated")
+        elif not has_partners and not has_accounts:
+            print("Neither partners nor accounts table exists — will be created by clients Lambda")
+        else:
+            print(f"No rename needed: partners={has_partners}({partners_count}), accounts={has_accounts}({accounts_count})")
+
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Partners->accounts rename (non-fatal): {e}")
+
+_run_partners_to_accounts_rename()
+
+
+# ── Auto-migration: add role + account_id columns to users, seed admins ──
 def _run_role_migrations():
     try:
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
         # Add role column (default 'client')
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'client'")
-        # Add partner_id FK to users (links partner users to their partner record)
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL")
+        # Rename partner_id -> account_id if old column exists (migration from partners->accounts)
+        cur.execute("""
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='partner_id')
+                   AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='account_id') THEN
+                    ALTER TABLE users RENAME COLUMN partner_id TO account_id;
+                END IF;
+            END $$;
+        """)
+        # Add account_id FK to users (links account users to their account record)
+        # Reference accounts if it exists, otherwise partners (migration period)
+        cur.execute("""
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='accounts') THEN
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL;
+                ELSIF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='partners') THEN
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES partners(id) ON DELETE SET NULL;
+                ELSE
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS account_id INTEGER;
+                END IF;
+            END $$;
+        """)
         # Add email_hash for encrypted email lookups
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_hash VARCHAR(64)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_users_email_hash ON users(email_hash)")
@@ -105,14 +214,78 @@ def _run_role_migrations():
         # Seed admin roles for known admin emails (match by email_hash or legacy plaintext email)
         for email in ADMIN_SEED_EMAILS:
             cur.execute("UPDATE users SET role = 'admin' WHERE email = %s AND (role IS NULL OR role = 'client')", (email,))
+        # Set preferred model for admins
+        cur.execute("UPDATE users SET preferred_model = 'claude-opus-4-6' WHERE email = 'ken.scott@intellagentic.io' AND (preferred_model IS NULL OR preferred_model != 'claude-opus-4-6')")
+        # Fix display names for admin users
+        cur.execute("UPDATE users SET name = 'Ken Scott' WHERE email = 'ken.scott@intellagentic.io' AND name != 'Ken Scott'")
+        cur.execute("UPDATE users SET name = 'Alan Moore' WHERE email = 'alan.moore@intellagentic.io' AND name != 'Alan Moore'")
         conn.commit()
         cur.close()
         conn.close()
-        print("Migration complete: users role + partner_id + email_hash columns ensured, admins seeded")
+        print("Migration complete: users role + account_id + email_hash columns ensured, admins seeded")
     except Exception as e:
         print(f"Role migration check (non-fatal): {e}")
 
 _run_role_migrations()
+
+
+# ── Multi-tenant auth schema migration ──
+def _run_multi_tenant_migrations():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        # 1. Add multi-tenant columns to users table
+        # Reference accounts if it exists, otherwise partners (migration period)
+        cur.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='account_id') THEN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='accounts') THEN
+                        ALTER TABLE users ADD COLUMN account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL;
+                    ELSIF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='partners') THEN
+                        ALTER TABLE users ADD COLUMN account_id INTEGER REFERENCES partners(id) ON DELETE SET NULL;
+                    ELSE
+                        ALTER TABLE users ADD COLUMN account_id INTEGER;
+                    END IF;
+                END IF;
+            END $$;
+        """)
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS account_role TEXT CHECK (account_role IN ('super_admin', 'account_admin', 'account_user', 'client_contact'))")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active' CHECK (status IN ('invited', 'active', 'deactivated'))")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS invited_by UUID REFERENCES users(id)")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS invited_at TIMESTAMP")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_token TEXT")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_expires_at TIMESTAMP")
+
+        # 2. Data migration: map existing role to account_role (idempotent)
+        cur.execute("UPDATE users SET account_role = 'super_admin' WHERE role = 'admin' AND account_role IS NULL")
+        cur.execute("UPDATE users SET account_role = 'account_user' WHERE (role = 'partner' OR role = 'user') AND account_role IS NULL")
+        cur.execute("UPDATE users SET account_role = 'client_contact' WHERE role = 'client' AND account_role IS NULL")
+        cur.execute("UPDATE users SET status = 'active' WHERE status IS NULL")
+
+        # 4. Create user_client_assignments table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_client_assignments (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                assigned_by UUID REFERENCES users(id),
+                assigned_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, client_id)
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_uca_user_id ON user_client_assignments(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_uca_client_id ON user_client_assignments(client_id)")
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("Multi-tenant migration complete: account_role, status, invite fields, user_client_assignments table")
+    except Exception as e:
+        print(f"Multi-tenant migration check (non-fatal): {e}")
+
+_run_multi_tenant_migrations()
 
 
 # ── Auto-migration: two_factor_codes table ──
@@ -215,6 +388,10 @@ def lambda_handler(event, context):
         response = handle_reset_password(event)
     elif path.endswith('/auth/register'):
         response = handle_register(event)
+    elif '/auth/users/' in path:
+        response = _route_users(event, path, method)
+    elif '/auth/invite' in path:
+        response = _route_invite(event, path, method)
     else:
         response = handle_login(event)
 
@@ -222,7 +399,7 @@ def lambda_handler(event, context):
     return response
 
 
-def _make_token(user_id, email, name, role='client', partner_id=None, client_id=None):
+def _make_token(user_id, email, name, role='client', account_id=None, client_id=None, account_role=None):
     """Build JWT with role-based claims."""
     payload = {
         'user_id': str(user_id),
@@ -230,45 +407,53 @@ def _make_token(user_id, email, name, role='client', partner_id=None, client_id=
         'name': name,
         'role': role,
         'is_admin': role == 'admin',
-        'is_partner': role == 'partner',
+        'is_account': role == 'partner',
         'is_client': role == 'client',
         'exp': datetime.now(timezone.utc) + timedelta(hours=24)
     }
-    if partner_id:
-        payload['partner_id'] = partner_id
+    if account_id:
+        payload['account_id'] = account_id
     if client_id:
         payload['client_id'] = client_id
+    if account_role:
+        payload['account_role'] = account_role
     return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
 
 
 def _success_response(user_id, email, name, preferred_model='claude-sonnet-4-5-20250929',
-                      status=200, role='client', partner_id=None, client_id=None):
-    token = _make_token(user_id, email, name, role=role, partner_id=partner_id, client_id=client_id)
-
-    # Look up 2FA status for response
+                      status=200, role='client', account_id=None, client_id=None):
+    # Look up account_role and account_id from DB for JWT and response
+    account_role = None
+    account_id = None
     tfa_enabled = False
     try:
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
-        cur.execute("SELECT COALESCE(two_factor_enabled, FALSE) FROM users WHERE id = %s", (str(user_id),))
+        cur.execute("SELECT COALESCE(two_factor_enabled, FALSE), account_role, account_id FROM users WHERE id = %s", (str(user_id),))
         tfa_row = cur.fetchone()
-        tfa_enabled = bool(tfa_row[0]) if tfa_row else False
+        if tfa_row:
+            tfa_enabled = bool(tfa_row[0])
+            account_role = tfa_row[1]
+            account_id = tfa_row[2]
         cur.close()
         conn.close()
     except Exception:
         pass
+
+    token = _make_token(user_id, email, name, role=role, account_id=account_id, client_id=client_id,
+                        account_role=account_role)
 
     user_data = {
         'id': str(user_id), 'email': email, 'name': name,
         'preferred_model': preferred_model,
         'role': role,
         'is_admin': role == 'admin',
-        'is_partner': role == 'partner',
+        'is_account': role == 'partner',
         'is_client': role == 'client',
         'two_factor_enabled': tfa_enabled,
+        'account_role': account_role,
+        'account_id': account_id,
     }
-    if partner_id:
-        user_data['partner_id'] = partner_id
     if client_id:
         user_data['client_id'] = client_id
     return {
@@ -316,7 +501,7 @@ def _send_2fa_email(to_email, code):
 
 
 def _start_2fa_challenge(user_id, email, name, preferred_model='claude-sonnet-4-5-20250929',
-                         role='client', partner_id=None, client_id=None):
+                         role='client', account_id=None, client_id=None):
     """Generate 2FA code, store it, send email. Returns 2FA challenge response.
     Stores all user context needed to issue the JWT after verification."""
     code = f"{random.randint(0, 999999):06d}"
@@ -338,7 +523,7 @@ def _start_2fa_challenge(user_id, email, name, preferred_model='claude-sonnet-4-
             'name': name,
             'preferred_model': preferred_model,
             'role': role,
-            'partner_id': partner_id,
+            'account_id': account_id,
             'client_id': client_id
         })
 
@@ -492,7 +677,7 @@ def handle_verify_2fa(event):
             ctx['user_id'], ctx['email'], ctx['name'],
             preferred_model=ctx.get('preferred_model', 'claude-sonnet-4-5-20250929'),
             role=ctx.get('role', 'client'),
-            partner_id=ctx.get('partner_id'),
+            account_id=ctx.get('account_id'),
             client_id=ctx.get('client_id')
         )
 
@@ -505,15 +690,15 @@ def handle_verify_2fa(event):
         }
 
 
-def _upsert_user(conn, cur, email, name, role='client', partner_id=None):
+def _upsert_user(conn, cur, email, name, role='client', account_id=None):
     """Upsert a user record. Returns user_id."""
     cur.execute("SELECT id FROM users WHERE email = %s", (email,))
     row = cur.fetchone()
     if row:
         return row[0]
     cur.execute(
-        "INSERT INTO users (email, password_hash, name, role, partner_id) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-        (email, 'google-oauth-no-password', name, role, partner_id)
+        "INSERT INTO users (email, password_hash, name, role, account_id) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+        (email, 'google-oauth-no-password', name, role, account_id)
     )
     user_id = cur.fetchone()[0]
     conn.commit()
@@ -626,8 +811,8 @@ def handle_create_magic_link(event):
 
         # Look up client — partners can only generate for their own clients
         if caller.get('role') == 'partner':
-            cur.execute("SELECT id FROM clients WHERE s3_folder = %s AND partner_id = %s",
-                        (client_s3_folder, caller.get('partner_id')))
+            cur.execute("SELECT id FROM clients WHERE s3_folder = %s AND account_id = %s",
+                        (client_s3_folder, caller.get('account_id')))
         else:
             cur.execute("SELECT id FROM clients WHERE s3_folder = %s", (client_s3_folder,))
         row = cur.fetchone()
@@ -703,8 +888,8 @@ def handle_get_magic_link(event):
         cur = conn.cursor()
 
         if caller.get('role') == 'partner':
-            cur.execute("SELECT id FROM clients WHERE s3_folder = %s AND partner_id = %s",
-                        (client_s3_folder, caller.get('partner_id')))
+            cur.execute("SELECT id FROM clients WHERE s3_folder = %s AND account_id = %s",
+                        (client_s3_folder, caller.get('account_id')))
         else:
             cur.execute("SELECT id FROM clients WHERE s3_folder = %s", (client_s3_folder,))
         row = cur.fetchone()
@@ -777,8 +962,8 @@ def handle_delete_magic_link(event):
         cur = conn.cursor()
 
         if caller.get('role') == 'partner':
-            cur.execute("SELECT id FROM clients WHERE s3_folder = %s AND partner_id = %s",
-                        (client_s3_folder, caller.get('partner_id')))
+            cur.execute("SELECT id FROM clients WHERE s3_folder = %s AND account_id = %s",
+                        (client_s3_folder, caller.get('account_id')))
         else:
             cur.execute("SELECT id FROM clients WHERE s3_folder = %s", (client_s3_folder,))
         row = cur.fetchone()
@@ -868,13 +1053,13 @@ def handle_google_login(event):
 
         # Step 1: Check if user exists in DB with a role
         cur.execute(
-            "SELECT id, email, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929'), COALESCE(role, 'client'), partner_id, COALESCE(two_factor_enabled, FALSE) FROM users WHERE email = %s",
+            "SELECT id, email, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929'), COALESCE(role, 'client'), account_id, COALESCE(two_factor_enabled, FALSE) FROM users WHERE email = %s",
             (email,)
         )
         user_row = cur.fetchone()
 
         if user_row:
-            user_id, user_email, user_name, preferred_model, role, partner_id, tfa_enabled = (
+            user_id, user_email, user_name, preferred_model, role, account_id, tfa_enabled = (
                 user_row[0], user_row[1], user_row[2],
                 user_row[3], user_row[4], user_row[5], bool(user_row[6])
             )
@@ -892,10 +1077,10 @@ def handle_google_login(event):
                 cur.close()
                 conn.close()
                 if tfa_enabled:
-                    print(f"Google login valid (partner): {user_email}, partner_id={partner_id} — starting 2FA")
-                    return _start_2fa_challenge(user_id, user_email, user_name, preferred_model, role='partner', partner_id=partner_id)
-                print(f"Google login successful (partner): {user_email}, partner_id={partner_id}")
-                return _success_response(user_id, user_email, user_name, preferred_model, role='partner', partner_id=partner_id)
+                    print(f"Google login valid (partner): {user_email}, account_id={account_id} — starting 2FA")
+                    return _start_2fa_challenge(user_id, user_email, user_name, preferred_model, role='partner', account_id=account_id)
+                print(f"Google login successful (partner): {user_email}, account_id={account_id}")
+                return _success_response(user_id, user_email, user_name, preferred_model, role='partner', account_id=account_id)
 
             # role='client' in DB — still check client contacts below
 
@@ -988,7 +1173,7 @@ def handle_login(event):
         cur = conn.cursor()
 
         cur.execute(
-            "SELECT id, email, password_hash, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929'), COALESCE(role, 'client'), partner_id, COALESCE(two_factor_enabled, FALSE) FROM users WHERE email = %s",
+            "SELECT id, email, password_hash, name, COALESCE(preferred_model, 'claude-sonnet-4-5-20250929'), COALESCE(role, 'client'), account_id, COALESCE(two_factor_enabled, FALSE) FROM users WHERE email = %s",
             (email,)
         )
         row = cur.fetchone()
@@ -1002,7 +1187,7 @@ def handle_login(event):
             user_name = row[3]
             preferred_model = row[4]
             role = row[5]
-            partner_id = row[6]
+            account_id = row[6]
             tfa_enabled = bool(row[7])
 
             if not bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
@@ -1016,11 +1201,11 @@ def handle_login(event):
                 print(f"Login credentials valid: {user_email} (role={role}) — starting 2FA")
                 return _start_2fa_challenge(
                     user_id, user_email, user_name, preferred_model,
-                    role=role, partner_id=partner_id
+                    role=role, account_id=account_id
                 )
 
             print(f"Login successful: {user_email} (role={role})")
-            return _success_response(user_id, user_email, user_name, preferred_model, role=role, partner_id=partner_id)
+            return _success_response(user_id, user_email, user_name, preferred_model, role=role, account_id=account_id)
 
         else:
             if len(password) < 8:
@@ -1240,3 +1425,600 @@ def handle_preferences(event):
             'headers': CORS_HEADERS,
             'body': json.dumps({'error': 'Internal server error'})
         }
+
+
+# ============================================================
+# INVITE FLOW — Phase 2 Multi-Tenant Auth
+# ============================================================
+
+SES_REGION = os.environ.get('SES_REGION', 'eu-west-2')
+SES_FROM_EMAIL = os.environ.get('SES_FROM_EMAIL', 'xo@intellagentic.io')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://xo.intellagentic.io')
+
+ses_client = boto3.client('ses', region_name=SES_REGION)
+
+
+def _route_invite(event, path, method):
+    """Route invite-related requests."""
+    # Authenticated endpoints (check specific paths FIRST before wildcard token match)
+    if path.endswith('/auth/invite/resend') and method == 'POST':
+        return handle_invite_resend(event)
+    if path.endswith('/auth/invite') and method == 'POST':
+        return handle_invite_send(event)
+    if path.endswith('/auth/invite') and method == 'GET':
+        return handle_invite_list(event)
+    if path.endswith('/auth/invite') and method == 'DELETE':
+        return handle_user_deactivate(event)
+
+    # Public endpoints (no auth): GET/POST /auth/invite/{token} and /auth/invite/{token}/accept
+    if '/auth/invite/' in path:
+        token = path.split('/auth/invite/')[-1]
+        if '/' in token:
+            # /auth/invite/{token}/accept
+            token = token.split('/')[0]
+            if method == 'POST':
+                return handle_invite_accept(event, token)
+        else:
+            if method == 'GET':
+                return handle_invite_validate(event, token)
+        return {'statusCode': 405, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Method not allowed'})}
+
+    return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Not found'})}
+
+
+def _verify_invite_caller(event):
+    """Verify JWT and check caller is super_admin or account_admin. Returns (user_payload, error_response)."""
+    headers = event.get('headers', {}) or {}
+    auth_header = headers.get('Authorization') or headers.get('authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return None, {'statusCode': 401, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Unauthorized'})}
+    try:
+        payload = jwt.decode(auth_header[7:], JWT_SECRET, algorithms=['HS256'])
+        account_role = payload.get('account_role')
+        if account_role not in ('super_admin', 'account_admin'):
+            return None, {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Only super_admin and account_admin can manage invites'})}
+        return payload, None
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return None, {'statusCode': 401, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Invalid or expired token'})}
+
+
+def _send_invite_email(to_email, to_name, inviter_name, account_name, invite_token):
+    """Send invite email via SES."""
+    invite_url = f"{FRONTEND_URL}/accept-invite?token={invite_token}"
+
+    # Build invite line — avoid "join XO Capture on XO Capture"
+    if account_name and account_name != 'XO Capture':
+        invite_line_html = f'<strong>{inviter_name}</strong> has invited you to join <strong>{account_name}</strong> on XO Capture.'
+        invite_line_text = f'{inviter_name} has invited you to join {account_name} on XO Capture.'
+    else:
+        invite_line_html = f'<strong>{inviter_name}</strong> has invited you to join XO Capture.'
+        invite_line_text = f'{inviter_name} has invited you to join XO Capture.'
+
+    html_body = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0;">
+<tr><td align="center">
+<table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;">
+<tr><td style="background:#1a1a2e;padding:24px 32px;">
+  <span style="color:#ffffff;font-size:18px;font-weight:700;">Intellagentic</span><span style="color:#CC0000;font-size:18px;font-weight:700;">XO</span>
+</td></tr>
+<tr><td style="padding:32px;">
+  <p style="margin:0 0 16px;font-size:16px;color:#333;">Hi {to_name},</p>
+  <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.6;">
+    {invite_line_html}
+  </p>
+  <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+  <tr><td style="background:#CC0000;border-radius:8px;padding:12px 32px;">
+    <a href="{invite_url}" style="color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;display:block;">Accept Invitation</a>
+  </td></tr>
+  </table>
+  <p style="margin:0 0 8px;font-size:13px;color:#999;">This invitation expires in 30 days.</p>
+  <p style="margin:0;font-size:13px;color:#999;">If you didn't expect this, you can safely ignore this email.</p>
+</td></tr>
+<tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
+  <p style="margin:0;font-size:12px;color:#9ca3af;">XO Capture by Intellagentic</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>"""
+
+    text_body = f"""Hi {to_name},
+
+{invite_line_text}
+
+Accept your invitation: {invite_url}
+
+This invitation expires in 30 days.
+
+XO Capture by Intellagentic"""
+
+    try:
+        ses_client.send_email(
+            Source=f"XO Capture <{SES_FROM_EMAIL}>",
+            Destination={'ToAddresses': [to_email]},
+            Message={
+                'Subject': {'Data': "You've been invited to XO Capture", 'Charset': 'UTF-8'},
+                'Body': {
+                    'Html': {'Data': html_body, 'Charset': 'UTF-8'},
+                    'Text': {'Data': text_body, 'Charset': 'UTF-8'},
+                }
+            }
+        )
+        print(f"Invite email sent to {to_email}")
+        return True
+    except Exception as e:
+        print(f"Failed to send invite email to {to_email}: {e}")
+        return False
+
+
+def handle_invite_send(event):
+    """POST /auth/invite — Send an invitation."""
+    caller, err = _verify_invite_caller(event)
+    if err:
+        return err
+
+    try:
+        body = json.loads(event.get('body', '{}'))
+        email = body.get('email', '').strip().lower()
+        name = body.get('name', '').strip()
+        account_id = body.get('account_id')
+        account_role = body.get('account_role', 'account_user')
+
+        if not email or not name:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'email and name are required'})}
+
+        if account_role not in ('account_admin', 'account_user', 'client_contact'):
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Invalid account_role'})}
+
+        caller_role = caller.get('account_role')
+        caller_account_id = caller.get('account_id')
+
+        # Permission checks
+        if caller_role == 'account_admin':
+            if not account_id:
+                account_id = caller_account_id
+            if str(account_id) != str(caller_account_id):
+                return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Account admins can only invite to their own account'})}
+            if account_role == 'super_admin':
+                return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Account admins cannot grant super_admin role'})}
+
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        # Check if user already exists
+        cur.execute("SELECT id, status FROM users WHERE email = %s", (email,))
+        existing = cur.fetchone()
+
+        if existing and existing[1] == 'active':
+            cur.close()
+            conn.close()
+            return {'statusCode': 409, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'User already exists and is active'})}
+
+        # Generate invite token
+        invite_token = secrets.token_urlsafe(48)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+
+        if existing and existing[1] in ('invited', 'deactivated'):
+            # Reactivate or resend — update existing row
+            user_id = existing[0]
+            cur.execute("""
+                UPDATE users SET name = %s, invite_token = %s, invite_expires_at = %s,
+                    invited_by = %s, invited_at = NOW(), account_id = %s, account_role = %s,
+                    status = 'invited'
+                WHERE id = %s
+            """, (name, invite_token, expires_at, caller['user_id'], account_id, account_role, user_id))
+        else:
+            # New invite
+            try:
+                cur.execute("""
+                    INSERT INTO users (email, password_hash, name, role, account_id, account_role, status,
+                        invite_token, invite_expires_at, invited_by, invited_at)
+                    VALUES (%s, 'invite-pending', %s, 'client', %s, %s, 'invited', %s, %s, %s, NOW())
+                    RETURNING id
+                """, (email, name, account_id, account_role, invite_token, expires_at, caller['user_id']))
+                user_id = cur.fetchone()[0]
+            except psycopg2.errors.UniqueViolation:
+                conn.rollback()
+                cur.close()
+                conn.close()
+                return {'statusCode': 409, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'User with this email already exists'})}
+
+        conn.commit()
+
+        # Get account name for email
+        account_name = 'XO Capture'
+        if account_id:
+            cur.execute("SELECT name FROM accounts WHERE id = %s", (account_id,))
+            arow = cur.fetchone()
+            if arow:
+                account_name = arow[0] or 'XO Capture'
+
+        # Query inviter's actual name from DB (don't rely on JWT which may be stale)
+        cur.execute("SELECT name FROM users WHERE id = %s", (caller['user_id'],))
+        inviter_row = cur.fetchone()
+        inviter_name = (inviter_row[0] if inviter_row and inviter_row[0] else None) or caller.get('name') or caller.get('email', 'An administrator')
+
+        cur.close()
+        conn.close()
+
+        # Send email
+        email_sent = _send_invite_email(email, name, inviter_name, account_name, invite_token)
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'success': True, 'user_id': str(user_id), 'email_sent': email_sent})
+        }
+
+    except Exception as e:
+        print(f"Invite send error: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_invite_resend(event):
+    """POST /auth/invite/resend — Resend an invitation."""
+    caller, err = _verify_invite_caller(event)
+    if err:
+        return err
+
+    try:
+        body = json.loads(event.get('body', '{}'))
+        user_id = body.get('user_id', '').strip()
+
+        if not user_id:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'user_id is required'})}
+
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        cur.execute("SELECT email, name, status, account_id FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'User not found'})}
+
+        if row[2] != 'invited':
+            cur.close()
+            conn.close()
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'User is not in invited status'})}
+
+        # Permission check for account_admin
+        caller_role = caller.get('account_role')
+        if caller_role == 'account_admin' and str(row[3]) != str(caller.get('account_id')):
+            cur.close()
+            conn.close()
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot resend invites for users in other accounts'})}
+
+        invite_token = secrets.token_urlsafe(48)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+
+        cur.execute("""
+            UPDATE users SET invite_token = %s, invite_expires_at = %s, invited_at = NOW()
+            WHERE id = %s
+        """, (invite_token, expires_at, user_id))
+        conn.commit()
+
+        # Get account name
+        account_name = 'XO Capture'
+        if row[3]:
+            cur.execute("SELECT name FROM accounts WHERE id = %s", (row[3],))
+            arow = cur.fetchone()
+            if arow:
+                account_name = arow[0] or 'XO Capture'
+
+        # Query inviter's actual name from DB
+        cur.execute("SELECT name FROM users WHERE id = %s", (caller['user_id'],))
+        inviter_row = cur.fetchone()
+        inviter_name = (inviter_row[0] if inviter_row and inviter_row[0] else None) or caller.get('name') or caller.get('email', 'An administrator')
+
+        cur.close()
+        conn.close()
+
+        email_sent = _send_invite_email(row[0], row[1], inviter_name, account_name, invite_token)
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'success': True, 'email_sent': email_sent})
+        }
+
+    except Exception as e:
+        print(f"Invite resend error: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_invite_validate(event, token):
+    """GET /auth/invite/{token} — Validate an invite token (public, no auth)."""
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT u.email, u.name, u.invite_expires_at, a.name as account_name
+            FROM users u
+            LEFT JOIN accounts a ON u.account_id = a.id
+            WHERE u.invite_token = %s AND u.status = 'invited'
+        """, (token,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not row:
+            return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'valid': False, 'reason': 'invalid'})}
+
+        if row[2] and row[2].replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+            return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'valid': False, 'reason': 'expired'})}
+
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({
+                'valid': True,
+                'email': row[0],
+                'name': row[1],
+                'account_name': row[3] or 'XO Capture',
+            })
+        }
+
+    except Exception as e:
+        print(f"Invite validate error: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_invite_accept(event, token):
+    """POST /auth/invite/{token}/accept — Accept invitation and set password (public, no auth)."""
+    try:
+        body = json.loads(event.get('body', '{}'))
+        password = body.get('password', '')
+
+        if len(password) < 8:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Password must be at least 8 characters'})}
+
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT id, email, name, invite_expires_at, role, account_id, account_role
+            FROM users
+            WHERE invite_token = %s AND status = 'invited'
+        """, (token,))
+        row = cur.fetchone()
+
+        if not row:
+            cur.close()
+            conn.close()
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Invalid invitation token'})}
+
+        if row[3] and row[3].replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+            cur.close()
+            conn.close()
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Invitation has expired. Please ask your administrator to resend.'})}
+
+        user_id, email, name, _, role, account_id, account_role = row
+
+        # Hash password and activate user
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        cur.execute("""
+            UPDATE users SET
+                password_hash = %s, status = 'active',
+                invite_token = NULL, invite_expires_at = NULL
+            WHERE id = %s
+        """, (password_hash, user_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        print(f"Invite accepted: {email} (account_role={account_role})")
+
+        # Return JWT to log them in immediately
+        return _success_response(user_id, email, name, role=role, account_id=account_id)
+
+    except Exception as e:
+        print(f"Invite accept error: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_invite_list(event):
+    """GET /auth/invite — List invited users for an account."""
+    caller, err = _verify_invite_caller(event)
+    if err:
+        return err
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        caller_role = caller.get('account_role')
+        caller_account_id = caller.get('account_id')
+
+        if caller_role == 'super_admin':
+            cur.execute("""
+                SELECT u.id, u.email, u.name, u.account_role, u.status, u.invited_at, u.account_id, a.name as account_name
+                FROM users u
+                LEFT JOIN accounts a ON u.account_id = a.id
+                ORDER BY u.created_at DESC
+            """)
+        else:
+            cur.execute("""
+                SELECT u.id, u.email, u.name, u.account_role, u.status, u.invited_at, u.account_id, a.name as account_name
+                FROM users u
+                LEFT JOIN accounts a ON u.account_id = a.id
+                WHERE u.account_id = %s
+                ORDER BY u.created_at DESC
+            """, (caller_account_id,))
+
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        users = [{
+            'id': str(r[0]), 'email': r[1], 'name': r[2],
+            'account_role': r[3], 'status': r[4],
+            'invited_at': r[5].isoformat() if r[5] else None,
+            'account_id': r[6], 'account_name': r[7] or '',
+        } for r in rows]
+
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'users': users})}
+
+    except Exception as e:
+        print(f"Invite list error: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_user_deactivate(event):
+    """DELETE /auth/invite — Deactivate (soft delete) a user."""
+    caller, err = _verify_invite_caller(event)
+    if err:
+        return err
+
+    try:
+        params = event.get('queryStringParameters') or {}
+        user_id = params.get('user_id', '').strip()
+
+        if not user_id:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'user_id query param is required'})}
+
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        cur.execute("SELECT email, name, account_id, account_role FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'User not found'})}
+
+        # Permission check: account_admin can only deactivate users in their own account
+        caller_role = caller.get('account_role')
+        if caller_role == 'account_admin' and str(row[2]) != str(caller.get('account_id')):
+            cur.close()
+            conn.close()
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot remove users from other accounts'})}
+
+        # Prevent deactivating super_admins unless caller is also super_admin
+        if row[3] == 'super_admin' and caller_role != 'super_admin':
+            cur.close()
+            conn.close()
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot deactivate super admins'})}
+
+        # Prevent self-deactivation
+        if str(user_id) == str(caller.get('user_id')):
+            cur.close()
+            conn.close()
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot deactivate yourself'})}
+
+        cur.execute("UPDATE users SET status = 'deactivated' WHERE id = %s", (user_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        print(f"User deactivated: {row[0]} by {caller.get('email')}")
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'success': True, 'deactivated': True})}
+
+    except Exception as e:
+        print(f"User deactivate error: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def _route_users(event, path, method):
+    """Route user management requests."""
+    # /auth/users/{userId}/clients
+    if '/clients' in path:
+        parts = path.split('/auth/users/')[-1].split('/')
+        user_id = parts[0] if parts else ''
+        if method == 'GET':
+            return handle_get_user_clients(event, user_id)
+        elif method == 'POST':
+            return handle_set_user_clients(event, user_id)
+    return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Not found'})}
+
+
+def handle_get_user_clients(event, target_user_id):
+    """GET /auth/users/{userId}/clients — Get client assignments for a user."""
+    caller, err = _verify_invite_caller(event)
+    if err:
+        return err
+
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        # Verify target user exists and caller has access
+        cur.execute("SELECT account_id FROM users WHERE id = %s", (target_user_id,))
+        target = cur.fetchone()
+        if not target:
+            cur.close(); conn.close()
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'User not found'})}
+
+        # account_admin can only see assignments for users in their account
+        if caller.get('account_role') == 'account_admin' and str(target[0]) != str(caller.get('account_id')):
+            cur.close(); conn.close()
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot view assignments for users in other accounts'})}
+
+        cur.execute("""
+            SELECT uca.client_id, c.company_name, c.s3_folder
+            FROM user_client_assignments uca
+            JOIN clients c ON uca.client_id = c.id
+            WHERE uca.user_id = %s
+        """, (target_user_id,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+
+        assignments = [{'client_id': str(r[0]), 'company_name': r[1] or '', 's3_folder': r[2] or ''} for r in rows]
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'assignments': assignments})}
+
+    except Exception as e:
+        print(f"Get user clients error: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_set_user_clients(event, target_user_id):
+    """POST /auth/users/{userId}/clients — Set client assignments (replace all)."""
+    caller, err = _verify_invite_caller(event)
+    if err:
+        return err
+
+    try:
+        body = json.loads(event.get('body', '{}'))
+        client_ids = body.get('client_ids', [])
+
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        # Verify target user exists and caller has access
+        cur.execute("SELECT account_id FROM users WHERE id = %s", (target_user_id,))
+        target = cur.fetchone()
+        if not target:
+            cur.close(); conn.close()
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'User not found'})}
+
+        if caller.get('account_role') == 'account_admin' and str(target[0]) != str(caller.get('account_id')):
+            cur.close(); conn.close()
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot assign clients for users in other accounts'})}
+
+        # Delete existing assignments
+        cur.execute("DELETE FROM user_client_assignments WHERE user_id = %s", (target_user_id,))
+
+        # Insert new assignments
+        count = 0
+        for cid in client_ids:
+            try:
+                cur.execute("""
+                    INSERT INTO user_client_assignments (user_id, client_id, assigned_by)
+                    VALUES (%s, %s, %s)
+                """, (target_user_id, cid, caller['user_id']))
+                count += 1
+            except Exception:
+                pass  # Skip invalid client_ids
+
+        conn.commit()
+        cur.close(); conn.close()
+
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'success': True, 'assigned': count})}
+
+    except Exception as e:
+        print(f"Set user clients error: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}

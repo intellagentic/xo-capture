@@ -124,8 +124,8 @@ def _run_hubspot_migrations():
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS hubspot_last_sync TIMESTAMP;")
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS hubspot_last_enrichment_id VARCHAR(50);")
         # Partners table
-        cur.execute("ALTER TABLE partners ADD COLUMN IF NOT EXISTS hubspot_company_id VARCHAR(50);")
-        cur.execute("ALTER TABLE partners ADD COLUMN IF NOT EXISTS hubspot_last_sync TIMESTAMP;")
+        cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS hubspot_company_id VARCHAR(50);")
+        cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS hubspot_last_sync TIMESTAMP;")
         # system_config table (should already exist from clients lambda)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS system_config (
@@ -837,7 +837,7 @@ def _pull_companies(access_token, conn, record_type='client'):
                     if resolved_xo_id:
                         _pull_contacts_for_company(access_token, conn, hs_id, resolved_xo_id)
                 elif record_type == 'partner':
-                    _pull_partner_record(cur, conn, hs_id, xo_id, props)
+                    _pull_account_record(cur, conn, hs_id, xo_id, props)
 
             # Pagination
             paging = resp.get('paging', {})
@@ -1030,31 +1030,31 @@ def _pull_client_record(cur, conn, hs_id, xo_id, props):
     return None, None
 
 
-def _pull_partner_record(cur, conn, hs_id, xo_id, props):
-    """Create or update a partner record from HubSpot company data."""
+def _pull_account_record(cur, conn, hs_id, xo_id, props):
+    """Create or update an account record from HubSpot company data."""
     name = props.get('name', '')
 
     if xo_id:
         cur.execute("""
-            UPDATE partners SET
+            UPDATE accounts SET
                 name = COALESCE(NULLIF(%s, ''), name),
                 hubspot_company_id = %s,
                 hubspot_last_sync = NOW()
             WHERE id = %s
         """, (name, hs_id, xo_id))
     else:
-        cur.execute("SELECT id FROM partners WHERE hubspot_company_id = %s", (hs_id,))
+        cur.execute("SELECT id FROM accounts WHERE hubspot_company_id = %s", (hs_id,))
         existing = cur.fetchone()
         if existing:
             cur.execute("""
-                UPDATE partners SET
+                UPDATE accounts SET
                     name = COALESCE(NULLIF(%s, ''), name),
                     hubspot_last_sync = NOW()
                 WHERE hubspot_company_id = %s
             """, (name, hs_id))
         else:
             cur.execute("""
-                INSERT INTO partners (name, hubspot_company_id, hubspot_last_sync)
+                INSERT INTO accounts (name, hubspot_company_id, hubspot_last_sync)
                 VALUES (%s, %s, NOW())
             """, (name, hs_id))
 
@@ -1289,73 +1289,73 @@ def handle_sync(event, user):
         cur = conn.cursor()
         api_calls = {'before': 0, 'after': 0}
 
-        # Push partners — only those changed since last sync
+        # Push accounts — only those changed since last sync
         cur.execute("""
             SELECT id, name, company, email, website, hubspot_company_id,
                    contacts_json, addresses_json
-            FROM partners
+            FROM accounts
             WHERE hubspot_last_sync IS NULL OR updated_at > hubspot_last_sync
         """)
-        partner_rows = cur.fetchall()
-        partner_cols = ['id', 'name', 'company', 'email', 'website', 'hubspot_company_id',
+        account_rows = cur.fetchall()
+        account_cols = ['id', 'name', 'company', 'email', 'website', 'hubspot_company_id',
                         'contacts_json', 'addresses_json']
-        partners_pushed = 0
-        partner_hs_map = {}
+        accounts_pushed = 0
+        account_hs_map = {}
 
-        # Also load all partner hubspot IDs for association mapping
-        cur.execute("SELECT id, hubspot_company_id FROM partners WHERE hubspot_company_id IS NOT NULL")
+        # Also load all account hubspot IDs for association mapping
+        cur.execute("SELECT id, hubspot_company_id FROM accounts WHERE hubspot_company_id IS NOT NULL")
         for pid, phsid in cur.fetchall():
-            partner_hs_map[pid] = phsid
+            account_hs_map[pid] = phsid
 
         # Batch: separate creates vs updates
-        partner_creates = []
-        partner_updates = []
-        for row in partner_rows:
-            record = dict(zip(partner_cols, row))
+        account_creates = []
+        account_updates = []
+        for row in account_rows:
+            record = dict(zip(account_cols, row))
             props = _build_company_properties(record, 'partner')
             if record.get('hubspot_company_id'):
-                partner_updates.append({'id': record['hubspot_company_id'], 'properties': props, '_xo_id': record['id']})
+                account_updates.append({'id': record['hubspot_company_id'], 'properties': props, '_xo_id': record['id']})
             else:
-                partner_creates.append({'properties': props, '_xo_id': record['id']})
+                account_creates.append({'properties': props, '_xo_id': record['id']})
 
-        # Batch create partners
-        if partner_creates:
+        # Batch create accounts
+        if account_creates:
             try:
-                batch_body = {'inputs': [{'properties': c['properties']} for c in partner_creates]}
+                batch_body = {'inputs': [{'properties': c['properties']} for c in account_creates]}
                 resp = _hubspot_api('POST', '/crm/v3/objects/companies/batch/create', access_token, json_body=batch_body)
                 api_calls['after'] += 1
                 for i, result in enumerate(resp.get('results', [])):
                     hs_id = result['id']
-                    xo_id = partner_creates[i]['_xo_id']
-                    partner_hs_map[xo_id] = hs_id
-                    cur.execute("UPDATE partners SET hubspot_company_id = %s, hubspot_last_sync = NOW() WHERE id = %s",
+                    xo_id = account_creates[i]['_xo_id']
+                    account_hs_map[xo_id] = hs_id
+                    cur.execute("UPDATE accounts SET hubspot_company_id = %s, hubspot_last_sync = NOW() WHERE id = %s",
                                 (hs_id, xo_id))
-                    partners_pushed += 1
+                    accounts_pushed += 1
             except Exception as e:
-                logger.warning("Batch create partners failed: %s", e)
+                logger.warning("Batch create accounts failed: %s", e)
                 # Fallback to individual creates
-                for c in partner_creates:
+                for c in account_creates:
                     try:
-                        hs_id = _push_company(access_token, dict(zip(partner_cols, [c['_xo_id']] + [None]*7)), 'partner')
-                        partner_hs_map[c['_xo_id']] = hs_id
-                        cur.execute("UPDATE partners SET hubspot_company_id = %s, hubspot_last_sync = NOW() WHERE id = %s",
+                        hs_id = _push_company(access_token, dict(zip(account_cols, [c['_xo_id']] + [None]*7)), 'partner')
+                        account_hs_map[c['_xo_id']] = hs_id
+                        cur.execute("UPDATE accounts SET hubspot_company_id = %s, hubspot_last_sync = NOW() WHERE id = %s",
                                     (hs_id, c['_xo_id']))
-                        partners_pushed += 1
+                        accounts_pushed += 1
                     except Exception as e2:
-                        logger.warning("Failed to push partner %s: %s", c['_xo_id'], e2)
+                        logger.warning("Failed to push account %s: %s", c['_xo_id'], e2)
 
-        # Batch update partners
-        if partner_updates:
+        # Batch update accounts
+        if account_updates:
             try:
-                batch_body = {'inputs': [{'id': u['id'], 'properties': u['properties']} for u in partner_updates]}
+                batch_body = {'inputs': [{'id': u['id'], 'properties': u['properties']} for u in account_updates]}
                 _hubspot_api('POST', '/crm/v3/objects/companies/batch/update', access_token, json_body=batch_body)
                 api_calls['after'] += 1
-                for u in partner_updates:
-                    partner_hs_map[u['_xo_id']] = u['id']
-                    cur.execute("UPDATE partners SET hubspot_last_sync = NOW() WHERE id = %s", (u['_xo_id'],))
-                    partners_pushed += 1
+                for u in account_updates:
+                    account_hs_map[u['_xo_id']] = u['id']
+                    cur.execute("UPDATE accounts SET hubspot_last_sync = NOW() WHERE id = %s", (u['_xo_id'],))
+                    accounts_pushed += 1
             except Exception as e:
-                logger.warning("Batch update partners failed: %s", e)
+                logger.warning("Batch update accounts failed: %s", e)
 
         # Push clients — only those changed since last sync
         cur.execute("""
@@ -1363,7 +1363,7 @@ def handle_sync(event, user):
                    future_plans, status, source, nda_signed, nda_signed_at,
                    intellagentic_lead, pain_points_json, contacts_json,
                    addresses_json, s3_folder, hubspot_company_id,
-                   hubspot_contact_id, partner_id, encryption_key, company_linkedin
+                   hubspot_contact_id, account_id, encryption_key, company_linkedin
             FROM clients
             WHERE (status != 'deleted' OR status IS NULL)
               AND (hubspot_last_sync IS NULL OR updated_at > hubspot_last_sync)
@@ -1373,7 +1373,7 @@ def handle_sync(event, user):
                        'future_plans', 'status', 'source', 'nda_signed', 'nda_signed_at',
                        'intellagentic_lead', 'pain_points_json', 'contacts_json',
                        'addresses_json', 's3_folder', 'hubspot_company_id',
-                       'hubspot_contact_id', 'partner_id', 'encryption_key', 'company_linkedin']
+                       'hubspot_contact_id', 'account_id', 'encryption_key', 'company_linkedin']
         clients_pushed = 0
 
         # Separate creates vs updates for batch
@@ -1393,7 +1393,7 @@ def handle_sync(event, user):
             else:
                 client_creates.append({'properties': props, '_xo_id': str(record['id'])})
 
-        api_calls['before'] = len(client_creates) + len(client_updates) + len(partner_creates) + len(partner_updates)
+        api_calls['before'] = len(client_creates) + len(client_updates) + len(account_creates) + len(account_updates)
 
         # Batch create clients (max 100 per batch)
         for batch_start in range(0, len(client_creates), 100):
@@ -1458,10 +1458,10 @@ def handle_sync(event, user):
                     cur.execute("UPDATE clients SET hubspot_contact_id = %s WHERE id = %s AND hubspot_contact_id IS NULL",
                                 (hs_contact_id, xo_id))
 
-                # Partner-client association
-                partner_id = record.get('partner_id')
-                if partner_id and partner_id in partner_hs_map:
-                    _create_company_association(access_token, partner_hs_map[partner_id], hs_company_id)
+                # Account-client association
+                account_id = record.get('account_id')
+                if account_id and account_id in account_hs_map:
+                    _create_company_association(access_token, account_hs_map[account_id], hs_company_id)
                 elif intellagentic_company_id:
                     _create_company_association(access_token, intellagentic_company_id, hs_company_id)
             except Exception as e:
@@ -1470,14 +1470,14 @@ def handle_sync(event, user):
         conn.commit()
         cur.close()
 
-        logger.info("Push complete: %s partners, %s clients. API calls: %s individual -> %s batch",
-                     partners_pushed, clients_pushed, api_calls['before'], api_calls['after'])
+        logger.info("Push complete: %s accounts, %s clients. API calls: %s individual -> %s batch",
+                     accounts_pushed, clients_pushed, api_calls['before'], api_calls['after'])
 
         # ── Phase 2: Pull HubSpot -> XO ──
         clients_created, clients_updated, client_conflicts = _pull_companies(access_token, conn, 'client')
-        partners_created, partners_updated, _partner_conflicts = _pull_companies(access_token, conn, 'partner')
+        accounts_created, accounts_updated, _account_conflicts = _pull_companies(access_token, conn, 'partner')
 
-        all_conflicts = client_conflicts + _partner_conflicts
+        all_conflicts = client_conflicts + _account_conflicts
 
         # Update last sync timestamp
         _set_config(conn, 'hubspot_last_full_sync', datetime.now(timezone.utc).isoformat())
@@ -1488,14 +1488,14 @@ def handle_sync(event, user):
             'body': json.dumps({
                 'status': 'complete',
                 'pushed': {
-                    'partners': partners_pushed,
+                    'accounts': accounts_pushed,
                     'clients': clients_pushed,
                 },
                 'pulled': {
                     'clients_created': clients_created,
                     'clients_updated': clients_updated,
-                    'partners_created': partners_created,
-                    'partners_updated': partners_updated,
+                    'accounts_created': accounts_created,
+                    'accounts_updated': accounts_updated,
                 },
                 'conflicts': all_conflicts,
                 'optimization': {
@@ -1544,7 +1544,7 @@ def handle_sync_push(event, user):
                    future_plans, status, source, nda_signed, nda_signed_at,
                    intellagentic_lead, pain_points_json, contacts_json,
                    addresses_json, s3_folder, hubspot_company_id,
-                   hubspot_contact_id, partner_id, encryption_key, company_linkedin
+                   hubspot_contact_id, account_id, encryption_key, company_linkedin
             FROM clients WHERE id = %s
         """, (client_id,))
         row = cur.fetchone()
@@ -1561,7 +1561,7 @@ def handle_sync_push(event, user):
                 'future_plans', 'status', 'source', 'nda_signed', 'nda_signed_at',
                 'intellagentic_lead', 'pain_points_json', 'contacts_json',
                 'addresses_json', 's3_folder', 'hubspot_company_id',
-                'hubspot_contact_id', 'partner_id', 'encryption_key', 'company_linkedin']
+                'hubspot_contact_id', 'account_id', 'encryption_key', 'company_linkedin']
         record = dict(zip(cols, row))
         client_key = unwrap_client_key(record.get('encryption_key')) if record.get('encryption_key') else None
 
@@ -1577,12 +1577,12 @@ def handle_sync_push(event, user):
         """, (hs_company_id, hs_contact_id, client_id))
         conn.commit()
 
-        # Handle partner association
+        # Handle account association
         intellagentic_company_id = _get_config(conn, 'hubspot_intellagentic_company_id')
-        partner_id = record.get('partner_id')
-        if partner_id:
+        account_id = record.get('account_id')
+        if account_id:
             cur2 = conn.cursor()
-            cur2.execute("SELECT hubspot_company_id FROM partners WHERE id = %s", (partner_id,))
+            cur2.execute("SELECT hubspot_company_id FROM accounts WHERE id = %s", (account_id,))
             prow = cur2.fetchone()
             cur2.close()
             if prow and prow[0]:
@@ -1649,7 +1649,7 @@ def handle_sync_pull(event, user):
 
         cur = conn.cursor()
         if record_type == 'partner':
-            _pull_partner_record(cur, conn, hubspot_company_id, xo_id, props)
+            _pull_account_record(cur, conn, hubspot_company_id, xo_id, props)
         else:
             _pull_client_record(cur, conn, hubspot_company_id, xo_id, props)
         conn.commit()
@@ -1805,7 +1805,7 @@ def handle_resolve_conflict(event, user):
                        future_plans, status, source, nda_signed, nda_signed_at,
                        intellagentic_lead, pain_points_json, contacts_json,
                        addresses_json, s3_folder, hubspot_company_id,
-                       hubspot_contact_id, partner_id, encryption_key, company_linkedin
+                       hubspot_contact_id, account_id, encryption_key, company_linkedin
                 FROM clients WHERE id = %s
             """, (record_id,))
             row = cur.fetchone()
@@ -1814,7 +1814,7 @@ def handle_resolve_conflict(event, user):
                         'future_plans', 'status', 'source', 'nda_signed', 'nda_signed_at',
                         'intellagentic_lead', 'pain_points_json', 'contacts_json',
                         'addresses_json', 's3_folder', 'hubspot_company_id',
-                        'hubspot_contact_id', 'partner_id', 'encryption_key', 'company_linkedin']
+                        'hubspot_contact_id', 'account_id', 'encryption_key', 'company_linkedin']
                 record = dict(zip(cols, row))
                 client_key = unwrap_client_key(record.get('encryption_key')) if record.get('encryption_key') else None
                 _push_company(access_token, record, record_type, client_key)
@@ -1877,12 +1877,12 @@ def handle_webhook(event):
         _ensure_custom_properties(access_token)
 
         clients_created, clients_updated, conflicts = _pull_companies(access_token, conn, 'client')
-        partners_created, partners_updated, _ = _pull_companies(access_token, conn, 'partner')
+        accounts_created, accounts_updated, _ = _pull_companies(access_token, conn, 'partner')
 
         _set_config(conn, 'hubspot_last_full_sync', datetime.now(timezone.utc).isoformat())
 
-        logger.info("Webhook pull sync complete: clients=%s new + %s updated, partners=%s new + %s updated",
-                     clients_created, clients_updated, partners_created, partners_updated)
+        logger.info("Webhook pull sync complete: clients=%s new + %s updated, accounts=%s new + %s updated",
+                     clients_created, clients_updated, accounts_created, accounts_updated)
 
         return {
             'statusCode': 200,
@@ -1893,8 +1893,8 @@ def handle_webhook(event):
                 'pulled': {
                     'clients_created': clients_created,
                     'clients_updated': clients_updated,
-                    'partners_created': partners_created,
-                    'partners_updated': partners_updated,
+                    'accounts_created': accounts_created,
+                    'accounts_updated': accounts_updated,
                 },
                 'conflicts': conflicts,
             })
@@ -1927,7 +1927,7 @@ def handle_mapping(event, user):
             'pain_points_json': 'xo_pain_points_json (custom text, JSON array)',
             'contacts_json': 'Multiple HubSpot Contacts associated to Company (name, email, phone, title, linkedin)',
             'addresses_json': 'xo_addresses_json (custom text, JSON array) + HubSpot standard address from first entry',
-            'partner_id': 'Company-to-Company association with partner HubSpot Company',
+            'account_id': 'Company-to-Company association with Partner HubSpot Company',
         },
         'custom_properties': {
             'xo_record_type': 'partner | client',
@@ -1950,7 +1950,7 @@ def handle_mapping(event, user):
         'dedup_strategy': {
             'primary': 'Match on website/domain (normalized, case-insensitive)',
             'fallback': 'Match on company name (fuzzy/contains)',
-            'tracking': 'hubspot_company_id stored in clients/partners table',
+            'tracking': 'hubspot_company_id stored in clients/accounts table',
         },
         'pull_behavior': {
             'existing_records': 'Companies pushed from XO (have xo_client_id) sync normally regardless of xo_sync_enabled',

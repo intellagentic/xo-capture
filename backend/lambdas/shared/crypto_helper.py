@@ -1,7 +1,7 @@
 """
 XO Platform - Shared AES Encryption Helper
 Two-tier encryption:
-  1. Master key (AES_MASTER_KEY env var) — encrypts client keys + system-level data (users, partners)
+  1. Master key (AES_MASTER_KEY env var) — encrypts client keys + system-level data (users, accounts)
   2. Per-client key (stored encrypted in clients.encryption_key) — encrypts client PII + S3 files
 
 Setup:
@@ -152,11 +152,11 @@ def _decrypt_with_raw_key(raw_key, token):
 
 
 # ──────────────────────────────────────────────
-# Master-key encrypt/decrypt (system-level: users, partners)
+# Master-key encrypt/decrypt (system-level: users, accounts)
 # ──────────────────────────────────────────────
 
 def encrypt(plaintext):
-    """Encrypt with master key. For system-level data (users, partners)."""
+    """Encrypt with master key. For system-level data (users, accounts)."""
     if not plaintext:
         return plaintext
     if not _encryption_available():
@@ -166,7 +166,7 @@ def encrypt(plaintext):
 
 
 def decrypt(token):
-    """Decrypt with master key. For system-level data (users, partners)."""
+    """Decrypt with master key. For system-level data (users, accounts)."""
     if not token:
         return token
     if not _encryption_available():

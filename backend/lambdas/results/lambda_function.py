@@ -38,23 +38,36 @@ def _get_enrichment_results(client_id, user, engagement_id=None):
         eng_filter = " AND e.engagement_id = %s"
         eng_params = [engagement_id]
 
-    if is_admin:
+    account_role = user.get('account_role')
+
+    if account_role == 'super_admin' or is_admin:
         cur.execute(f"""
             SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
-            FROM enrichments e
-            JOIN clients c ON e.client_id = c.id
+            FROM enrichments e JOIN clients c ON e.client_id = c.id
             WHERE c.s3_folder = %s{eng_filter}
-            ORDER BY e.started_at DESC
-            LIMIT 1
+            ORDER BY e.started_at DESC LIMIT 1
         """, (client_id, *eng_params))
+    elif account_role == 'account_admin':
+        cur.execute(f"""
+            SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
+            FROM enrichments e JOIN clients c ON e.client_id = c.id
+            WHERE c.s3_folder = %s AND c.account_id = %s{eng_filter}
+            ORDER BY e.started_at DESC LIMIT 1
+        """, (client_id, user.get('account_id'), *eng_params))
+    elif account_role in ('account_user', 'client_contact'):
+        cur.execute(f"""
+            SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
+            FROM enrichments e JOIN clients c ON e.client_id = c.id
+            JOIN user_client_assignments uca ON c.id = uca.client_id
+            WHERE c.s3_folder = %s AND uca.user_id = %s{eng_filter}
+            ORDER BY e.started_at DESC LIMIT 1
+        """, (client_id, user['user_id'], *eng_params))
     else:
         cur.execute(f"""
             SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
-            FROM enrichments e
-            JOIN clients c ON e.client_id = c.id
+            FROM enrichments e JOIN clients c ON e.client_id = c.id
             WHERE c.s3_folder = %s AND c.user_id = %s{eng_filter}
-            ORDER BY e.started_at DESC
-            LIMIT 1
+            ORDER BY e.started_at DESC LIMIT 1
         """, (client_id, user['user_id'], *eng_params))
 
     row = cur.fetchone()

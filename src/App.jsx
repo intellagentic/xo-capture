@@ -804,7 +804,7 @@ function ShareLinkModal({ clientId, onClose }) {
 // ============================================================
 // DASHBOARD SCREEN — Admin multi-client view
 // ============================================================
-function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isPartner, partners }) {
+function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isAccount, accounts }) {
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -826,9 +826,9 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isPartner, p
       )
     }
     if (filterPartner === 'direct') {
-      result = result.filter(c => !c.partner_id)
+      result = result.filter(c => !c.account_id)
     } else if (filterPartner) {
-      result = result.filter(c => String(c.partner_id) === filterPartner)
+      result = result.filter(c => String(c.account_id) === filterPartner)
     }
     if (filterIndustry) {
       result = result.filter(c => c.industry === filterIndustry)
@@ -956,9 +956,9 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isPartner, p
         <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {client.company_name}
         </span>
-        {isAdmin && client.partner_name && (
+        {isAdmin && client.account_name && (
           <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted, #9ca3af)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            via {client.partner_name}
+            via {client.account_name}
           </span>
         )}
       </div>
@@ -1019,7 +1019,7 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isPartner, p
       {/* Header row: title + search + new client */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.875rem', flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-          {isPartner && !isAdmin ? 'My Clients' : 'All Clients'} <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b7280)', fontSize: '0.8125rem' }}>({filteredClients.length})</span>
+          {isAccount && !isAdmin ? 'My Clients' : 'All Clients'} <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b7280)', fontSize: '0.8125rem' }}>({filteredClients.length})</span>
         </h2>
         <div style={{ position: 'relative', flex: '1 1 140px', minWidth: '120px', maxWidth: '220px' }}>
           <Search size={13} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #9ca3af)' }} />
@@ -1049,7 +1049,7 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isPartner, p
           >
             <option value="">All Partners</option>
             <option value="direct">Direct (Intellagentic)</option>
-            {partners.map(p => <option key={p.id} value={String(p.id)}>{p.company || p.name}</option>)}
+            {accounts.map(p => <option key={p.id} value={String(p.id)}>{p.company || p.name}</option>)}
           </select>
         )}
         {industries.length > 0 && (
@@ -1537,6 +1537,120 @@ const LEGAL_STYLES = {
   footer: { marginTop: '3rem', paddingTop: '1.5rem', borderTop: '1px solid #e0e0e0', fontSize: '0.82rem', color: '#888', textAlign: 'center', lineHeight: 1.6 },
 }
 
+// ============================================================
+// ACCEPT INVITE PAGE — /accept-invite?token=xxx (public, no auth)
+// ============================================================
+function AcceptInvitePage({ onLogin }) {
+  const [token] = useState(() => new URLSearchParams(window.location.search).get('token') || '')
+  const [loading, setLoading] = useState(true)
+  const [inviteData, setInviteData] = useState(null)
+  const [error, setError] = useState(null)
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+
+  useEffect(() => {
+    if (!token) { setError('invalid'); setLoading(false); return }
+    fetch(`${API_BASE}/auth/invite/${token}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.valid) setInviteData(data)
+        else setError(data.reason || 'invalid')
+      })
+      .catch(() => setError('invalid'))
+      .finally(() => setLoading(false))
+  }, [token])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (password.length < 8) { setSubmitError('Password must be at least 8 characters'); return }
+    if (password !== confirmPassword) { setSubmitError('Passwords do not match'); return }
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      const res = await fetch(`${API_BASE}/auth/invite/${token}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to accept invitation')
+      if (data.token && data.user) {
+        onLogin(data.user, data.token)
+      }
+    } catch (err) {
+      setSubmitError(err.message)
+    }
+    setSubmitting(false)
+  }
+
+  const containerStyle = { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0a0a0f 100%)' }
+  const cardStyle = { background: '#fff', borderRadius: 16, padding: '2.5rem', width: '90%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }
+  const inputStyle = { width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: 8, fontSize: '0.9rem', fontFamily: 'inherit', outline: 'none', marginBottom: '0.75rem' }
+
+  if (loading) return (
+    <div style={containerStyle}>
+      <div style={cardStyle}>
+        <div style={{ textAlign: 'center' }}>
+          <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: '#dc2626', margin: '0 auto' }} />
+          <p style={{ marginTop: '1rem', color: '#6b7280' }}>Validating invitation...</p>
+        </div>
+      </div>
+    </div>
+  )
+
+  if (error) return (
+    <div style={containerStyle}>
+      <div style={cardStyle}>
+        <div style={{ textAlign: 'center' }}>
+          <AlertCircle size={40} style={{ color: '#dc2626', margin: '0 auto 1rem' }} />
+          {error === 'expired' ? (
+            <>
+              <h2 style={{ fontSize: '1.25rem', color: '#111', marginBottom: '0.5rem' }}>Invitation Expired</h2>
+              <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>This invitation has expired. Please contact your administrator to resend.</p>
+            </>
+          ) : (
+            <>
+              <h2 style={{ fontSize: '1.25rem', color: '#111', marginBottom: '0.5rem' }}>Invalid Invitation</h2>
+              <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>This invitation link is invalid or has already been used.</p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={containerStyle}>
+      <div style={cardStyle}>
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', marginBottom: '1rem' }}>
+            <span style={{ fontWeight: 700, fontSize: '1.2rem', color: '#1a1a2e' }}>Intellagentic</span>
+            <span style={{ fontWeight: 700, fontSize: '1.2rem', color: '#CC0000' }}>XO</span>
+          </div>
+          <h2 style={{ fontSize: '1.25rem', color: '#111', marginBottom: '0.25rem' }}>Welcome, {inviteData.name}</h2>
+          <p style={{ color: '#6b7280', fontSize: '0.85rem' }}>You've been invited to join <strong>{inviteData.account_name}</strong></p>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: '0.25rem' }}>Email</label>
+          <input type="email" value={inviteData.email} disabled style={{ ...inputStyle, background: '#f3f4f6', color: '#6b7280' }} />
+          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: '0.25rem' }}>Password</label>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimum 8 characters" style={inputStyle} autoFocus />
+          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: '0.25rem' }}>Confirm Password</label>
+          <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirm password" style={inputStyle} />
+          {submitError && <p style={{ color: '#dc2626', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{submitError}</p>}
+          <button type="submit" disabled={submitting || !password || !confirmPassword}
+            style={{ width: '100%', padding: '0.75rem', background: '#CC0000', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.9rem', fontWeight: 600, cursor: submitting ? 'wait' : 'pointer', opacity: submitting ? 0.7 : 1, marginTop: '0.5rem' }}>
+            {submitting ? 'Creating Account...' : 'Create Account'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+
 function LegalHeader({ title }) {
   return (
     <>
@@ -1826,6 +1940,13 @@ export default function App() {
   if (window.location.pathname === '/invite') {
     return <InvitePage />
   }
+  if (window.location.pathname === '/accept-invite') {
+    return <AcceptInvitePage onLogin={(userData, token) => {
+      sessionStorage.setItem('xo-token', token)
+      sessionStorage.setItem('xo-user', JSON.stringify(userData))
+      window.location.href = '/'
+    }} />
+  }
 
   // Auth state -- restored from sessionStorage synchronously
   const [initialAuth] = useState(getInitialAuth)
@@ -1840,7 +1961,7 @@ export default function App() {
 
   // Admin / Partner state
   const [isAdmin, setIsAdmin] = useState(initialAuth.user?.is_admin || false)
-  const [isPartner, setIsPartner] = useState(initialAuth.user?.is_partner || false)
+  const [isAccount, setIsAccount] = useState(initialAuth.user?.is_account || false)
 
   // Magic token URL handling — loading state
   const [magicTokenLoading, setMagicTokenLoading] = useState(() => {
@@ -1859,11 +1980,12 @@ export default function App() {
     setAuthToken(token)
     setIsLoggedIn(true)
     const admin = !!userData.is_admin
-    const partner = !!userData.is_partner
+    const partner = !!userData.is_account
     setIsAdmin(admin)
-    setIsPartner(partner)
+    setIsAccount(partner)
     if (userData.preferred_model) setPreferredModel(userData.preferred_model)
-    if (admin || partner) {
+    const hasClientList = admin || partner || ['account_user', 'account_admin'].includes(userData.account_role)
+    if (hasClientList) {
       setCurrentScreen('dashboard')
       setInWorkspace(false)
     } else if (userData.is_client && userData.client_id) {
@@ -1899,7 +2021,7 @@ export default function App() {
     setAuthToken(null)
     setIsLoggedIn(false)
     setIsAdmin(false)
-    setIsPartner(false)
+    setIsAccount(false)
     setClientId(null)
     sessionStorage.removeItem('xo-token')
     sessionStorage.removeItem('xo-user')
@@ -1908,10 +2030,10 @@ export default function App() {
   }
 
   const [currentScreen, setCurrentScreen] = useState(() => {
-    return (initialAuth.user?.is_admin || initialAuth.user?.is_partner) ? 'dashboard' : 'upload'
+    return (initialAuth.user?.is_admin || initialAuth.user?.is_account || ['account_user', 'account_admin'].includes(initialAuth.user?.account_role)) ? 'dashboard' : 'upload'
   }) // dashboard | upload | enrich | results | skills | configuration
   const [inWorkspace, setInWorkspace] = useState(() => {
-    return !(initialAuth.user?.is_admin || initialAuth.user?.is_partner)
+    return !(initialAuth.user?.is_admin || initialAuth.user?.is_account)
   })
   const [showModal, setShowModal] = useState(false)
   const [showCompanyModal, setShowCompanyModal] = useState(false)
@@ -1945,7 +2067,7 @@ export default function App() {
   const [activeEngagement, setActiveEngagement] = useState(null)
 
   // Partners state (for admin partner management & dropdowns)
-  const [partners, setPartners] = useState([])
+  const [accounts, setAccounts] = useState([])
 
   // Theme state - persisted to sessionStorage
   const [theme, setTheme] = useState(() => {
@@ -1987,7 +2109,7 @@ export default function App() {
           setAuthToken(data.token)
           setIsLoggedIn(true)
           setIsAdmin(false)
-          setIsPartner(false)
+          setIsAccount(false)
           if (data.user.client_id) {
             setClientId(data.user.client_id)
             sessionStorage.setItem('xo-client-id', data.user.client_id)
@@ -2046,26 +2168,26 @@ export default function App() {
   const [systemButtons, setSystemButtons] = useState([])
   const [buttonsLoaded, setButtonsLoaded] = useState(false)
 
-  // Fetch buttons, client data, and partners from API after login
+  // Fetch buttons, client data, and accounts from API after login
   useEffect(() => {
     if (isLoggedIn && !buttonsLoaded) {
       fetchButtons()
     }
     if (isLoggedIn) {
       fetchExistingClient()
-      fetchPartners()
+      if (isAdmin) fetchPartners()
     }
   }, [isLoggedIn])
 
   const fetchPartners = async () => {
     try {
-      const res = await fetch(`${API_BASE}/partners`, { headers: getAuthHeaders() })
+      const res = await fetch(`${API_BASE}/accounts`, { headers: getAuthHeaders() })
       if (res.ok) {
         const data = await res.json()
-        setPartners(data.partners || [])
+        setAccounts(data.accounts || [])
       }
     } catch (err) {
-      console.error('Failed to fetch partners:', err)
+      console.error('Failed to fetch accounts:', err)
     }
   }
 
@@ -2132,7 +2254,7 @@ export default function App() {
           painPoints: data.painPoints || [],
           logoUrl: data.logo_url || null,
           iconUrl: data.icon_url || null,
-          partner_id: data.partner_id || null,
+          account_id: data.account_id || null,
           intellagentic_lead: data.intellagentic_lead || false
         })
         if (data.client_id && !clientId) {
@@ -2228,7 +2350,7 @@ export default function App() {
             painPoint: data.painPoint,
             futurePlans: data.futurePlans || '',
             painPoints: data.painPoints || [],
-            partner_id: data.partner_id,
+            account_id: data.account_id,
             intellagentic_lead: data.intellagentic_lead,
             ndaSigned:data.ndaSigned,
             existingApps: data.existingApps
@@ -2257,7 +2379,7 @@ export default function App() {
             painPoint: data.painPoint,
             futurePlans: data.futurePlans || '',
             painPoints: data.painPoints || [],
-            partner_id: data.partner_id,
+            account_id: data.account_id,
             intellagentic_lead: data.intellagentic_lead,
             ndaSigned:data.ndaSigned,
             existingApps: data.existingApps
@@ -2305,7 +2427,7 @@ export default function App() {
           painPoints: data.painPoints || [],
           logoUrl: data.logo_url || null,
           iconUrl: data.icon_url || null,
-          partner_id: data.partner_id || null,
+          account_id: data.account_id || null,
           intellagentic_lead: data.intellagentic_lead || false,
           updated_by:data.updated_by,
           updated_at:data.updated_at
@@ -2330,7 +2452,7 @@ export default function App() {
   const handleCreateNewClient = () => {
     setClientId(null)
     sessionStorage.removeItem('xo-client-id')
-    setCompanyData({ name: '', website: '', company_linkedin: '', contacts: [], addresses: [], industry: '', description: '', painPoint: '', futurePlans: '', painPoints: [], logoUrl: null, iconUrl: null, partner_id: null, intellagentic_lead: false })
+    setCompanyData({ name: '', website: '', company_linkedin: '', contacts: [], addresses: [], industry: '', description: '', painPoint: '', futurePlans: '', painPoints: [], logoUrl: null, iconUrl: null, account_id: null, intellagentic_lead: false })
 
     setShowCompanyModal(true)
   }
@@ -2494,12 +2616,12 @@ export default function App() {
 
         {/* Menu Items */}
         <nav style={{ flex: 1, padding: '0.5rem 0', overflowY: 'auto', overflowX: 'hidden' }}>
-          {(isAdmin || isPartner) && (
+          {(isAdmin || isAccount || user?.account_role === 'account_user' || user?.account_role === 'account_admin') && (
             <>
               <SidebarItem
                 screen="dashboard"
                 icon={Building2}
-                label={isPartner && !isAdmin ? 'My Clients' : 'All Clients'}
+                label={isAdmin ? 'All Clients' : 'My Clients'}
                 onClick={() => { setInWorkspace(false); navigateTo('dashboard') }}
                 active={currentScreen === 'dashboard'}
               />
@@ -2512,7 +2634,8 @@ export default function App() {
             { screen: 'enrich', icon: Sparkles, label: 'Enrich' },
             { screen: 'results', icon: FileText, label: 'Results' },
             { screen: 'skills', icon: Database, label: 'Skills' },
-            ...(isAdmin ? [{ screen: 'partners', icon: Users, label: 'Partners' }] : []),
+            ...(isAdmin ? [{ screen: 'accounts', icon: Users, label: 'Partners' }] : []),
+            ...((isAdmin || user?.account_role === 'account_admin') ? [{ screen: 'team', icon: Mail, label: 'Team' }] : []),
           ].map(item => <SidebarItem key={item.screen} {...item} />)}
 
           <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: sidebarExpanded ? '0.5rem 0.875rem' : '0.5rem 0.5rem' }} />
@@ -2573,7 +2696,7 @@ export default function App() {
               </h1>
               {currentScreen === 'dashboard' && (
                 <p style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {isPartner && !isAdmin ? 'Partner Dashboard' : 'Client Dashboard'}
+                  {isAccount && !isAdmin ? 'Partner Dashboard' : 'Client Dashboard'}
                 </p>
               )}
             </div>
@@ -2592,7 +2715,7 @@ export default function App() {
       {/* Main Content */}
       <main className="main">
         {/* Client Identity Banner — shown when inside a workspace */}
-        {currentScreen !== 'dashboard' && currentScreen !== 'partners' && inWorkspace && clientId && (
+        {currentScreen !== 'dashboard' && currentScreen !== 'accounts' && currentScreen !== 'team' && inWorkspace && clientId && (
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -2603,7 +2726,7 @@ export default function App() {
               <div>
                 <img src={companyData.logoUrl} alt={companyData.name} style={{ height: '56px', maxWidth: '240px', objectFit: 'contain' }} />
                 <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                  {(isAdmin || isPartner) ? 'Partner Workspace' : (companyData.name || 'My Workspace')}
+                  {(isAdmin || isAccount) ? 'Partner Workspace' : (companyData.name || 'My Workspace')}
                 </div>
               </div>
             ) : (
@@ -2625,7 +2748,7 @@ export default function App() {
                     {companyData.name || 'New Client'}
                   </div>
                   <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                    {(isAdmin || isPartner) ? 'Partner Workspace' : (companyData.name || 'My Workspace')}
+                    {(isAdmin || isAccount) ? 'Partner Workspace' : (companyData.name || 'My Workspace')}
                   </div>
                   <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
                     {companyData.updated_at?<span style={{ fontSize: '0.6875rem', color: 'var(--text-muted, #9ca3af)', flexShrink: 0, whiteSpace: 'nowrap' }}>
@@ -2635,7 +2758,7 @@ export default function App() {
                 </div>
               </>
             )}
-            {(isAdmin || isPartner) && clientId && (
+            {(isAdmin || isAccount) && clientId && (
               <button
                 onClick={() => setShowShareModal(true)}
                 style={{
@@ -2668,8 +2791,8 @@ export default function App() {
             onSelectClient={handleSelectClient}
             onCreateClient={handleCreateNewClient}
             isAdmin={isAdmin}
-            isPartner={isPartner}
-            partners={partners}
+            isAccount={isAccount}
+            accounts={accounts}
           />
         )}
         {currentScreen === 'upload' && (
@@ -2686,8 +2809,8 @@ export default function App() {
             systemButtons={systemButtons}
             onNavigate={navigateTo}
             isAdmin={isAdmin}
-            isPartner={isPartner}
-            partners={partners}
+            isAccount={isAccount}
+            accounts={accounts}
             engagements={engagements}
             setEngagements={setEngagements}
             activeEngagement={activeEngagement}
@@ -2715,7 +2838,8 @@ export default function App() {
         {currentScreen === 'skills' && <SkillsScreen clientId={clientId} isAdmin={isAdmin} preferredModel={preferredModel} activeEngagement={activeEngagement} onNavigate={navigateTo} />}
         {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} systemButtons={systemButtons} setSystemButtons={saveSystemButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} inWorkspace={inWorkspace} isAdmin={isAdmin} companyName={companyData.name} />}
         {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
-        {currentScreen === 'partners' && isAdmin && <PartnersScreen partners={partners} setPartners={setPartners} />}
+        {currentScreen === 'accounts' && isAdmin && <AccountsScreen accounts={accounts} setAccounts={setAccounts} />}
+        {currentScreen === 'team' && (isAdmin || user?.account_role === 'account_admin') && <TeamScreen isAdmin={isAdmin} user={user} accounts={accounts} />}
 
       </main>
 
@@ -2734,7 +2858,7 @@ export default function App() {
           onClose={() => setShowCompanyModal(false)}
           onClientCreate={handleClientCreateFromDashboard}
           clientId={clientId}
-          partners={partners}
+          accounts={accounts}
           isAdmin={isAdmin}
         />
       )}
@@ -2752,7 +2876,7 @@ export default function App() {
 // ============================================================
 // PARTNERS SCREEN — CRUD management for channel partners (admin only)
 // ============================================================
-function PartnersScreen({ partners, setPartners }) {
+function AccountsScreen({ accounts, setAccounts }) {
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editPartner, setEditPartner] = useState(null)
@@ -2767,13 +2891,13 @@ function PartnersScreen({ partners, setPartners }) {
   const fetchPartners = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/partners`, { headers: getAuthHeaders() })
+      const res = await fetch(`${API_BASE}/accounts`, { headers: getAuthHeaders() })
       if (res.ok) {
         const data = await res.json()
-        setPartners(data.partners || [])
+        setAccounts(data.accounts || [])
       }
     } catch (err) {
-      console.error('Failed to fetch partners:', err)
+      console.error('Failed to fetch accounts:', err)
     }
     setLoading(false)
   }
@@ -2825,11 +2949,11 @@ function PartnersScreen({ partners, setPartners }) {
     }
     try {
       const res = editPartner
-        ? await fetch(`${API_BASE}/partners`, {
+        ? await fetch(`${API_BASE}/accounts`, {
             method: 'PUT', headers: getAuthHeaders(),
             body: JSON.stringify({ id: editPartner.id, ...payload })
           })
-        : await fetch(`${API_BASE}/partners`, {
+        : await fetch(`${API_BASE}/accounts`, {
             method: 'POST', headers: getAuthHeaders(),
             body: JSON.stringify(payload)
           })
@@ -2847,7 +2971,7 @@ function PartnersScreen({ partners, setPartners }) {
 
   const handleDelete = async (id) => {
     try {
-      await fetch(`${API_BASE}/partners?id=${id}`, { method: 'DELETE', headers: getAuthHeaders() })
+      await fetch(`${API_BASE}/accounts?id=${id}`, { method: 'DELETE', headers: getAuthHeaders() })
       setDeleteConfirm(null)
       fetchPartners()
     } catch (err) {
@@ -2874,7 +2998,7 @@ function PartnersScreen({ partners, setPartners }) {
     <div style={{ padding: '1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
         <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-          Channel Partners <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>({partners.length})</span>
+          Channel Partners <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>({accounts.length})</span>
         </h2>
         <button onClick={openAdd} className="action-btn red"><Plus size={14} /> Add Partner</button>
       </div>
@@ -2883,14 +3007,14 @@ function PartnersScreen({ partners, setPartners }) {
         <div style={{ textAlign: 'center', padding: '2rem' }}>
           <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#dc2626' }} />
         </div>
-      ) : partners.length === 0 ? (
+      ) : accounts.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
           <Users size={40} style={{ margin: '0 auto 0.75rem', color: 'var(--text-muted, #9ca3af)' }} />
           <p>No partners yet. Add your first channel partner.</p>
         </div>
       ) : (
         <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-          {partners.map((p) => (
+          {accounts.map((p) => (
             <div key={p.id} style={{
               display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.625rem 0.875rem',
               borderBottom: '1px solid var(--border-color, #e5e7eb)',
@@ -3161,11 +3285,251 @@ function PartnersScreen({ partners, setPartners }) {
 }
 
 // ============================================================
+// TEAM SCREEN — User management and invitations
+// ============================================================
+function TeamScreen({ isAdmin, user, accounts }) {
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
+  const [inviteRole, setInviteRole] = useState('account_user')
+  const [inviteAccountId, setInviteAccountId] = useState(user?.account_id || '')
+  const [inviteSending, setInviteSending] = useState(false)
+  const [inviteSuccess, setInviteSuccess] = useState(null)
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/invite`, { headers: getAuthHeaders() })
+      if (res.ok) { const data = await res.json(); setUsers(data.users || []) }
+    } catch (err) { console.error('Failed to fetch users:', err) }
+    setLoading(false)
+  }
+
+  const [assignUser, setAssignUser] = useState(null) // user object being assigned
+  const [assignClients, setAssignClients] = useState([]) // all available clients
+  const [assignSelected, setAssignSelected] = useState(new Set()) // selected client DB ids
+  const [assignLoading, setAssignLoading] = useState(false)
+  const [assignSaving, setAssignSaving] = useState(false)
+
+  useEffect(() => { fetchUsers() }, [])
+
+  const openAssignModal = async (u) => {
+    setAssignUser(u)
+    setAssignLoading(true)
+    try {
+      // Fetch all clients
+      const cRes = await fetch(`${API_BASE}/clients/list`, { headers: getAuthHeaders() })
+      const cData = cRes.ok ? await cRes.json() : { clients: [] }
+      setAssignClients(cData.clients || [])
+      // Fetch current assignments
+      const aRes = await fetch(`${API_BASE}/auth/users/${u.id}/clients`, { headers: getAuthHeaders() })
+      const aData = aRes.ok ? await aRes.json() : { assignments: [] }
+      setAssignSelected(new Set((aData.assignments || []).map(a => a.client_id)))
+    } catch (err) { console.error('Failed to load assignments:', err) }
+    setAssignLoading(false)
+  }
+
+  const saveAssignments = async () => {
+    if (!assignUser) return
+    setAssignSaving(true)
+    try {
+      const res = await fetch(`${API_BASE}/auth/users/${assignUser.id}/clients`, {
+        method: 'POST', headers: getAuthHeaders(),
+        body: JSON.stringify({ client_ids: Array.from(assignSelected) })
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed') }
+      setAssignUser(null)
+    } catch (err) { alert(err.message) }
+    setAssignSaving(false)
+  }
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim() || !inviteName.trim()) return
+    setInviteSending(true)
+    setInviteSuccess(null)
+    try {
+      const res = await fetch(`${API_BASE}/auth/invite`, {
+        method: 'POST', headers: getAuthHeaders(),
+        body: JSON.stringify({ email: inviteEmail.trim(), name: inviteName.trim(), account_id: inviteAccountId || undefined, account_role: inviteRole })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to send invite')
+      setInviteSuccess(`Invitation sent to ${inviteEmail}`)
+      setInviteEmail('')
+      setInviteName('')
+      setShowInviteModal(false)
+      fetchUsers()
+      setTimeout(() => setInviteSuccess(null), 5000)
+    } catch (err) { alert(err.message) }
+    setInviteSending(false)
+  }
+
+  const handleResend = async (userId) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/invite/resend`, {
+        method: 'POST', headers: getAuthHeaders(),
+        body: JSON.stringify({ user_id: userId })
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed') }
+      alert('Invitation resent')
+    } catch (err) { alert(err.message) }
+  }
+
+  const roleLabels = { super_admin: 'Super Admin', account_admin: 'Account Admin', account_user: 'Account User', client_contact: 'Client Contact' }
+  const statusColors = { active: { bg: '#dcfce7', color: '#16a34a' }, invited: { bg: '#dbeafe', color: '#2563eb' }, deactivated: { bg: '#fee2e2', color: '#dc2626' } }
+
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <div className="panel-header-left">
+          <Mail size={20} className="icon-red" />
+          <h2>Team</h2>
+          <span className="badge-count blue">{users.length}</span>
+        </div>
+        <button onClick={() => setShowInviteModal(true)} className="action-btn red" style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}>
+          <Plus size={14} /> Invite User
+        </button>
+      </div>
+      <div style={{ padding: '1.25rem' }}>
+        {inviteSuccess && <div style={{ padding: '0.5rem 0.75rem', background: '#dcfce7', borderRadius: 6, fontSize: '0.8rem', color: '#16a34a', marginBottom: '0.75rem' }}>{inviteSuccess}</div>}
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '2rem' }}><Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#dc2626' }} /></div>
+        ) : users.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '2rem', color: '#9ca3af' }}>
+            <p>No team members yet. Invite your first user.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {users.map(u => {
+              const sc = statusColors[u.status] || statusColors.active
+              return (
+                <div key={u.id} style={{ padding: '0.625rem 0.75rem', border: '1px solid #e5e7eb', borderRadius: 8, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', flexShrink: 0 }}>
+                    {(u.name || u.email || '?').charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{u.name}</div>
+                    <div style={{ fontSize: '0.7rem', color: '#9ca3af' }}>{u.email}</div>
+                  </div>
+                  <span style={{ fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.35rem', borderRadius: 4, background: sc.bg, color: sc.color }}>{(u.status || 'active').toUpperCase()}</span>
+                  <span style={{ fontSize: '0.6rem', color: '#6b7280' }}>{roleLabels[u.account_role] || u.account_role || ''}</span>
+                  {u.account_name && <span style={{ fontSize: '0.6rem', color: '#9ca3af' }}>{u.account_name}</span>}
+                  {u.account_role && ['account_user', 'client_contact'].includes(u.account_role) && u.status === 'active' && (
+                    <button onClick={() => openAssignModal(u)} style={{ fontSize: '0.65rem', color: '#2563eb', background: 'none', border: '1px solid #2563eb', borderRadius: 4, cursor: 'pointer', padding: '0.1rem 0.3rem' }}>Clients</button>
+                  )}
+                  {u.status === 'invited' && (
+                    <button onClick={() => handleResend(u.id)} style={{ fontSize: '0.65rem', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Resend</button>
+                  )}
+                  {u.status !== 'deactivated' && u.id !== user?.id && (
+                    <button onClick={async () => {
+                      if (!window.confirm(`Remove ${u.name} (${u.email})?`)) return
+                      try {
+                        const res = await fetch(`${API_BASE}/auth/invite?user_id=${u.id}`, { method: 'DELETE', headers: getAuthHeaders() })
+                        if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed') }
+                        setUsers(prev => prev.filter(x => x.id !== u.id))
+                      } catch (err) { alert(err.message) }
+                    }} style={{ fontSize: '0.65rem', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Invite Modal */}
+      {showInviteModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setShowInviteModal(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', background: 'var(--bg-card, #fff)', borderRadius: 16, padding: '1.5rem', width: '90%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>Invite User</h3>
+              <button onClick={() => setShowInviteModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={18} /></button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+              <input value={inviteName} onChange={e => setInviteName(e.target.value)} placeholder="Full name" style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none' }} />
+              <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Email address" type="email" style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none' }} />
+              <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
+                {isAdmin && <option value="super_admin">Super Admin</option>}
+                <option value="account_admin">Account Admin</option>
+                <option value="account_user">Account User</option>
+                <option value="client_contact">Client Contact</option>
+              </select>
+              {isAdmin && accounts && accounts.length > 0 && (
+                <select value={inviteAccountId} onChange={e => setInviteAccountId(e.target.value ? parseInt(e.target.value) : '')} style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
+                  <option value="">No account (platform user)</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name || a.company}</option>)}
+                </select>
+              )}
+              <button onClick={handleInvite} disabled={inviteSending || !inviteEmail.trim() || !inviteName.trim()}
+                style={{ padding: '0.625rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.85rem', fontWeight: 600, cursor: inviteSending ? 'wait' : 'pointer', opacity: inviteSending ? 0.7 : 1, marginTop: '0.25rem' }}>
+                {inviteSending ? 'Sending...' : 'Send Invitation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Client Assignment Modal */}
+      {assignUser && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setAssignUser(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', background: 'var(--bg-card, #fff)', borderRadius: 16, padding: '1.5rem', width: '90%', maxWidth: 480, maxHeight: '80vh', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>Assign Clients</h3>
+                <p style={{ margin: '0.15rem 0 0', fontSize: '0.75rem', color: '#9ca3af' }}>{assignUser.name} ({assignUser.email})</p>
+              </div>
+              <button onClick={() => setAssignUser(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={18} /></button>
+            </div>
+            {assignLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem' }}><Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#dc2626' }} /></div>
+            ) : assignClients.length === 0 ? (
+              <p style={{ color: '#9ca3af', fontSize: '0.8rem', textAlign: 'center', padding: '1rem' }}>No clients available</p>
+            ) : (
+              <>
+                <div style={{ flex: 1, overflow: 'auto', marginBottom: '0.75rem' }}>
+                  <p style={{ fontSize: '0.7rem', color: '#9ca3af', marginBottom: '0.5rem' }}>{assignSelected.size} of {assignClients.length} clients assigned</p>
+                  {assignClients.map(c => {
+                    const checked = assignSelected.has(String(c.db_id || c.id))
+                    return (
+                      <label key={c.db_id || c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.5rem', cursor: 'pointer', borderRadius: 6, background: checked ? 'rgba(220,38,38,0.05)' : 'transparent' }}>
+                        <input type="checkbox" checked={checked} onChange={() => {
+                          const id = String(c.db_id || c.id)
+                          setAssignSelected(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
+                        }} style={{ accentColor: '#dc2626' }} />
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{c.company_name || c.name || c.client_id}</span>
+                        {c.account_name && <span style={{ fontSize: '0.6rem', color: '#9ca3af', marginLeft: 'auto' }}>{c.account_name}</span>}
+                      </label>
+                    )
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setAssignUser(null)} style={{ padding: '0.5rem 0.75rem', background: 'none', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-muted)' }}>Cancel</button>
+                  <button onClick={saveAssignments} disabled={assignSaving}
+                    style={{ padding: '0.5rem 1rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: assignSaving ? 'wait' : 'pointer', opacity: assignSaving ? 0.7 : 1 }}>
+                    {assignSaving ? 'Saving...' : `Save (${assignSelected.size} clients)`}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
 // COMPANY INFORMATION MODAL
 // ============================================================
-function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate, clientId, partners, isAdmin }) {
+function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate, clientId, accounts, isAdmin }) {
   const [localData, setLocalData] = useState({ ...companyData, contacts: [...(companyData.contacts || [])], addresses: [...(companyData.addresses || [])] })
-  const [localPartnerId, setLocalPartnerId] = useState(companyData.partner_id || '')
+  const [localAccountId, setLocalAccountId] = useState(companyData.account_id || '')
   const [localIntellagentic, setLocalIntellagentic] = useState(companyData.intellagentic_lead || false)
   const [localContacts, setLocalContacts] = useState(() => {
     const c = companyData.contacts || []
@@ -3284,7 +3648,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
       return
     }
     const filteredPainPoints = localPainPoints.filter(p => p.trim())
-    const saveData = { ...localData, contacts: localContacts, addresses: localAddresses, partner_id: localPartnerId ? parseInt(localPartnerId) : null, intellagentic_lead: localIntellagentic, painPoints: filteredPainPoints }
+    const saveData = { ...localData, contacts: localContacts, addresses: localAddresses, account_id: localAccountId ? parseInt(localAccountId) : null, intellagentic_lead: localIntellagentic, painPoints: filteredPainPoints }
     setCompanyData(prev => ({ ...saveData, logoUrl: prev.logoUrl, iconUrl: prev.iconUrl }))
     if (onClientCreate) onClientCreate(saveData)
     onClose()
@@ -3629,14 +3993,14 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
             </div>
 
             {/* Channel Partner (admin only) */}
-            {isAdmin && partners && partners.length > 0 && (
+            {isAdmin && accounts && accounts.length > 0 && (
               <div>
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
                   Channel Partner
                 </label>
                 <select
-                  value={localPartnerId}
-                  onChange={(e) => setLocalPartnerId(e.target.value)}
+                  value={localAccountId}
+                  onChange={(e) => setLocalAccountId(e.target.value)}
                   style={{
                     width: '100%',
                     padding: '0.625rem',
@@ -3649,7 +4013,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                   }}
                 >
                   <option value="">None</option>
-                  {partners.map(p => (
+                  {accounts.map(p => (
                     <option key={p.id} value={p.id}>{p.name}{p.company ? ` — ${p.company}` : ''}</option>
                   ))}
                 </select>
@@ -4121,7 +4485,7 @@ function BrandingScreen({ clientId, companyData, setCompanyData }) {
 // ============================================================
 // UPLOAD SCREEN
 // ============================================================
-function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onClientCreate, onComplete, onOpenCompanyModal, configButtons, systemButtons, onNavigate, isAdmin, isPartner, onSelectClient, partners, engagements, setEngagements, activeEngagement, setActiveEngagement }) {
+function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onClientCreate, onComplete, onOpenCompanyModal, configButtons, systemButtons, onNavigate, isAdmin, isAccount, onSelectClient, accounts, engagements, setEngagements, activeEngagement, setActiveEngagement }) {
   const [error, setError] = useState(null)
   const [sourceCount, setSourceCount] = useState(0)
   const [activeCount, setActiveCount] = useState(0)
@@ -4143,7 +4507,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
     painPoint: companyData.painPoint || '',
     futurePlans: companyData.futurePlans || '',
     intellagentic_lead: companyData.intellagentic_lead || false,
-    partner_id: companyData.partner_id || null
+    account_id: companyData.account_id || null
   })
   const [formPainPoints, setFormPainPoints] = useState(() => {
     const pts = companyData.painPoints || []
@@ -4176,7 +4540,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
       painPoint: companyData.painPoint || '',
       futurePlans: companyData.futurePlans || '',
       intellagentic_lead: companyData.intellagentic_lead || false,
-      partner_id: companyData.partner_id || null
+      account_id: companyData.account_id || null
     })
     const pts = companyData.painPoints || []
     setFormPainPoints(pts.length > 0 ? [...pts] : [''])
@@ -4451,7 +4815,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
           </div>
 
           {/* Intellagentic Lead & Channel Partner — admin and partner only */}
-          {(isAdmin || isPartner) && (
+          {(isAdmin || isAccount) && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
@@ -4478,8 +4842,8 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                   Channel Partner
                 </label>
                 <select
-                  value={formData.partner_id || ''}
-                  onChange={(e) => { const val = e.target.value ? parseInt(e.target.value) : null; setFormData(prev => ({ ...prev, partner_id: val })); autoSave({ partner_id: val }) }}
+                  value={formData.account_id || ''}
+                  onChange={(e) => { const val = e.target.value ? parseInt(e.target.value) : null; setFormData(prev => ({ ...prev, account_id: val })); autoSave({ account_id: val }) }}
                   style={{
                     width: '100%', padding: '0.5rem 0.625rem',
                     background: '#f9fafb',
@@ -4489,7 +4853,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                   }}
                 >
                   <option value="">No partner</option>
-                  {(partners || []).map(p => (
+                  {(accounts || []).map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
@@ -5598,7 +5962,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
           painPoint: currentClient.painPoint,
           futurePlans: currentClient.futurePlans || '',
           painPoints: currentClient.painPoints || [],
-          partner_id: currentClient.partner_id,
+          account_id: currentClient.account_id,
           intellagentic_lead: currentClient.intellagentic_lead,
           ndaSigned:currentClient.ndaSigned,
           existingApps: existingApps
@@ -5628,7 +5992,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
           painPoint: currentClient.painPoint,
           futurePlans: currentClient.futurePlans || '',
           painPoints: currentClient.painPoints || [],
-          partner_id: currentClient.partner_id,
+          account_id: currentClient.account_id,
           intellagentic_lead: currentClient.intellagentic_lead,
           existingApps:currentClient.existingApps,
           ndaSigned: true
@@ -8532,7 +8896,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                         if (res.ok) {
                           setHubspotLastSync(data.last_sync)
                           const conflicts = data.conflicts || []
-                          const msg = `Sync complete. Pushed: ${data.pushed?.clients || 0} clients, ${data.pushed?.partners || 0} partners. Pulled: ${data.pulled?.clients_created || 0} new, ${data.pulled?.clients_updated || 0} updated.` +
+                          const msg = `Sync complete. Pushed: ${data.pushed?.clients || 0} clients, ${data.pushed?.accounts || 0} accounts. Pulled: ${data.pulled?.clients_created || 0} new, ${data.pulled?.clients_updated || 0} updated.` +
                             (conflicts.length > 0 ? `\n${conflicts.length} conflict(s) need review.` : '')
                           alert(msg)
                         } else {
@@ -8746,6 +9110,67 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
       </div>
 
       </>)}
+
+      {/* ── S3 Encryption Convert Modal ── */}
+      {s3ConvertModal && (
+        <div className="modal-overlay" onClick={() => !s3ConvertRunning && (setS3ConvertModal(false), setS3ConvertProgress(null))}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>{s3ConvertAction === 'encrypt' ? 'Encrypt' : 'Decrypt'} All S3 Files</h3>
+              {!s3ConvertRunning && (
+                <button className="modal-close" onClick={() => { setS3ConvertModal(false); setS3ConvertProgress(null) }}><X size={18} /></button>
+              )}
+            </div>
+            <div className="modal-body" style={{ padding: '1.25rem' }}>
+              {!s3ConvertRunning && !s3ConvertProgress && (
+                <>
+                  <p style={{ fontSize: '0.85rem', color: C.text, lineHeight: 1.5, margin: 0 }}>
+                    This will <strong>{s3ConvertAction}</strong> all S3 files for every client.
+                    {s3ConvertAction === 'decrypt' ? ' Files will be stored as plaintext. This is reversible.' : " Files will be encrypted with each client's key."}
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', justifyContent: 'flex-end' }}>
+                    <button onClick={() => { setS3ConvertModal(false); setS3ConvertProgress(null) }}
+                      style={{ padding: '0.5rem 1rem', background: C.surface, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: '0.8rem', cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={runS3Convert}
+                      style={{ padding: '0.5rem 1rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                      {s3ConvertAction === 'encrypt' ? 'Encrypt All' : 'Decrypt All'}</button>
+                  </div>
+                </>
+              )}
+              {s3ConvertRunning && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                    <span style={{ fontSize: '0.85rem', color: C.text }}>Converting... {s3ConvertProgress?.completed || 0} / {s3ConvertProgress?.total || '?'} clients</span>
+                  </div>
+                  <div style={{ width: '100%', height: 6, background: `${C.muted}30`, borderRadius: 3, overflow: 'hidden', marginBottom: '1rem' }}>
+                    <div style={{ width: `${s3ConvertProgress?.total ? (s3ConvertProgress.completed / s3ConvertProgress.total * 100) : 0}%`, height: '100%', background: '#dc2626', borderRadius: 3, transition: 'width 0.3s' }} />
+                  </div>
+                  <div style={{ maxHeight: 250, overflowY: 'auto', fontSize: '0.75rem', fontFamily: 'monospace', background: C.bg, borderRadius: 6, padding: '0.75rem', border: `1px solid ${C.border}` }}>
+                    {(s3ConvertProgress?.results || []).map((r, i) => (
+                      <div key={i} style={{ padding: '0.25rem 0', borderBottom: `1px solid ${C.border}`, color: r.status === 'error' ? '#ef4444' : r.status === 'skipped' ? C.muted : '#22c55e' }}>
+                        {r.status === 'done' ? '\u2713' : r.status === 'error' ? '\u2717' : '\u2013'}{' '}{r.company_name} &mdash; {r.files_converted} files{r.status === 'skipped' ? ` (${r.reason})` : ''}{r.errors?.length > 0 ? ` [${r.errors.length} errors]` : ''}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!s3ConvertRunning && s3ConvertProgress && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: '#22c55e' }}>
+                    <CheckCircle2 size={20} /><span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Conversion complete</span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: C.muted, marginBottom: '1rem' }}>{s3ConvertProgress.completed} / {s3ConvertProgress.total} clients processed. S3 encryption is now <strong>{s3ConvertAction === 'encrypt' ? 'enabled' : 'disabled'}</strong>.</p>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={() => { setS3ConvertModal(false); setS3ConvertProgress(null); setSysS3EncEnabled(s3ConvertAction === 'encrypt') }}
+                      style={{ padding: '0.5rem 1rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>Done</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -8918,7 +9343,7 @@ function assembleDeckData(results, client) {
     const wf = workflows[i] || workflows[workflows.length - 1] || {}
     comparisons.push({
       before: truncateDeck(cleanDeckText(prob.title || 'Manual process with no audit trail'), 60),
-      after: truncateDeck(wf.title ? `XO automates ${wf.title.toLowerCase()}` : 'Protocol-driven automation with audit trail', 60),
+      after: truncateDeck(wf.title ? `Streamline + XO automates ${wf.title.toLowerCase()}` : 'Protocol-driven automation with audit trail', 60),
     })
   }
   while (comparisons.length < 6) comparisons.push({ before: 'Manual review with key-person dependency', after: 'XO protocol-driven automation with audit trail' })
@@ -9650,13 +10075,6 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
         </div>
       </div>
 
-      {/* Engagement context */}
-      {activeEngagement && (
-        <div style={{ padding: '0.625rem 1rem', background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.15)', borderRadius: 8 }}>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}><span style={{ fontWeight: 700 }}>Engagement:</span> {activeEngagement.name}</div>
-          {activeEngagement.focus_area && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{activeEngagement.focus_area}</div>}
-        </div>
-      )}
 
       {/* Concertina sections */}
       <div style={{ padding: '', display: 'grid', gap: '0.75rem' }}>
@@ -9689,7 +10107,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 <div style={{display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem'}}>
                   {item.id==="whatwecando"?<img src={intellistackLogo} alt="Intellistack" style={{ height: '22px' }} />:<IconCompe size={20} className="icon-red" />}
                   <h3 style={{fontSize: '0.95rem', fontWeight: 600,color: item.id==="whatwecando"?"white":'var(--text-primary)', margin: 0}}>
-                    {item.name}
+                    {item.id==="whatwecando" ? <>Potential Streamline + <span style={{ color: '#CC0000' }}>XO</span> Applications</> : item.name}
                   </h3>
                   <span style={{
                     fontSize: '0.65rem',
@@ -11054,101 +11472,6 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
         </div>
       )}
 
-      {/* ── S3 Encryption Convert Modal ── */}
-      {s3ConvertModal && (
-        <div className="modal-overlay" onClick={() => !s3ConvertRunning && (setS3ConvertModal(false), setS3ConvertProgress(null))}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
-            <div className="modal-header">
-              <h3 style={{ margin: 0, fontSize: '1rem' }}>{s3ConvertAction === 'encrypt' ? 'Encrypt' : 'Decrypt'} All S3 Files</h3>
-              {!s3ConvertRunning && (
-                <button className="modal-close" onClick={() => { setS3ConvertModal(false); setS3ConvertProgress(null) }}><X size={18} /></button>
-              )}
-            </div>
-            <div className="modal-body" style={{ padding: '1.25rem' }}>
-
-              {/* Pre-run confirmation */}
-              {!s3ConvertRunning && !s3ConvertProgress && (
-                <>
-                  <p style={{ fontSize: '0.85rem', color: C.text, lineHeight: 1.5, margin: 0 }}>
-                    This will <strong>{s3ConvertAction}</strong> all S3 files for every client.
-                    {s3ConvertAction === 'decrypt'
-                      ? ' Files will be stored as plaintext. This is reversible.'
-                      : " Files will be encrypted with each client's key."}
-                  </p>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', justifyContent: 'flex-end' }}>
-                    <button onClick={() => { setS3ConvertModal(false); setS3ConvertProgress(null) }}
-                      style={{ padding: '0.5rem 1rem', background: C.surface, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: '0.8rem', cursor: 'pointer' }}>
-                      Cancel
-                    </button>
-                    <button onClick={runS3Convert}
-                      style={{ padding: '0.5rem 1rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
-                      {s3ConvertAction === 'encrypt' ? 'Encrypt All' : 'Decrypt All'}
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* Running — progress */}
-              {s3ConvertRunning && (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                    <span style={{ fontSize: '0.85rem', color: C.text }}>
-                      Converting... {s3ConvertProgress?.completed || 0} / {s3ConvertProgress?.total || '?'} clients
-                    </span>
-                  </div>
-                  <div style={{ width: '100%', height: 6, background: `${C.muted}30`, borderRadius: 3, overflow: 'hidden', marginBottom: '1rem' }}>
-                    <div style={{
-                      width: `${s3ConvertProgress?.total ? (s3ConvertProgress.completed / s3ConvertProgress.total * 100) : 0}%`,
-                      height: '100%', background: '#dc2626', borderRadius: 3, transition: 'width 0.3s'
-                    }} />
-                  </div>
-                  <div style={{
-                    maxHeight: 250, overflowY: 'auto', fontSize: '0.75rem', fontFamily: 'monospace',
-                    background: C.bg, borderRadius: 6, padding: '0.75rem', border: `1px solid ${C.border}`
-                  }}>
-                    {(s3ConvertProgress?.results || []).map((r, i) => (
-                      <div key={i} style={{
-                        padding: '0.25rem 0', borderBottom: `1px solid ${C.border}`,
-                        color: r.status === 'error' ? '#ef4444' : r.status === 'skipped' ? C.muted : '#22c55e'
-                      }}>
-                        {r.status === 'done' ? '\u2713' : r.status === 'error' ? '\u2717' : '\u2013'}
-                        {' '}{r.company_name} &mdash; {r.files_converted} files
-                        {r.status === 'skipped' ? ` (${r.reason})` : ''}
-                        {r.errors?.length > 0 ? ` [${r.errors.length} errors]` : ''}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Completed */}
-              {!s3ConvertRunning && s3ConvertProgress && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: '#22c55e' }}>
-                    <CheckCircle2 size={20} />
-                    <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Conversion complete</span>
-                  </div>
-                  <p style={{ fontSize: '0.8rem', color: C.muted, marginBottom: '1rem' }}>
-                    {s3ConvertProgress.completed} / {s3ConvertProgress.total} clients processed.
-                    S3 encryption is now <strong>{s3ConvertAction === 'encrypt' ? 'enabled' : 'disabled'}</strong>.
-                  </p>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={() => {
-                      setS3ConvertModal(false)
-                      setS3ConvertProgress(null)
-                      setSysS3EncEnabled(s3ConvertAction === 'encrypt')
-                    }}
-                      style={{ padding: '0.5rem 1rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
-                      Done
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

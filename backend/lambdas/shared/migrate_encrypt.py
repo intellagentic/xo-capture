@@ -2,7 +2,7 @@
 One-time migration script to encrypt existing plaintext data.
 
 Two-tier encryption:
-  - Master key (AES_MASTER_KEY env var): encrypts users, partners, and client encryption keys
+  - Master key (AES_MASTER_KEY env var): encrypts users, accounts, and client encryption keys
   - Per-client keys (generated per client, stored encrypted in clients.encryption_key):
     encrypts client PII fields and S3 files
 
@@ -87,10 +87,10 @@ def migrate_users(conn):
     print(f"  users: encrypted {count} rows")
 
 
-def migrate_partners(conn):
-    """Encrypt partner PII with master key."""
+def migrate_accounts(conn):
+    """Encrypt account PII with master key."""
     cur = conn.cursor()
-    cur.execute("SELECT id, email, phone, contacts_json, addresses_json FROM partners")
+    cur.execute("SELECT id, email, phone, contacts_json, addresses_json FROM accounts")
     rows = cur.fetchall()
     count = 0
     for row in rows:
@@ -110,7 +110,7 @@ def migrate_partners(conn):
             except Exception:
                 enc_addresses = addresses_raw
         cur.execute("""
-            UPDATE partners SET email = %s, phone = %s,
+            UPDATE accounts SET email = %s, phone = %s,
                    contacts_json = %s, addresses_json = %s
             WHERE id = %s
         """, (
@@ -121,7 +121,7 @@ def migrate_partners(conn):
         count += 1
     conn.commit()
     cur.close()
-    print(f"  partners: encrypted {count} rows")
+    print(f"  accounts: encrypted {count} rows")
 
 
 def migrate_clients(conn):
@@ -278,7 +278,7 @@ def main():
 
     try:
         migrate_users(conn)
-        migrate_partners(conn)
+        migrate_accounts(conn)
         migrate_clients(conn)
         migrate_buttons(conn)
         print("Migration complete!")

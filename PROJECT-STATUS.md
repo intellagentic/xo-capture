@@ -3483,10 +3483,22 @@ API Gateway routes added:
 - GET /auth/users/{userId}/clients, POST /auth/users/{userId}/clients, OPTIONS
 - /accounts resource (GET/POST/PUT/DELETE/OPTIONS) -- renamed from /partners
 
+Additional fixes and polish:
+- Fixed s3ConvertModal scope bug crashing Results page (variable declared in ConfigurationScreen, JSX was in ResultsScreen scope)
+- Fixed "System of Action" column text: "XO automates" changed to "Streamline + XO automates" in deck download Lambda and frontend
+- Results page: "Potential Streamline Applications" header updated to "Potential Streamline + XO Applications" with XO in red (#CC0000)
+- Fixed inviter name in email template -- was showing "XO Admin", now queries actual inviter name from DB instead of JWT
+- Fixed Ken's display name in DB (was "XO Admin", migration now sets "Ken Scott")
+- Fixed preferred_model to claude-opus-4-6 for ken.scott@intellagentic.io
+- Fixed invite routing bug -- /auth/invite/resend was caught by /auth/invite/{token} wildcard, returning 405
+- Fixed offset-naive vs offset-aware datetime comparison in invite token validation
+- Fixed invite handler for deactivated users -- reactivates instead of INSERT duplicate
+- Removed duplicate engagement context block on Results page (kept ActiveEngagementBanner only)
+
 Remaining phases:
 - Phase 4: Account admin self-service UI (manage own team without super_admin)
-- Phase 5: Client contact read-only workspace (no enrich, no upload, no config)
-- Polish: Google OAuth on accept-invite page, SES production access, remove debug logging
+- Phase 5: Client contact read-only workspace (view results, brief, deck) + client contributor role (complete org profile, upload documents, add pain points, cannot run enrichments or see other clients) + share link generates contributor-level access by default
+- Polish: Google OAuth on accept-invite page, SES production access, remove debug logging, hide "Create Client" for account_user
 
 Branch: feature/multi-tenant-auth (merge to main when all phases complete)
 

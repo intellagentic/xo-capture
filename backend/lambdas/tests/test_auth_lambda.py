@@ -205,14 +205,14 @@ class TestMakeToken:
         assert decoded['user_id'] == 'uid'
         assert decoded['email'] == 'e@t.com'
         assert decoded['is_admin'] is True
-        assert decoded['is_partner'] is False
+        assert decoded['is_account'] is False
 
-    def test_make_token_partner_includes_partner_id(self, auth_module):
+    def test_make_token_account_includes_account_id(self, auth_module):
         import jwt as pyjwt
-        token = auth_module._make_token('uid', 'e@t.com', 'Name', role='partner', partner_id=42)
+        token = auth_module._make_token('uid', 'e@t.com', 'Name', role='partner', account_id=42)
         decoded = pyjwt.decode(token, 'test-secret-key-for-testing', algorithms=['HS256'])
-        assert decoded['partner_id'] == 42
-        assert decoded['is_partner'] is True
+        assert decoded['account_id'] == 42
+        assert decoded['is_account'] is True
 
     def test_make_token_client_includes_client_id(self, auth_module):
         import jwt as pyjwt

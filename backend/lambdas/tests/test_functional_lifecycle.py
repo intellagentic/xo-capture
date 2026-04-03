@@ -122,7 +122,7 @@ class SmartCursor:
                     'name': params[2], 'role': 'client',
                 }
             row['preferred_model'] = 'claude-sonnet-4-5-20250929'
-            row['partner_id'] = None
+            row['account_id'] = None
             row['email_hash'] = row.get('email_hash', '')
             rid = self.db.insert('users', row)
             self._result = (rid,)
@@ -139,7 +139,7 @@ class SmartCursor:
                 self._result = (
                     user['id'], user['email'], user['password_hash'],
                     user['name'], user.get('preferred_model', 'claude-sonnet-4-5-20250929'),
-                    user.get('role', 'client'), user.get('partner_id'),
+                    user.get('role', 'client'), user.get('account_id'),
                 )
             else:
                 self._result = None
@@ -398,7 +398,7 @@ class TestUserLifecycle:
             'name': f'Test User {RUN_ID}',
             'preferred_model': 'claude-sonnet-4-5-20250929',
             'role': 'client',
-            'partner_id': None,
+            'account_id': None,
         })
 
         with patch.dict(os.environ, ENV):
@@ -430,7 +430,7 @@ class TestUserLifecycle:
             'name': f'Test User {RUN_ID}',
             'preferred_model': 'claude-sonnet-4-5-20250929',
             'role': 'client',
-            'partner_id': None,
+            'account_id': None,
         })
 
         with patch.dict(os.environ, ENV):
@@ -456,7 +456,7 @@ class TestUserLifecycle:
             'password_hash': bcrypt.hashpw(TEST_PASSWORD.encode(), bcrypt.gensalt()).decode(),
             'name': f'Test User {RUN_ID}',
             'role': 'client',
-            'partner_id': None,
+            'account_id': None,
         })
 
         with patch.dict(os.environ, ENV):
@@ -477,8 +477,8 @@ class TestUserLifecycle:
     def test_05_create_client(self):
         admin_user = {
             'user_id': 'admin-1', 'email': 'admin@test.com', 'name': 'Admin',
-            'role': 'admin', 'is_admin': True, 'is_partner': False, 'is_client': False,
-            'partner_id': None, 'client_id': None,
+            'role': 'admin', 'is_admin': True, 'is_account': False, 'is_client': False,
+            'account_id': None, 'client_id': None,
         }
 
         with patch.dict(os.environ, ENV):
@@ -520,8 +520,8 @@ class TestUserLifecycle:
     def test_06_create_client_missing_name_fails(self):
         admin_user = {
             'user_id': 'admin-1', 'email': 'admin@test.com', 'name': 'Admin',
-            'role': 'admin', 'is_admin': True, 'is_partner': False, 'is_client': False,
-            'partner_id': None, 'client_id': None,
+            'role': 'admin', 'is_admin': True, 'is_account': False, 'is_client': False,
+            'account_id': None, 'client_id': None,
         }
 
         with patch.dict(os.environ, ENV):
@@ -545,8 +545,8 @@ class TestUserLifecycle:
     def test_07_upload_files(self):
         admin_user = {
             'user_id': 'admin-1', 'email': 'admin@test.com', 'name': 'Admin',
-            'role': 'admin', 'is_admin': True, 'is_partner': False, 'is_client': False,
-            'partner_id': None, 'client_id': None,
+            'role': 'admin', 'is_admin': True, 'is_account': False, 'is_client': False,
+            'account_id': None, 'client_id': None,
         }
 
         # Seed a client first
@@ -591,8 +591,8 @@ class TestUserLifecycle:
     def test_08_list_uploads(self):
         admin_user = {
             'user_id': 'admin-1', 'email': 'admin@test.com', 'name': 'Admin',
-            'role': 'admin', 'is_admin': True, 'is_partner': False, 'is_client': False,
-            'partner_id': None, 'client_id': None,
+            'role': 'admin', 'is_admin': True, 'is_account': False, 'is_client': False,
+            'account_id': None, 'client_id': None,
         }
 
         s3_folder = f'client_list_{RUN_ID}'
@@ -640,8 +640,8 @@ class TestUserLifecycle:
     def test_09_delete_upload(self):
         admin_user = {
             'user_id': 'admin-1', 'email': 'admin@test.com', 'name': 'Admin',
-            'role': 'admin', 'is_admin': True, 'is_partner': False, 'is_client': False,
-            'partner_id': None, 'client_id': None,
+            'role': 'admin', 'is_admin': True, 'is_account': False, 'is_client': False,
+            'account_id': None, 'client_id': None,
         }
 
         s3_folder = f'client_del_{RUN_ID}'
@@ -685,8 +685,8 @@ class TestUserLifecycle:
     def test_10_delete_client(self):
         admin_user = {
             'user_id': 'admin-1', 'email': 'admin@test.com', 'name': 'Admin',
-            'role': 'admin', 'is_admin': True, 'is_partner': False, 'is_client': False,
-            'partner_id': None, 'client_id': None,
+            'role': 'admin', 'is_admin': True, 'is_account': False, 'is_client': False,
+            'account_id': None, 'client_id': None,
         }
 
         s3_folder = f'client_cascade_{RUN_ID}'
@@ -732,8 +732,8 @@ class TestUserLifecycle:
     def test_11_deleted_client_returns_404(self):
         admin_user = {
             'user_id': 'admin-1', 'email': 'admin@test.com', 'name': 'Admin',
-            'role': 'admin', 'is_admin': True, 'is_partner': False, 'is_client': False,
-            'partner_id': None, 'client_id': None,
+            'role': 'admin', 'is_admin': True, 'is_account': False, 'is_client': False,
+            'account_id': None, 'client_id': None,
         }
 
         s3_folder = f'client_gone_{RUN_ID}'
@@ -767,7 +767,7 @@ class TestUserLifecycle:
             'name': f'Test User {RUN_ID}',
             'preferred_model': 'claude-sonnet-4-5-20250929',
             'role': 'client',
-            'partner_id': None,
+            'account_id': None,
         })
 
         with patch.dict(os.environ, ENV):
@@ -790,7 +790,7 @@ class TestUserLifecycle:
         uid = self.db.insert('users', {
             'email': TEST_EMAIL, 'email_hash': 'hash',
             'password_hash': 'hash', 'name': 'Test',
-            'role': 'client', 'partner_id': None,
+            'role': 'client', 'account_id': None,
         })
 
         # Direct DB deletion (no Lambda endpoint for user delete in current API)
@@ -867,8 +867,8 @@ class TestIdempotency:
         """Create -> delete -> re-create should succeed with new client_id."""
         admin_user = {
             'user_id': 'admin-1', 'email': 'admin@test.com', 'name': 'Admin',
-            'role': 'admin', 'is_admin': True, 'is_partner': False, 'is_client': False,
-            'partner_id': None, 'client_id': None,
+            'role': 'admin', 'is_admin': True, 'is_account': False, 'is_client': False,
+            'account_id': None, 'client_id': None,
         }
         company = f'Idempotent Corp {RUN_ID}'
 
@@ -910,8 +910,8 @@ class TestIdempotency:
         """Upload -> delete -> re-upload should produce new upload IDs."""
         admin_user = {
             'user_id': 'admin-1', 'email': 'admin@test.com', 'name': 'Admin',
-            'role': 'admin', 'is_admin': True, 'is_partner': False, 'is_client': False,
-            'partner_id': None, 'client_id': None,
+            'role': 'admin', 'is_admin': True, 'is_account': False, 'is_client': False,
+            'account_id': None, 'client_id': None,
         }
 
         s3_folder = f'client_cycle_{RUN_ID}'

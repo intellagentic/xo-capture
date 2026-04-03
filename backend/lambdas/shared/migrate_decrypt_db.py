@@ -81,10 +81,10 @@ def decrypt_users(conn):
     print(f"  users: decrypted {count} rows")
 
 
-def decrypt_partners(conn):
-    """Decrypt partner PII to plaintext."""
+def decrypt_accounts(conn):
+    """Decrypt account PII to plaintext."""
     cur = conn.cursor()
-    cur.execute("SELECT id, email, phone, contacts_json, addresses_json FROM partners")
+    cur.execute("SELECT id, email, phone, contacts_json, addresses_json FROM accounts")
     rows = cur.fetchall()
     count = 0
     for pid, email, phone, contacts_raw, addresses_raw in rows:
@@ -100,13 +100,13 @@ def decrypt_partners(conn):
             dec_addresses = json.dumps(result) if result else addresses_raw
         if dec_email != email or dec_phone != phone or dec_contacts != contacts_raw or dec_addresses != addresses_raw:
             cur.execute("""
-                UPDATE partners SET email = %s, phone = %s, contacts_json = %s, addresses_json = %s
+                UPDATE accounts SET email = %s, phone = %s, contacts_json = %s, addresses_json = %s
                 WHERE id = %s
             """, (dec_email, dec_phone, dec_contacts, dec_addresses, pid))
             count += 1
     conn.commit()
     cur.close()
-    print(f"  partners: decrypted {count} rows")
+    print(f"  accounts: decrypted {count} rows")
 
 
 def decrypt_clients(conn):
@@ -239,7 +239,7 @@ def main():
 
     try:
         decrypt_users(conn)
-        decrypt_partners(conn)
+        decrypt_accounts(conn)
         decrypt_clients(conn)
         decrypt_engagements(conn)
         decrypt_buttons(conn)

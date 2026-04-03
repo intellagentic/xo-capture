@@ -166,7 +166,7 @@ class TestSyncPush:
         # future_plans, status, source, nda_signed, nda_signed_at,
         # intellagentic_lead, pain_points_json, contacts_json,
         # addresses_json, s3_folder, hubspot_company_id,
-        # hubspot_contact_id, partner_id, encryption_key
+        # hubspot_contact_id, account_id, encryption_key
         client_row = (
             'uuid-123', 'Acme Corp', 'https://acme.com', 'Technology', 'AI startup',
             'Expand to EU', 'active', 'manual', True, None,

@@ -187,7 +187,7 @@ function assembleDeckData(results) {
     const wf = workflows[i] || workflows[workflows.length - 1] || {};
     comparisons.push({
       before: truncate(cleanText(prob.title || "Manual process with no audit trail"), 60),
-      after: truncate(wf.title ? `XO automates ${wf.title.toLowerCase()}` : "Protocol-driven automation with audit trail", 60),
+      after: truncate(wf.title ? `Streamline + XO automates ${wf.title.toLowerCase()}` : "Protocol-driven automation with audit trail", 60),
     });
   }
   while (comparisons.length < 6) {

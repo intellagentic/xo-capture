@@ -90,12 +90,20 @@ def lambda_handler(event, context):
     return response
 
 
-def _verify_client(cur, client_id, user_id, is_admin=False, is_client=False, user_client_id=None, is_partner=False, partner_id=None):
+def _verify_client(cur, client_id, user_id, is_admin=False, is_client=False, user_client_id=None, is_account=False, account_id=None, account_role=None):
     """Verify client exists and belongs to user. Returns (db_client_id, s3_folder) or None."""
-    if is_admin:
+    if account_role == 'super_admin' or is_admin:
         cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s", (client_id,))
-    elif is_partner and partner_id:
-        cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s AND partner_id = %s", (client_id, partner_id))
+    elif account_role == 'account_admin':
+        cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s AND account_id = %s", (client_id, account_id))
+    elif account_role in ('account_user', 'client_contact'):
+        cur.execute("""
+            SELECT c.id, c.s3_folder FROM clients c
+            JOIN user_client_assignments uca ON c.id = uca.client_id
+            WHERE c.s3_folder = %s AND uca.user_id = %s
+        """, (client_id, user_id))
+    elif is_account and account_id:
+        cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s AND account_id = %s", (client_id, account_id))
     elif is_client and user_client_id and client_id == user_client_id:
         cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s", (client_id,))
     else:
@@ -109,8 +117,8 @@ def _verify_client(cur, client_id, user_id, is_admin=False, is_client=False, use
     return None, None
 
 
-def _verify_upload_ownership(cur, upload_id, user_id, is_admin=False, is_client=False, user_client_id=None, is_partner=False, partner_id=None):
-    """Verify upload belongs to user via client join (admins can access any, partners scoped to their clients, client-token users scoped). Returns upload row or None."""
+def _verify_upload_ownership(cur, upload_id, user_id, is_admin=False, is_client=False, user_client_id=None, is_account=False, account_id=None):
+    """Verify upload belongs to user via client join (admins can access any, accounts scoped to their clients, client-token users scoped). Returns upload row or None."""
     if is_admin:
         cur.execute("""
             SELECT u.id, u.client_id, u.filename, u.file_type, u.s3_key, u.status,
@@ -119,14 +127,14 @@ def _verify_upload_ownership(cur, upload_id, user_id, is_admin=False, is_client=
             JOIN clients c ON u.client_id = c.id
             WHERE u.id = %s
         """, (upload_id,))
-    elif is_partner and partner_id:
+    elif is_account and account_id:
         cur.execute("""
             SELECT u.id, u.client_id, u.filename, u.file_type, u.s3_key, u.status,
                    u.file_size, u.version, u.source, c.s3_folder
             FROM uploads u
             JOIN clients c ON u.client_id = c.id
-            WHERE u.id = %s AND c.partner_id = %s
-        """, (upload_id, partner_id))
+            WHERE u.id = %s AND c.account_id = %s
+        """, (upload_id, account_id))
     elif is_client and user_client_id:
         cur.execute("""
             SELECT u.id, u.client_id, u.filename, u.file_type, u.s3_key, u.status,
@@ -171,7 +179,7 @@ def handle_upload(event, user):
     conn = get_db_connection()
     cur = conn.cursor()
 
-    db_client_id, _ = _verify_client(cur, client_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_partner', False), user.get('partner_id'))
+    db_client_id, _ = _verify_client(cur, client_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_account', False), user.get('account_id'), user.get('account_role'))
     if not db_client_id:
         cur.close()
         conn.close()
@@ -248,7 +256,7 @@ def handle_list_uploads(event, user):
     conn = get_db_connection()
     cur = conn.cursor()
 
-    db_client_id, _ = _verify_client(cur, client_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_partner', False), user.get('partner_id'))
+    db_client_id, _ = _verify_client(cur, client_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_account', False), user.get('account_id'), user.get('account_role'))
     if not db_client_id:
         cur.close()
         conn.close()
@@ -310,7 +318,7 @@ def handle_delete_upload(event, user):
     conn = get_db_connection()
     cur = conn.cursor()
 
-    row = _verify_upload_ownership(cur, upload_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_partner', False), user.get('partner_id'))
+    row = _verify_upload_ownership(cur, upload_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_account', False), user.get('account_id'))
     if not row:
         cur.close()
         conn.close()
@@ -360,7 +368,7 @@ def handle_toggle_upload(event, user):
     conn = get_db_connection()
     cur = conn.cursor()
 
-    row = _verify_upload_ownership(cur, upload_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_partner', False), user.get('partner_id'))
+    row = _verify_upload_ownership(cur, upload_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_account', False), user.get('account_id'))
     if not row:
         cur.close()
         conn.close()
@@ -416,7 +424,7 @@ def handle_replace_upload(event, user):
     conn = get_db_connection()
     cur = conn.cursor()
 
-    row = _verify_upload_ownership(cur, upload_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_partner', False), user.get('partner_id'))
+    row = _verify_upload_ownership(cur, upload_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_account', False), user.get('account_id'))
     if not row:
         cur.close()
         conn.close()
@@ -512,7 +520,7 @@ def handle_branding_upload(event, user):
     conn = get_db_connection()
     cur = conn.cursor()
 
-    db_client_id, _ = _verify_client(cur, client_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_partner', False), user.get('partner_id'))
+    db_client_id, _ = _verify_client(cur, client_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_account', False), user.get('account_id'), user.get('account_role'))
     if not db_client_id:
         cur.close()
         conn.close()
@@ -573,7 +581,7 @@ def handle_branding_get(event, user):
     conn = get_db_connection()
     cur = conn.cursor()
 
-    db_client_id, _ = _verify_client(cur, client_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_partner', False), user.get('partner_id'))
+    db_client_id, _ = _verify_client(cur, client_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_account', False), user.get('account_id'), user.get('account_role'))
     if not db_client_id:
         cur.close()
         conn.close()

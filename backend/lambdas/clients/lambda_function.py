@@ -138,13 +138,13 @@ def _run_skill_migrations():
 _run_skill_migrations()
 
 
-# ── Auto-migration: partners table + client partner_id/intellagentic_lead ──
-def _run_partner_migrations():
+# ── Auto-migration: accounts table + client account_id/intellagentic_lead ──
+def _run_account_migrations():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS partners (
+            CREATE TABLE IF NOT EXISTS accounts (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(500) NOT NULL,
                 company VARCHAR(500),
@@ -156,26 +156,26 @@ def _run_partner_migrations():
                 updated_at TIMESTAMP DEFAULT NOW()
             );
         """)
-        cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL;")
+        cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL;")
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS intellagentic_lead BOOLEAN DEFAULT FALSE;")
-        # Partner org profile columns
-        cur.execute("ALTER TABLE partners ADD COLUMN IF NOT EXISTS website VARCHAR(500);")
-        cur.execute("ALTER TABLE partners ADD COLUMN IF NOT EXISTS contacts_json TEXT;")
-        cur.execute("ALTER TABLE partners ADD COLUMN IF NOT EXISTS addresses_json TEXT;")
-        # Future plans + pain points (both clients and partners)
+        # Account org profile columns
+        cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS website VARCHAR(500);")
+        cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS contacts_json TEXT;")
+        cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS addresses_json TEXT;")
+        # Future plans + pain points (both clients and accounts)
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS future_plans TEXT;")
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS pain_points_json TEXT;")
-        cur.execute("ALTER TABLE partners ADD COLUMN IF NOT EXISTS description TEXT;")
-        cur.execute("ALTER TABLE partners ADD COLUMN IF NOT EXISTS future_plans TEXT;")
-        cur.execute("ALTER TABLE partners ADD COLUMN IF NOT EXISTS pain_points_json TEXT;")
+        cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS description TEXT;")
+        cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS future_plans TEXT;")
+        cur.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS pain_points_json TEXT;")
         conn.commit()
         cur.close()
         conn.close()
-        print("Partner migration complete: partners table + client columns ensured")
+        print("Account migration complete: accounts table + client columns ensured")
     except Exception as e:
-        print(f"Partner migration check (non-fatal): {e}")
+        print(f"Account migration check (non-fatal): {e}")
 
-_run_partner_migrations()
+_run_account_migrations()
 
 
 # ── Auto-migration: invite support (source column, nullable user_id) ──
@@ -275,14 +275,14 @@ def lambda_handler(event, context):
 
 
 def _route_clients(event, user, path, method):
-    # Derive role — old JWTs may have is_admin/is_partner but no role field
+    # Derive role — old JWTs may have is_admin/is_account but no role field
     role = user.get('role', 'client')
     if user.get('is_admin'):
         role = 'admin'
-    elif user.get('is_partner'):
-        role = 'partner'
+    elif user.get('is_account'):
+        role = 'account'
     is_client_user = role == 'client'
-    is_partner_user = role == 'partner'
+    is_account_user = role == 'account'
 
     # Proxy route — POST JSON to an external URL (avoids CORS)
     if '/proxy' in path and method == 'POST':
@@ -299,20 +299,20 @@ def _route_clients(event, user, path, method):
         elif method == 'PUT':
             return handle_update_system_config(event, user)
 
-    # Partners routes — admin only (partners can read list for reference)
-    if '/partners' in path:
+    # Accounts routes — admin only (accounts can read list for reference)
+    if '/accounts' in path:
         if is_client_user:
             return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Access denied'})}
         if method == 'GET':
-            return handle_list_partners(event, user)
+            return handle_list_accounts(event, user)
         elif not user.get('is_admin'):
             return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
         elif method == 'POST':
-            return handle_create_partner(event, user)
+            return handle_create_account(event, user)
         elif method == 'PUT':
-            return handle_update_partner(event, user)
+            return handle_update_account(event, user)
         elif method == 'DELETE':
-            return handle_delete_partner(event, user)
+            return handle_delete_account(event, user)
 
     # Skills routes — client users can read but not write
     if '/skills' in path:
@@ -340,6 +340,10 @@ def _route_clients(event, user, path, method):
     if path.endswith('/clients/list') and method == 'GET':
         return handle_list_clients(event, user)
     elif method == 'GET':
+        # Route to list handler if no specific client_id requested
+        params = event.get('queryStringParameters') or {}
+        if not params.get('client_id'):
+            return handle_list_clients(event, user)
         return handle_get_client(event, user)
     elif method == 'PUT':
         return handle_update_client(event, user)
@@ -348,7 +352,7 @@ def _route_clients(event, user, path, method):
             return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Access denied'})}
         return handle_create_client(event, user)
     elif method == 'DELETE':
-        if is_client_user or is_partner_user:
+        if is_client_user or is_account_user:
             return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Access denied'})}
         return handle_delete_client(event, user)
     else:
@@ -636,15 +640,15 @@ def handle_delete_skill(event, user):
                 'body': json.dumps({'error': 'Internal server error', 'message': str(e)})}
 
 
-def handle_list_partners(event, user):
-    """GET /partners — List all partners (admin only)."""
+def handle_list_accounts(event, user):
+    """GET /accounts — List all accounts (admin only)."""
     if not user.get('is_admin'):
         return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT id, name, company, email, phone, industry, notes, created_at, updated_at, website, contacts_json, addresses_json, description, future_plans, pain_points_json FROM partners ORDER BY name")
-        partners = []
+        cur.execute("SELECT id, name, company, email, phone, industry, notes, created_at, updated_at, website, contacts_json, addresses_json, description, future_plans, pain_points_json FROM accounts ORDER BY name")
+        accounts = []
         for row in cur.fetchall():
             contacts = []
             addresses = []
@@ -664,7 +668,7 @@ def handle_list_partners(event, user):
                     pain_points = json.loads(row[14])
             except Exception:
                 pass
-            partners.append({
+            accounts.append({
                 'id': row[0], 'name': row[1] or '', 'company': row[2] or '',
                 'email': row[3] or '', 'phone': row[4] or '', 'industry': row[5] or '',
                 'notes': row[6] or '',
@@ -679,16 +683,16 @@ def handle_list_partners(event, user):
             })
         cur.close()
         conn.close()
-        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'partners': partners})}
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'accounts': accounts})}
     except Exception as e:
-        print(f"Error listing partners: {e}")
+        print(f"Error listing accounts: {e}")
         cur.close()
         conn.close()
         return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
 
 
-def handle_create_partner(event, user):
-    """POST /partners — Create a new partner (admin only)."""
+def handle_create_account(event, user):
+    """POST /accounts — Create a new account (admin only)."""
     if not user.get('is_admin'):
         return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
     body = json.loads(event.get('body', '{}'))
@@ -704,7 +708,7 @@ def handle_create_partner(event, user):
     addresses_json = json.dumps(addresses) if addresses else None
     try:
         cur.execute("""
-            INSERT INTO partners (name, company, email, phone, industry, notes, website, contacts_json, addresses_json, description, future_plans, pain_points_json)
+            INSERT INTO accounts (name, company, email, phone, industry, notes, website, contacts_json, addresses_json, description, future_plans, pain_points_json)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
         """, (name, body.get('company', '').strip(),
               body.get('email', '').strip(),
@@ -714,25 +718,25 @@ def handle_create_partner(event, user):
               contacts_json, addresses_json,
               body.get('description', '').strip(), body.get('futurePlans', '').strip(),
               json.dumps(p_pain_points) if p_pain_points else None))
-        partner_id = cur.fetchone()[0]
+        account_id = cur.fetchone()[0]
         conn.commit()
         cur.close()
         conn.close()
-        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'id': partner_id, 'status': 'created'})}
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'id': account_id, 'status': 'created'})}
     except Exception as e:
-        print(f"Error creating partner: {e}")
+        print(f"Error creating account: {e}")
         cur.close()
         conn.close()
         return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
 
 
-def handle_update_partner(event, user):
-    """PUT /partners — Update an existing partner (admin only)."""
+def handle_update_account(event, user):
+    """PUT /accounts — Update an existing account (admin only)."""
     if not user.get('is_admin'):
         return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
     body = json.loads(event.get('body', '{}'))
-    partner_id = body.get('id')
-    if not partner_id:
+    account_id = body.get('id')
+    if not account_id:
         return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'id is required'})}
     conn = get_db_connection()
     cur = conn.cursor()
@@ -743,7 +747,7 @@ def handle_update_partner(event, user):
     addresses_json = json.dumps(addresses) if addresses else None
     try:
         cur.execute("""
-            UPDATE partners SET name=%s, company=%s, email=%s, phone=%s, industry=%s, notes=%s,
+            UPDATE accounts SET name=%s, company=%s, email=%s, phone=%s, industry=%s, notes=%s,
                    website=%s, contacts_json=%s, addresses_json=%s,
                    description=%s, future_plans=%s, pain_points_json=%s, updated_at=NOW()
             WHERE id=%s RETURNING id
@@ -754,33 +758,33 @@ def handle_update_partner(event, user):
               body.get('website', '').strip(),
               contacts_json, addresses_json,
               body.get('description', '').strip(), body.get('futurePlans', '').strip(),
-              json.dumps(u_pain_points) if u_pain_points else None, partner_id))
+              json.dumps(u_pain_points) if u_pain_points else None, account_id))
         row = cur.fetchone()
         conn.commit()
         cur.close()
         conn.close()
         if not row:
             return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Partner not found'})}
-        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'id': partner_id, 'status': 'updated'})}
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'id': account_id, 'status': 'updated'})}
     except Exception as e:
-        print(f"Error updating partner: {e}")
+        print(f"Error updating account: {e}")
         cur.close()
         conn.close()
         return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
 
 
-def handle_delete_partner(event, user):
-    """DELETE /partners — Delete a partner (admin only). Clients with this partner get NULL."""
+def handle_delete_account(event, user):
+    """DELETE /accounts — Delete an account (admin only). Clients with this account get NULL."""
     if not user.get('is_admin'):
         return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
     params = event.get('queryStringParameters') or {}
-    partner_id = params.get('id')
-    if not partner_id:
+    account_id = params.get('id')
+    if not account_id:
         return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'id is required'})}
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("DELETE FROM partners WHERE id = %s RETURNING id", (partner_id,))
+        cur.execute("DELETE FROM accounts WHERE id = %s RETURNING id", (account_id,))
         row = cur.fetchone()
         conn.commit()
         cur.close()
@@ -789,7 +793,7 @@ def handle_delete_partner(event, user):
             return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Partner not found'})}
         return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'deleted': True})}
     except Exception as e:
-        print(f"Error deleting partner: {e}")
+        print(f"Error deleting account: {e}")
         cur.close()
         conn.close()
         return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
@@ -809,8 +813,8 @@ def handle_list_clients(event, user):
                    (SELECT e.completed_at FROM enrichments e WHERE e.client_id = c.id ORDER BY e.started_at DESC LIMIT 1) as last_enrichment_date,
                    c.icon_s3_key,
                    u.name as owner_name,
-                   p.name as partner_name,
-                   c.partner_id,
+                   a.name as account_name,
+                   c.account_id,
                    COALESCE(c.intellagentic_lead, FALSE) as intellagentic_lead,
                    c.updated_by,
                    COALESCE(c.nda_signed, FALSE) as nda_signed,
@@ -818,18 +822,33 @@ def handle_list_clients(event, user):
                    c.nda_signed_at
             FROM clients c
             LEFT JOIN users u ON c.user_id = u.id
-            LEFT JOIN partners p ON c.partner_id = p.id
+            LEFT JOIN accounts a ON c.account_id = a.id
         """
-        if user.get('is_admin'):
+        account_role = user.get('account_role')
+
+        if account_role == 'super_admin' or user.get('is_admin'):
+            # Super admin: see all clients
             cur.execute(base_query + " ORDER BY c.updated_at DESC")
-        elif user.get('is_partner') and user.get('partner_id'):
-            cur.execute(base_query + " WHERE c.partner_id = %s ORDER BY c.updated_at DESC", (user['partner_id'],))
+        elif account_role == 'account_admin':
+            # Account admin: see all clients in their account
+            cur.execute(base_query + " WHERE c.account_id = %s ORDER BY c.updated_at DESC", (user.get('account_id'),))
+        elif account_role in ('account_user', 'client_contact'):
+            # Scoped user: only assigned clients
+            print(f"[DEBUG] account_user list: user_id={user['user_id']}, account_role={account_role}")
+            cur.execute("SELECT count(*) FROM user_client_assignments WHERE user_id = %s", (user['user_id'],))
+            acount = cur.fetchone()[0]
+            print(f"[DEBUG] assignments count for {user['user_id']}: {acount}")
+            cur.execute(base_query + " JOIN user_client_assignments uca ON c.id = uca.client_id WHERE uca.user_id = %s ORDER BY c.updated_at DESC", (user['user_id'],))
+        elif user.get('is_account') and user.get('account_id'):
+            # Legacy partner user fallback
+            cur.execute(base_query + " WHERE c.account_id = %s ORDER BY c.updated_at DESC", (user['account_id'],))
         elif user.get('is_client') and user.get('client_id'):
             cur.execute(base_query + " WHERE c.s3_folder = %s ORDER BY c.updated_at DESC", (user['client_id'],))
         else:
             cur.execute(base_query + " WHERE c.user_id = %s ORDER BY c.updated_at DESC", (user['user_id'],))
 
         rows = cur.fetchall()
+        print(f"[DEBUG] handle_list_clients: account_role={account_role}, user_id={user.get('user_id')}, rows_returned={len(rows)}")
         cur.close()
         conn.close()
 
@@ -860,8 +879,8 @@ def handle_list_clients(event, user):
                 'enrichment_date': row[9].isoformat() if row[9] else None,
                 'icon_url': icon_url,
                 'owner_name': row[11] or '',
-                'partner_name': row[12] or '',
-                'partner_id': row[13],
+                'account_name': row[12] or '',
+                'account_id': row[13],
                 'intellagentic_lead': bool(row[14]),
                 'updated_by': row[15] or '',
                 'ndaSigned': bool(row[16]),
@@ -900,7 +919,7 @@ def handle_get_client(event, user):
             client_id = user['client_id']
 
         if client_id:
-            # Admins, client users (own client), and partners (own clients) get unscoped query
+            # Admins, client users (own client), and accounts (own clients) get unscoped query
             if user.get('is_admin') or (user.get('is_client') and user.get('client_id') == client_id):
                 cur.execute("""
                     SELECT id, company_name, website_url, contact_name, contact_title,
@@ -908,27 +927,27 @@ def handle_get_client(event, user):
                            s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
                            COALESCE(streamline_webhook_enabled, FALSE),
                            contact_email, contact_phone, contacts_json, addresses_json,
-                           streamline_webhook_url, partner_id, COALESCE(intellagentic_lead, FALSE),
+                           streamline_webhook_url, account_id, COALESCE(intellagentic_lead, FALSE),
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
                            COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
                            approved_at, company_linkedin
                     FROM clients WHERE s3_folder = %s
                 """, (client_id,))
-            elif user.get('is_partner') and user.get('partner_id'):
+            elif user.get('is_account') and user.get('account_id'):
                 cur.execute("""
                     SELECT id, company_name, website_url, contact_name, contact_title,
                            contact_linkedin, industry, description, pain_point,
                            s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
                            COALESCE(streamline_webhook_enabled, FALSE),
                            contact_email, contact_phone, contacts_json, addresses_json,
-                           streamline_webhook_url, partner_id, COALESCE(intellagentic_lead, FALSE),
+                           streamline_webhook_url, account_id, COALESCE(intellagentic_lead, FALSE),
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
                            COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
                            approved_at, company_linkedin
-                    FROM clients WHERE s3_folder = %s AND partner_id = %s
-                """, (client_id, user['partner_id']))
+                    FROM clients WHERE s3_folder = %s AND account_id = %s
+                """, (client_id, user['account_id']))
             else:
                 cur.execute("""
                     SELECT id, company_name, website_url, contact_name, contact_title,
@@ -936,7 +955,7 @@ def handle_get_client(event, user):
                            s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
                            COALESCE(streamline_webhook_enabled, FALSE),
                            contact_email, contact_phone, contacts_json, addresses_json,
-                           streamline_webhook_url, partner_id, COALESCE(intellagentic_lead, FALSE),
+                           streamline_webhook_url, account_id, COALESCE(intellagentic_lead, FALSE),
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
                            COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
@@ -951,7 +970,7 @@ def handle_get_client(event, user):
                        s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
                        COALESCE(streamline_webhook_enabled, FALSE),
                        contact_email, contact_phone, contacts_json, addresses_json,
-                       streamline_webhook_url, partner_id, COALESCE(intellagentic_lead, FALSE),
+                       streamline_webhook_url, account_id, COALESCE(intellagentic_lead, FALSE),
                        future_plans, pain_points_json, invite_webhook_url,
                        encryption_key, updated_by,
                        COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
@@ -1074,7 +1093,7 @@ def handle_get_client(event, user):
                 'contacts': contacts,
                 'addresses': addresses,
                 'streamline_webhook_url': row[19] or '',
-                'partner_id': row[20],
+                'account_id': row[20],
                 'intellagentic_lead': bool(row[21]),
                 'invite_webhook_url': row[24] or '',
                 'updated_by': (row[26] or '') if len(row) > 26 else '',
@@ -1186,9 +1205,9 @@ def handle_update_client(event, user):
             set_fields.append("invite_webhook_url = %s")
             params.append(body['invite_webhook_url'].strip())
 
-        if 'partner_id' in body:
-            set_fields.append("partner_id = %s")
-            params.append(body['partner_id'])  # int or None
+        if 'account_id' in body:
+            set_fields.append("account_id = %s")
+            params.append(body['account_id'])  # int or None
 
         if 'intellagentic_lead' in body:
             set_fields.append("intellagentic_lead = %s")
@@ -1227,11 +1246,11 @@ def handle_update_client(event, user):
                 WHERE s3_folder = %s
                 RETURNING id
             """, params)
-        elif user.get('is_partner') and user.get('partner_id'):
-            params.extend([client_id, user['partner_id']])
+        elif user.get('is_account') and user.get('account_id'):
+            params.extend([client_id, user['account_id']])
             cur.execute(f"""
                 UPDATE clients SET {', '.join(set_fields)}
-                WHERE s3_folder = %s AND partner_id = %s
+                WHERE s3_folder = %s AND account_id = %s
                 RETURNING id
             """, params)
         else:
@@ -1893,10 +1912,10 @@ def handle_create_client(event, user):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Partners auto-assign their partner_id to new clients
-        partner_id_val = body.get('partner_id')  # int or None
-        if user.get('is_partner') and user.get('partner_id'):
-            partner_id_val = user['partner_id']
+        # Accounts auto-assign their account_id to new clients
+        account_id_val = body.get('account_id')  # int or None
+        if user.get('is_account') and user.get('account_id'):
+            account_id_val = user['account_id']
         intellagentic_lead_val = bool(body.get('intellagentic_lead', False))
 
         cur.execute("""
@@ -1904,7 +1923,7 @@ def handle_create_client(event, user):
                 user_id, company_name, website_url, contact_name, contact_title,
                 contact_linkedin, contact_email, contact_phone,
                 contacts_json, addresses_json, industry, description, pain_point, s3_folder,
-                partner_id, intellagentic_lead, future_plans, pain_points_json,
+                account_id, intellagentic_lead, future_plans, pain_points_json,
                 encryption_key, updated_by, nda_signed, nda_signed_at, existing_apps, company_linkedin
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
@@ -1915,7 +1934,7 @@ def handle_create_client(event, user):
             json.dumps(contacts) if contacts else None,
             json.dumps(addresses) if addresses else None,
             industry, description, pain_point, client_id,
-            partner_id_val, intellagentic_lead_val,
+            account_id_val, intellagentic_lead_val,
             future_plans,
             json.dumps(pain_points) if pain_points else None,
             encrypted_client_key,

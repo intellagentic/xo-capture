@@ -202,8 +202,8 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS hubspot_contact_id VARCHAR(50);
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS hubspot_last_sync TIMESTAMP;
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS hubspot_last_enrichment_id VARCHAR(50);
 
-ALTER TABLE partners ADD COLUMN IF NOT EXISTS hubspot_company_id VARCHAR(50);
-ALTER TABLE partners ADD COLUMN IF NOT EXISTS hubspot_last_sync TIMESTAMP;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS hubspot_company_id VARCHAR(50);
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS hubspot_last_sync TIMESTAMP;
 
 -- system_config entries used by hubspot-sync Lambda:
 --   hubspot_access_token (encrypted)
@@ -255,3 +255,23 @@ CREATE TABLE IF NOT EXISTS engagements (
 CREATE INDEX IF NOT EXISTS idx_engagements_client_id ON engagements(client_id);
 CREATE INDEX IF NOT EXISTS idx_engagements_status ON engagements(status);
 ALTER TABLE enrichments ADD COLUMN IF NOT EXISTS engagement_id UUID;
+
+-- Multi-tenant auth
+ALTER TABLE users ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS account_role TEXT CHECK (account_role IN ('super_admin', 'account_admin', 'account_user', 'client_contact'));
+ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active' CHECK (status IN ('invited', 'active', 'deactivated'));
+ALTER TABLE users ADD COLUMN IF NOT EXISTS invited_by UUID REFERENCES users(id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS invited_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_token TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_expires_at TIMESTAMP;
+
+CREATE TABLE IF NOT EXISTS user_client_assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    assigned_by UUID REFERENCES users(id),
+    assigned_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, client_id)
+);
+CREATE INDEX IF NOT EXISTS idx_uca_user_id ON user_client_assignments(user_id);
+CREATE INDEX IF NOT EXISTS idx_uca_client_id ON user_client_assignments(client_id);

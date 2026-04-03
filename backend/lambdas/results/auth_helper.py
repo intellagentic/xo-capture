@@ -51,9 +51,9 @@ def verify_token(event):
             'name': payload.get('name', ''),
             'role': payload.get('role', 'client'),
             'is_admin': payload.get('is_admin', False),
-            'is_partner': payload.get('is_partner', False),
+            'is_account': payload.get('is_account', False),
             'is_client': payload.get('is_client', False),
-            'partner_id': payload.get('partner_id', None),
+            'account_id': payload.get('account_id', None),
             'client_id': payload.get('client_id', None)
         }
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):

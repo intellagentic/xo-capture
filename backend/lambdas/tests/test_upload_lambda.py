@@ -210,8 +210,8 @@ class TestVerifyClient:
         db_id, s3 = upload_module._verify_client(mock_cur, 'c_123', 'user-1')
         assert db_id is None
 
-    def test_partner_scoped(self, upload_module, mock_deps):
+    def test_account_scoped(self, upload_module, mock_deps):
         _, _, mock_cur, _ = mock_deps
         mock_cur.fetchone.return_value = ('db-1', 'c_123')
-        db_id, s3 = upload_module._verify_client(mock_cur, 'c_123', 'user-1', is_partner=True, partner_id=42)
+        db_id, s3 = upload_module._verify_client(mock_cur, 'c_123', 'user-1', is_account=True, account_id=42)
         assert db_id == 'db-1'
