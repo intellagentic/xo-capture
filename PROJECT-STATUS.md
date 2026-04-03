@@ -3,7 +3,7 @@
 **Date:** April 1, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.07)
+**Status:** Deployed & Operational (v2.09)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3425,6 +3425,70 @@ Bug fixes:
 
 Design scoped:
 - Multi-tenant auth design: accounts, partner admin, partner user, client contact roles
+
+**v2.09 -- Multi-Tenant Auth Phases 1-3 (April 2, 2026)**
+
+Phase 1 -- Schema & Rename (complete):
+- Renamed partners table to accounts across full stack (21 files, 181 references)
+- Idempotent migration: DROP empty accounts table, ALTER TABLE partners RENAME TO accounts
+- Added account_role column to users (super_admin, account_admin, account_user, client_contact)
+- Added status (invited/active/deactivated), invite_token, invite_expires_at columns to users
+- Created user_client_assignments table with user_id + client_id unique constraint and indexes
+- JWT now carries account_id and account_role alongside legacy role field
+- Auth middleware (auth_helper.py) reads both new fields from decoded JWT
+- Data migration: role=admin -> account_role=super_admin, role=partner -> account_user, role=client -> client_contact
+- All 6 Lambdas deployed, migration confirmed on cold start, fully backward compatible
+
+Phase 2 -- Invite Flow (complete):
+- POST /auth/invite -- create invited user, send branded email via SES
+- POST /auth/invite/resend -- refresh token, resend email
+- GET /auth/invite/{token} -- validate token (public endpoint, no auth required)
+- POST /auth/invite/{token}/accept -- set password with bcrypt, activate user, return JWT
+- DELETE /auth/invite?user_id=X -- soft deactivate user (status=deactivated, not hard delete)
+- GET /auth/invite -- list all users in account (for Team page)
+- SES configured in eu-west-2, sending from xo@intellagentic.io
+- DNS verified: TXT (_amazonses), 3 DKIM CNAMEs, SPF include, DMARC on intellagentic.io
+- Branded HTML email template with IntellagenticXO header, red CTA button, 30-day expiry
+- Handles all user states: new (INSERT), invited (refresh token + resend), deactivated (reactivate as invited), active (reject with 409)
+- Frontend: AcceptInvitePage at /accept-invite?token=xxx (pre-auth, password setup)
+- Frontend: TeamScreen with invite modal (name, email, role, account dropdown), user list with status badges, resend and remove buttons
+- "Team" sidebar nav item for super_admin and account_admin roles
+- SES still in sandbox mode -- verified test recipients only until production access requested
+- IAM: xo-ses-send inline policy on xo-lambda-role (ses:SendEmail, ses:SendRawEmail, Resource: *)
+
+Phase 3 -- Client Assignment Scoping (complete):
+- Assignment UI on Team page -- "Clients" button per user opens checkbox modal
+- GET /auth/users/{userId}/clients -- list assigned clients
+- POST /auth/users/{userId}/clients -- replace all assignments (delete + insert pattern)
+- 6-tier scoped query in clients Lambda handle_list_clients:
+  -- super_admin: all clients (no filter)
+  -- account_admin: WHERE clients.account_id = user.account_id
+  -- account_user: JOIN user_client_assignments WHERE uca.user_id = jwt.user_id
+  -- client_contact: same as account_user
+  -- Legacy is_account/is_client fallbacks preserved
+  -- Default: WHERE clients.user_id = jwt.user_id
+- Backend enforcement on results Lambda (_get_enrichment_results): account_role scoping
+- Backend enforcement on upload Lambda (_verify_client): account_role + assignment check
+- Frontend: account_user and account_admin now see "My Clients" in sidebar
+- Frontend: login and page-load routing sends account_user/account_admin to dashboard
+- Frontend: /accounts fetch gated behind isAdmin (no 403 for non-admin users)
+- GET /clients without client_id now routes to handle_list_clients (was hitting handle_get_client)
+- Tested end-to-end: account_user sees only assigned clients after assignment via Team page
+
+API Gateway routes added:
+- POST /auth/invite, GET /auth/invite, DELETE /auth/invite, OPTIONS
+- POST /auth/invite/resend, OPTIONS
+- GET /auth/invite/{token}, OPTIONS
+- POST /auth/invite/{token}/accept, OPTIONS
+- GET /auth/users/{userId}/clients, POST /auth/users/{userId}/clients, OPTIONS
+- /accounts resource (GET/POST/PUT/DELETE/OPTIONS) -- renamed from /partners
+
+Remaining phases:
+- Phase 4: Account admin self-service UI (manage own team without super_admin)
+- Phase 5: Client contact read-only workspace (no enrich, no upload, no config)
+- Polish: Google OAuth on accept-invite page, SES production access, remove debug logging
+
+Branch: feature/multi-tenant-auth (merge to main when all phases complete)
 
 ---
 
