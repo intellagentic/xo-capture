@@ -3512,12 +3512,19 @@ Phase 5 complete -- Client contact + contributor roles:
 - Team sidebar remains admin/account_admin only
 - Invite flow supports contributor role with client assignment
 
+**April 3 continued:**
+- Multi-tenant auth Phases 4-5 complete -- role change with hierarchy enforcement, last-admin protection, contributor role with filtered sidebar and scoped queries
+- Google OAuth fix -- invited users with role='client' but valid account_role now login correctly instead of falling through to client contact scan
+- API Gateway route added for PATCH /auth/invite/role
+- Team page -- search/filter bar (name/email), account grouping with sorted sections (active > invited > deactivated), role/status dropdowns, client-token users filtered from list
+- Partners page -- search/industry filter bar
+- All list pages (All Clients, Team, Partners) -- consistent two-row header layout (title+count / action button on row 1, filters on row 2, 300px search + 150px dropdowns, 36px height, 12px gap)
+- Data cleanup -- user names corrected (Richie Saville, Vamsi Nama), test accounts deactivated (ken.scott@intellagentic.com, xo@intellagentic.io), users assigned to accounts (Intellagentic created, core team assigned, kscott@scottaffiliated.com to Intellistack)
+- feature/multi-tenant-auth merged to main -- all Phases 1-5 deployed and tested end to end
+
 Remaining:
 - Phase 6: 2FA/MFA (SMS via SNS + TOTP fallback)
-- Polish: Google OAuth on accept-invite page, SES production access (requested), remove debug logging, hide "Create Client" for contributor/client_contact
-- Merge feature/multi-tenant-auth to main after Phase 6 or when stable
-
-Branch: feature/multi-tenant-auth
+- Polish: Google OAuth on accept-invite page, SES production access (requested, pending AWS review), remove debug logging, hide "Create Client" for contributor/client_contact
 
 ---
 
