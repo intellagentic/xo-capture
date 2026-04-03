@@ -1016,61 +1016,39 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isAccount, a
 
   return (
     <div style={{ padding: '1.5rem', maxWidth: '100%', overflowX: 'hidden' }}>
-      {/* Header row: title + search + new client */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.875rem', flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+      {/* Row 1: Title + action button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
           {isAccount && !isAdmin ? 'My Clients' : 'All Clients'} <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b7280)', fontSize: '0.8125rem' }}>({filteredClients.length})</span>
         </h2>
-        <div style={{ position: 'relative', flex: '1 1 140px', minWidth: '120px', maxWidth: '220px' }}>
-          <Search size={13} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #9ca3af)' }} />
-          <input
-            type="text"
-            placeholder="Filter clients..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%', padding: '0.3rem 0.5rem 0.3rem 1.75rem', fontSize: '0.75rem',
-              border: '1px solid var(--border-color, #d1d5db)', borderRadius: '6px',
-              background: 'var(--bg-input, #ffffff)', color: 'var(--text-primary)',
-              outline: 'none'
-            }}
-          />
-        </div>
+        <button onClick={onCreateClient} className="action-btn red" style={{ flexShrink: 0 }}>
+          <Plus size={14} /> New Client
+        </button>
+      </div>
+      {/* Row 2: Filters */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: '0.875rem', alignItems: 'center' }}>
+        <input
+          type="text"
+          placeholder="Search clients..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          style={{ width: 300, padding: '0.45rem 0.625rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', height: 36 }}
+        />
         {isAdmin && (
-          <select
-            value={filterPartner}
-            onChange={e => setFilterPartner(e.target.value)}
-            style={{
-              padding: '0.3rem 0.5rem', fontSize: '0.75rem',
-              border: '1px solid var(--border-color, #d1d5db)', borderRadius: '6px',
-              background: 'var(--bg-input, #ffffff)', color: 'var(--text-primary)',
-              outline: 'none', flex: '0 1 auto', minWidth: 0, maxWidth: '150px'
-            }}
-          >
+          <select value={filterPartner} onChange={e => setFilterPartner(e.target.value)}
+            style={{ width: 150, padding: '0.45rem 0.5rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', height: 36 }}>
             <option value="">All Partners</option>
             <option value="direct">Direct (Intellagentic)</option>
             {accounts.map(p => <option key={p.id} value={String(p.id)}>{p.company || p.name}</option>)}
           </select>
         )}
         {industries.length > 0 && (
-          <select
-            value={filterIndustry}
-            onChange={e => setFilterIndustry(e.target.value)}
-            style={{
-              padding: '0.3rem 0.5rem', fontSize: '0.75rem',
-              border: '1px solid var(--border-color, #d1d5db)', borderRadius: '6px',
-              background: 'var(--bg-input, #ffffff)', color: 'var(--text-primary)',
-              outline: 'none', flex: '0 1 auto', minWidth: 0, maxWidth: '150px'
-            }}
-          >
+          <select value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)}
+            style={{ width: 150, padding: '0.45rem 0.5rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', height: 36 }}>
             <option value="">All Industries</option>
             {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
           </select>
         )}
-        <div style={{ flex: 1 }} />
-        <button onClick={onCreateClient} className="action-btn red" style={{ flexShrink: 0 }}>
-          <Plus size={14} /> New Client
-        </button>
       </div>
 
       {/* Client list */}
@@ -3397,14 +3375,15 @@ function TeamScreen({ isAdmin, user, accounts }) {
     return result
   }, [users, teamSearch, teamRoleFilter, teamStatusFilter])
 
-  const selectStyle = { padding: '0.3rem 0.5rem', fontSize: '0.75rem', border: '1px solid var(--border-color, #d1d5db)', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none' }
+  const filterCtrlStyle = { padding: '0.45rem 0.5rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', height: 36 }
 
   return (
     <div className="panel">
-      <div className="panel-header">
-        <div className="panel-header-left">
+      {/* Row 1: Title + action button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Mail size={20} className="icon-red" />
-          <h2>Team</h2>
+          <h2 style={{ margin: 0 }}>Team</h2>
           <span className="badge-count blue">{filteredUsers.length}</span>
         </div>
         <button onClick={() => setShowInviteModal(true)} className="action-btn red" style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}>
@@ -3414,22 +3393,19 @@ function TeamScreen({ isAdmin, user, accounts }) {
       <div style={{ padding: '1.25rem' }}>
         {inviteSuccess && <div style={{ padding: '0.5rem 0.75rem', background: '#dcfce7', borderRadius: 6, fontSize: '0.8rem', color: '#16a34a', marginBottom: '0.75rem' }}>{inviteSuccess}</div>}
 
-        {/* Search and filters */}
+        {/* Row 2: Filters */}
         {users.length > 0 && (
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 0 }}>
-              <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
-              <input
-                value={teamSearch} onChange={e => setTeamSearch(e.target.value)}
-                placeholder="Search name or email..."
-                style={{ width: '100%', padding: '0.35rem 0.5rem 0.35rem 1.75rem', fontSize: '0.75rem', border: '1px solid var(--border-color, #d1d5db)', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none' }}
-              />
-            </div>
-            <select value={teamRoleFilter} onChange={e => setTeamRoleFilter(e.target.value)} style={selectStyle}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: '0.75rem', alignItems: 'center' }}>
+            <input
+              value={teamSearch} onChange={e => setTeamSearch(e.target.value)}
+              placeholder="Search name or email..."
+              style={{ ...filterCtrlStyle, width: 300 }}
+            />
+            <select value={teamRoleFilter} onChange={e => setTeamRoleFilter(e.target.value)} style={{ ...filterCtrlStyle, width: 150 }}>
               <option value="">All Roles</option>
               {roleHierarchy.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
             </select>
-            <select value={teamStatusFilter} onChange={e => setTeamStatusFilter(e.target.value)} style={selectStyle}>
+            <select value={teamStatusFilter} onChange={e => setTeamStatusFilter(e.target.value)} style={{ ...filterCtrlStyle, width: 150 }}>
               <option value="">All Status</option>
               <option value="active">Active</option>
               <option value="invited">Invited</option>
@@ -3437,7 +3413,7 @@ function TeamScreen({ isAdmin, user, accounts }) {
             </select>
             {(teamSearch || teamRoleFilter || teamStatusFilter) && (
               <button onClick={() => { setTeamSearch(''); setTeamRoleFilter(''); setTeamStatusFilter('') }}
-                style={{ fontSize: '0.65rem', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear</button>
+                style={{ fontSize: '0.7rem', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear</button>
             )}
           </div>
         )}
