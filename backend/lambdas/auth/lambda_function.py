@@ -252,6 +252,15 @@ def _run_multi_tenant_migrations():
             END $$;
         """)
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS account_role TEXT CHECK (account_role IN ('super_admin', 'account_admin', 'account_user', 'client_contact'))")
+        # Expand account_role enum to include contributor
+        cur.execute("""
+            DO $$
+            BEGIN
+                ALTER TABLE users DROP CONSTRAINT IF EXISTS users_account_role_check;
+                ALTER TABLE users ADD CONSTRAINT users_account_role_check CHECK (account_role IN ('super_admin', 'account_admin', 'account_user', 'client_contact', 'contributor'));
+            EXCEPTION WHEN others THEN NULL;
+            END $$;
+        """)
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active' CHECK (status IN ('invited', 'active', 'deactivated'))")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS invited_by UUID REFERENCES users(id)")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS invited_at TIMESTAMP")
@@ -1441,6 +1450,8 @@ ses_client = boto3.client('ses', region_name=SES_REGION)
 def _route_invite(event, path, method):
     """Route invite-related requests."""
     # Authenticated endpoints (check specific paths FIRST before wildcard token match)
+    if path.endswith('/auth/invite/role') and method == 'PATCH':
+        return handle_role_change(event)
     if path.endswith('/auth/invite/resend') and method == 'POST':
         return handle_invite_resend(event)
     if path.endswith('/auth/invite') and method == 'POST':
@@ -1569,7 +1580,7 @@ def handle_invite_send(event):
         if not email or not name:
             return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'email and name are required'})}
 
-        if account_role not in ('account_admin', 'account_user', 'client_contact'):
+        if account_role not in ('account_admin', 'account_user', 'client_contact', 'contributor'):
             return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Invalid account_role'})}
 
         caller_role = caller.get('account_role')
@@ -1910,6 +1921,14 @@ def handle_user_deactivate(event):
             conn.close()
             return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot deactivate yourself'})}
 
+        # Last-admin protection
+        if row[3] in ('account_admin', 'super_admin'):
+            cur.execute("SELECT count(*) FROM users WHERE account_id = %s AND account_role IN ('account_admin', 'super_admin') AND status = 'active' AND id != %s", (row[2], user_id))
+            admin_count = cur.fetchone()[0]
+            if admin_count == 0:
+                cur.close(); conn.close()
+                return {'statusCode': 409, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot remove the last admin on this account'})}
+
         cur.execute("UPDATE users SET status = 'deactivated' WHERE id = %s", (user_id,))
         conn.commit()
         cur.close()
@@ -2021,4 +2040,60 @@ def handle_set_user_clients(event, target_user_id):
 
     except Exception as e:
         print(f"Set user clients error: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_role_change(event):
+    """PATCH /auth/invite/role — Change a user's account_role."""
+    caller, err = _verify_invite_caller(event)
+    if err:
+        return err
+    try:
+        body = json.loads(event.get('body', '{}'))
+        target_user_id = body.get('user_id', '').strip()
+        new_role = body.get('account_role', '').strip()
+
+        if not target_user_id or not new_role:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'user_id and account_role are required'})}
+
+        valid_roles = ['super_admin', 'account_admin', 'account_user', 'client_contact', 'contributor']
+        if new_role not in valid_roles:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'})}
+
+        # Role hierarchy check — cannot promote above own role
+        role_hierarchy = {'super_admin': 4, 'account_admin': 3, 'account_user': 2, 'contributor': 1, 'client_contact': 0}
+        caller_level = role_hierarchy.get(caller.get('account_role'), 0)
+        new_level = role_hierarchy.get(new_role, 0)
+        if new_level > caller_level:
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot assign a role higher than your own'})}
+
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+
+        cur.execute("SELECT account_id, account_role FROM users WHERE id = %s", (target_user_id,))
+        target = cur.fetchone()
+        if not target:
+            cur.close(); conn.close()
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'User not found'})}
+
+        # Scope check
+        if caller.get('account_role') == 'account_admin' and str(target[0]) != str(caller.get('account_id')):
+            cur.close(); conn.close()
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot change roles for users in other accounts'})}
+
+        # Last-admin protection — if demoting from admin, check there's another admin
+        if target[1] in ('account_admin', 'super_admin') and new_role not in ('account_admin', 'super_admin'):
+            cur.execute("SELECT count(*) FROM users WHERE account_id = %s AND account_role IN ('account_admin', 'super_admin') AND status = 'active' AND id != %s", (target[0], target_user_id))
+            admin_count = cur.fetchone()[0]
+            if admin_count == 0:
+                cur.close(); conn.close()
+                return {'statusCode': 409, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Cannot demote the last admin on this account'})}
+
+        cur.execute("UPDATE users SET account_role = %s, updated_at = NOW() WHERE id = %s", (new_role, target_user_id))
+        conn.commit()
+        cur.close(); conn.close()
+
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'success': True, 'account_role': new_role})}
+    except Exception as e:
+        print(f"Role change error: {e}")
         return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}

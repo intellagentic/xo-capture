@@ -54,7 +54,7 @@ def _get_enrichment_results(client_id, user, engagement_id=None):
             WHERE c.s3_folder = %s AND c.account_id = %s{eng_filter}
             ORDER BY e.started_at DESC LIMIT 1
         """, (client_id, user.get('account_id'), *eng_params))
-    elif account_role in ('account_user', 'client_contact'):
+    elif account_role in ('account_user', 'client_contact', 'contributor'):
         cur.execute(f"""
             SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
             FROM enrichments e JOIN clients c ON e.client_id = c.id

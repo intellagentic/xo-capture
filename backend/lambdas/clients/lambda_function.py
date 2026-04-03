@@ -832,7 +832,7 @@ def handle_list_clients(event, user):
         elif account_role == 'account_admin':
             # Account admin: see all clients in their account
             cur.execute(base_query + " WHERE c.account_id = %s ORDER BY c.updated_at DESC", (user.get('account_id'),))
-        elif account_role in ('account_user', 'client_contact'):
+        elif account_role in ('account_user', 'client_contact', 'contributor'):
             # Scoped user: only assigned clients
             print(f"[DEBUG] account_user list: user_id={user['user_id']}, account_role={account_role}")
             cur.execute("SELECT count(*) FROM user_client_assignments WHERE user_id = %s", (user['user_id'],))

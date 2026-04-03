@@ -1984,7 +1984,7 @@ export default function App() {
     setIsAdmin(admin)
     setIsAccount(partner)
     if (userData.preferred_model) setPreferredModel(userData.preferred_model)
-    const hasClientList = admin || partner || ['account_user', 'account_admin'].includes(userData.account_role)
+    const hasClientList = admin || partner || ['account_user', 'account_admin', 'contributor', 'client_contact'].includes(userData.account_role)
     if (hasClientList) {
       setCurrentScreen('dashboard')
       setInWorkspace(false)
@@ -2030,7 +2030,7 @@ export default function App() {
   }
 
   const [currentScreen, setCurrentScreen] = useState(() => {
-    return (initialAuth.user?.is_admin || initialAuth.user?.is_account || ['account_user', 'account_admin'].includes(initialAuth.user?.account_role)) ? 'dashboard' : 'upload'
+    return (initialAuth.user?.is_admin || initialAuth.user?.is_account || ['account_user', 'account_admin', 'contributor', 'client_contact'].includes(initialAuth.user?.account_role)) ? 'dashboard' : 'upload'
   }) // dashboard | upload | enrich | results | skills | configuration
   const [inWorkspace, setInWorkspace] = useState(() => {
     return !(initialAuth.user?.is_admin || initialAuth.user?.is_account)
@@ -2616,7 +2616,7 @@ export default function App() {
 
         {/* Menu Items */}
         <nav style={{ flex: 1, padding: '0.5rem 0', overflowY: 'auto', overflowX: 'hidden' }}>
-          {(isAdmin || isAccount || user?.account_role === 'account_user' || user?.account_role === 'account_admin') && (
+          {(isAdmin || isAccount || ['account_user', 'account_admin', 'contributor', 'client_contact'].includes(user?.account_role)) && (
             <>
               <SidebarItem
                 screen="dashboard"
@@ -2630,17 +2630,19 @@ export default function App() {
           )}
           {[
             { screen: 'upload', icon: Home, label: 'Welcome' },
-            { screen: 'sources', icon: FolderOpen, label: 'Your Data' },
-            { screen: 'enrich', icon: Sparkles, label: 'Enrich' },
+            ...(user?.account_role !== 'client_contact' ? [{ screen: 'sources', icon: FolderOpen, label: 'Your Data' }] : []),
+            ...(!['contributor', 'client_contact'].includes(user?.account_role) ? [{ screen: 'enrich', icon: Sparkles, label: 'Enrich' }] : []),
             { screen: 'results', icon: FileText, label: 'Results' },
-            { screen: 'skills', icon: Database, label: 'Skills' },
+            ...(!['contributor', 'client_contact'].includes(user?.account_role) ? [{ screen: 'skills', icon: Database, label: 'Skills' }] : []),
             ...(isAdmin ? [{ screen: 'accounts', icon: Users, label: 'Partners' }] : []),
             ...((isAdmin || user?.account_role === 'account_admin') ? [{ screen: 'team', icon: Mail, label: 'Team' }] : []),
           ].map(item => <SidebarItem key={item.screen} {...item} />)}
 
           <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: sidebarExpanded ? '0.5rem 0.875rem' : '0.5rem 0.5rem' }} />
-          <SidebarItem screen="configuration" icon={Settings} label="Configuration" />
-          {currentScreen !== 'dashboard' && clientId && (
+          {!['contributor', 'client_contact'].includes(user?.account_role) && (
+            <SidebarItem screen="configuration" icon={Settings} label="Configuration" />
+          )}
+          {currentScreen !== 'dashboard' && clientId && !['contributor', 'client_contact'].includes(user?.account_role) && (
             <SidebarItem screen="branding" icon={Image} label="Branding" />
           )}
         </nav>
@@ -3376,7 +3378,8 @@ function TeamScreen({ isAdmin, user, accounts }) {
     } catch (err) { alert(err.message) }
   }
 
-  const roleLabels = { super_admin: 'Super Admin', account_admin: 'Account Admin', account_user: 'Account User', client_contact: 'Client Contact' }
+  const roleLabels = { super_admin: 'Super Admin', account_admin: 'Account Admin', account_user: 'Account User', contributor: 'Contributor', client_contact: 'Client Contact' }
+  const roleHierarchy = ['super_admin', 'account_admin', 'account_user', 'contributor', 'client_contact']
   const statusColors = { active: { bg: '#dcfce7', color: '#16a34a' }, invited: { bg: '#dbeafe', color: '#2563eb' }, deactivated: { bg: '#fee2e2', color: '#dc2626' } }
 
   return (
@@ -3414,9 +3417,32 @@ function TeamScreen({ isAdmin, user, accounts }) {
                     <div style={{ fontSize: '0.7rem', color: '#9ca3af' }}>{u.email}</div>
                   </div>
                   <span style={{ fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.35rem', borderRadius: 4, background: sc.bg, color: sc.color }}>{(u.status || 'active').toUpperCase()}</span>
-                  <span style={{ fontSize: '0.6rem', color: '#6b7280' }}>{roleLabels[u.account_role] || u.account_role || ''}</span>
+                  {(u.id === user?.id || u.status === 'deactivated' || !['super_admin', 'account_admin'].includes(user?.account_role)) ? (
+                    <span style={{ fontSize: '0.6rem', color: '#6b7280' }}>{roleLabels[u.account_role] || u.account_role || ''}</span>
+                  ) : (
+                    <select
+                      value={u.account_role || ''}
+                      onChange={async (e) => {
+                        const newRole = e.target.value
+                        if (!window.confirm(`Change ${u.name}'s role to ${newRole}?`)) { e.target.value = u.account_role; return }
+                        try {
+                          const res = await fetch(`${API_BASE}/auth/invite/role`, {
+                            method: 'PATCH', headers: getAuthHeaders(),
+                            body: JSON.stringify({ user_id: u.id, account_role: newRole })
+                          })
+                          if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed') }
+                          setUsers(prev => prev.map(x => x.id === u.id ? { ...x, account_role: newRole } : x))
+                        } catch (err) { alert(err.message) }
+                      }}
+                      style={{ fontSize: '0.6rem', color: '#6b7280', background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: 4, padding: '0.1rem 0.2rem', cursor: 'pointer' }}
+                    >
+                      {roleHierarchy.filter((_, i) => i >= roleHierarchy.indexOf(user?.account_role)).map(r => (
+                        <option key={r} value={r}>{roleLabels[r]}</option>
+                      ))}
+                    </select>
+                  )}
                   {u.account_name && <span style={{ fontSize: '0.6rem', color: '#9ca3af' }}>{u.account_name}</span>}
-                  {u.account_role && ['account_user', 'client_contact'].includes(u.account_role) && u.status === 'active' && (
+                  {u.account_role && ['account_user', 'client_contact', 'contributor'].includes(u.account_role) && u.status === 'active' && (
                     <button onClick={() => openAssignModal(u)} style={{ fontSize: '0.65rem', color: '#2563eb', background: 'none', border: '1px solid #2563eb', borderRadius: 4, cursor: 'pointer', padding: '0.1rem 0.3rem' }}>Clients</button>
                   )}
                   {u.status === 'invited' && (
@@ -3457,6 +3483,7 @@ function TeamScreen({ isAdmin, user, accounts }) {
                 {isAdmin && <option value="super_admin">Super Admin</option>}
                 <option value="account_admin">Account Admin</option>
                 <option value="account_user">Account User</option>
+                <option value="contributor">Contributor</option>
                 <option value="client_contact">Client Contact</option>
               </select>
               {isAdmin && accounts && accounts.length > 0 && (

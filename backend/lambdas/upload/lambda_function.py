@@ -96,7 +96,7 @@ def _verify_client(cur, client_id, user_id, is_admin=False, is_client=False, use
         cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s", (client_id,))
     elif account_role == 'account_admin':
         cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s AND account_id = %s", (client_id, account_id))
-    elif account_role in ('account_user', 'client_contact'):
+    elif account_role in ('account_user', 'client_contact', 'contributor'):
         cur.execute("""
             SELECT c.id, c.s3_folder FROM clients c
             JOIN user_client_assignments uca ON c.id = uca.client_id
