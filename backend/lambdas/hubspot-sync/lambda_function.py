@@ -48,15 +48,6 @@ FIELD_MAP_CLIENT_TO_COMPANY = {
     'company_linkedin': 'linkedin_company_page',
 }
 
-# Engagement status <-> HubSpot Deal stage mapping
-DEAL_STAGE_MAP = {
-    'active': 'appointmentscheduled',
-    'won': 'closedwon',
-    'lost': 'closedlost',
-    'paused': 'contractsent',
-}
-DEAL_STAGE_REVERSE = {v: k for k, v in DEAL_STAGE_MAP.items()}
-
 # Custom properties in HubSpot (XO field -> HS property name)
 CUSTOM_PROPS = {
     'industry': 'xo_industry',
@@ -101,15 +92,7 @@ CUSTOM_PROPERTY_DEFS = [
      'options': [{'label': 'True', 'value': 'true'}, {'label': 'False', 'value': 'false'}]},
 ]
 
-DEAL_PROPERTY_DEFS = [
-    {'name': 'xo_engagement_id', 'label': 'XO Engagement ID', 'type': 'string', 'fieldType': 'text',
-     'groupName': 'dealinformation', 'description': 'XO Capture engagement UUID'},
-    {'name': 'xo_focus_area', 'label': 'XO Focus Area', 'type': 'string', 'fieldType': 'textarea',
-     'groupName': 'dealinformation', 'description': 'Engagement focus area / analysis directive'},
-]
-
 _properties_ensured = False
-_deal_properties_ensured = False
 
 def _ensure_custom_properties(access_token):
     """Create custom HubSpot company properties if they don't exist. Runs once per container."""
@@ -130,22 +113,6 @@ def _ensure_custom_properties(access_token):
     _properties_ensured = True
 
 
-def _ensure_deal_properties(access_token):
-    """Create custom HubSpot deal properties if they don't exist."""
-    global _deal_properties_ensured
-    if _deal_properties_ensured:
-        return
-    for prop_def in DEAL_PROPERTY_DEFS:
-        try:
-            _hubspot_api('POST', '/crm/v3/properties/deals', access_token, json_body=prop_def)
-            logger.info("Created HubSpot deal property: %s", prop_def['name'])
-        except requests.exceptions.HTTPError as e:
-            if e.response is not None and e.response.status_code == 409:
-                pass
-            else:
-                logger.warning("Failed to create deal property %s: %s", prop_def['name'], e)
-        except Exception as e:
-            logger.warning("Failed to create deal property %s: %s", prop_def['name'], e)
     _deal_properties_ensured = True
 
 
@@ -185,10 +152,13 @@ def _run_hubspot_migrations():
                 synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             )
         """)
+        # Engagement note tracking columns
+        cur.execute("ALTER TABLE engagements ADD COLUMN IF NOT EXISTS hubspot_note_id TEXT")
+        cur.execute("ALTER TABLE engagements ADD COLUMN IF NOT EXISTS hubspot_synced_at TIMESTAMP")
         conn.commit()
         cur.close()
         conn.close()
-        print("HubSpot migration complete: hubspot columns + sync_log ensured")
+        print("HubSpot migration complete: hubspot columns + sync_log + engagement note columns ensured")
     except Exception as e:
         print(f"HubSpot migration check (non-fatal): {e}")
 
@@ -730,122 +700,113 @@ def _create_company_association(access_token, from_company_id, to_company_id, la
         logger.warning("Failed to create company association %s -> %s: %s", from_company_id, to_company_id, e)
 
 
-def _push_deal(access_token, engagement, company_hs_id):
-    """Push an engagement as a HubSpot Deal. Returns HubSpot Deal ID."""
-    props = {
-        'dealname': engagement.get('name', ''),
-        'dealstage': DEAL_STAGE_MAP.get(engagement.get('status', 'active'), 'appointmentscheduled'),
-        'pipeline': 'default',
-        'xo_engagement_id': str(engagement.get('id', '')),
-        'xo_focus_area': engagement.get('focus_area', '') or '',
-    }
-    hs_deal_id = engagement.get('hubspot_deal_id')
+def _push_engagement_results_for_client(access_token, cur, conn, db_client_id, client_name, company_hs_id, client_key=None):
+    """Push approved engagement results as HubSpot Notes on the Company."""
+    s3 = boto3.client('s3')
+    bucket = os.environ.get('BUCKET_NAME', 'xo-client-data-mv')
 
-    if hs_deal_id:
-        _hubspot_api('PATCH', f'/crm/v3/objects/deals/{hs_deal_id}', access_token, json_body={'properties': props})
-        logger.info("Updated HubSpot deal %s (%s)", hs_deal_id, props['dealname'])
-    else:
-        resp = _hubspot_api('POST', '/crm/v3/objects/deals', access_token, json_body={'properties': props})
-        hs_deal_id = resp['id']
-        logger.info("Created HubSpot deal %s (%s)", hs_deal_id, props['dealname'])
+    # Get s3_folder for this client
+    cur.execute("SELECT s3_folder FROM clients WHERE id = %s", (db_client_id,))
+    folder_row = cur.fetchone()
+    s3_folder = folder_row[0] if folder_row else None
+    if not s3_folder:
+        return 0
 
-    # Associate deal with company
-    if company_hs_id:
-        try:
-            _hubspot_api('PUT',
-                f'/crm/v3/objects/deals/{hs_deal_id}/associations/companies/{company_hs_id}/deal_to_company',
-                access_token)
-        except Exception as e:
-            logger.warning("Failed to associate deal %s with company %s: %s", hs_deal_id, company_hs_id, e)
-
-    return hs_deal_id
-
-
-def _push_engagements_for_client(access_token, cur, conn, db_client_id, company_hs_id):
-    """Push all engagements for a client as HubSpot Deals."""
     cur.execute("""
-        SELECT id, client_id, name, focus_area, status, hubspot_deal_id
-        FROM engagements WHERE client_id = %s
+        SELECT id, name, focus_area, approved_at, hubspot_note_id, hubspot_synced_at
+        FROM engagements
+        WHERE client_id = %s AND approved_at IS NOT NULL
     """, (db_client_id,))
     rows = cur.fetchall()
-    cols = ['id', 'client_id', 'name', 'focus_area', 'status', 'hubspot_deal_id']
-    deals_pushed = 0
+    cols = ['id', 'name', 'focus_area', 'approved_at', 'hubspot_note_id', 'hubspot_synced_at']
+    synced = 0
 
     for row in rows:
         eng = dict(zip(cols, row))
         try:
-            hs_deal_id = _push_deal(access_token, eng, company_hs_id)
-            if hs_deal_id and str(hs_deal_id) != str(eng.get('hubspot_deal_id', '')):
-                cur.execute("UPDATE engagements SET hubspot_deal_id = %s WHERE id = %s", (hs_deal_id, eng['id']))
-                conn.commit()
-            deals_pushed += 1
-        except Exception as e:
-            logger.warning("Failed to push engagement %s as deal: %s", eng.get('name', '?'), e)
-
-    return deals_pushed
-
-
-def _pull_deals_for_company(access_token, cur, conn, company_hs_id, db_client_id):
-    """Pull HubSpot Deals associated with a company and upsert engagements."""
-    try:
-        resp = _hubspot_api('GET',
-            f'/crm/v3/objects/companies/{company_hs_id}/associations/deals',
-            access_token)
-        deal_ids = [r['id'] for r in resp.get('results', [])]
-    except Exception as e:
-        logger.warning("Failed to fetch deals for company %s: %s", company_hs_id, e)
-        return 0
-
-    deals_pulled = 0
-    for deal_id in deal_ids:
-        try:
-            deal = _hubspot_api('GET', f'/crm/v3/objects/deals/{deal_id}',
-                access_token, params={'properties': 'dealname,dealstage,pipeline,xo_engagement_id,xo_focus_area'})
-            props = deal.get('properties', {})
-            deal_name = props.get('dealname', '')
-            deal_stage = props.get('dealstage', '')
-            xo_eng_id = props.get('xo_engagement_id', '')
-            focus_area = props.get('xo_focus_area', '')
-            status = DEAL_STAGE_REVERSE.get(deal_stage, 'active')
-
-            if xo_eng_id:
-                # Update existing engagement
-                cur.execute("SELECT id FROM engagements WHERE id = %s", (xo_eng_id,))
-                if cur.fetchone():
-                    cur.execute("""
-                        UPDATE engagements SET name = %s, status = %s, focus_area = COALESCE(NULLIF(%s, ''), focus_area),
-                            hubspot_deal_id = %s, updated_at = NOW()
-                        WHERE id = %s
-                    """, (deal_name, status, focus_area, deal_id, xo_eng_id))
-                    conn.commit()
-                    deals_pulled += 1
+            # Skip if already synced and approved_at hasn't changed
+            if eng['hubspot_synced_at'] and eng['approved_at']:
+                synced_at = eng['hubspot_synced_at'].replace(tzinfo=timezone.utc) if eng['hubspot_synced_at'].tzinfo is None else eng['hubspot_synced_at']
+                approved_at = eng['approved_at'].replace(tzinfo=timezone.utc) if eng['approved_at'].tzinfo is None else eng['approved_at']
+                if synced_at >= approved_at:
                     continue
 
-            # Check by hubspot_deal_id
-            cur.execute("SELECT id FROM engagements WHERE hubspot_deal_id = %s", (deal_id,))
-            existing = cur.fetchone()
-            if existing:
-                cur.execute("""
-                    UPDATE engagements SET name = %s, status = %s, focus_area = COALESCE(NULLIF(%s, ''), focus_area),
-                        updated_at = NOW()
-                    WHERE hubspot_deal_id = %s
-                """, (deal_name, status, focus_area, deal_id))
-                conn.commit()
+            # Read analysis.json — try engagement-scoped path first
+            results = None
+            for s3_key in [
+                f"{s3_folder}/engagements/{eng['id']}/results/analysis.json",
+                f"{s3_folder}/results/analysis.json",
+            ]:
+                try:
+                    obj = s3.get_object(Bucket=bucket, Key=s3_key)
+                    body = obj['Body'].read()
+                    # Try decrypt if client_key available
+                    if client_key:
+                        try:
+                            from crypto_helper import decrypt_s3_body
+                            body = decrypt_s3_body(client_key, body)
+                        except Exception:
+                            body = body.decode('utf-8', errors='replace') if isinstance(body, bytes) else body
+                    else:
+                        body = body.decode('utf-8', errors='replace') if isinstance(body, bytes) else body
+                    results = json.loads(body)
+                    break
+                except Exception:
+                    continue
+
+            if not results:
+                continue
+
+            # Build note body
+            eng_name = eng['name'] or 'Engagement'
+            focus = eng['focus_area'] or ''
+            summary = results.get('client_summary', '') or results.get('summary', '')
+            streamline = results.get('streamline_applications', '')
+
+            note_html = f"<h3>XO Capture Engagement: {eng_name}</h3>"
+            if focus:
+                note_html += f"<p><strong>Focus:</strong> {focus}</p>"
+            if summary:
+                note_html += f"<h4>Opportunities</h4><p>{summary[:2000]}</p>"
+            if streamline:
+                note_html += f"<h4>Potential Streamline + XO Applications</h4><p>{streamline[:2000]}</p>"
+            note_html += f'<p><a href="https://xo.intellagentic.io">View full results in XO Capture</a></p>'
+
+            note_props = {
+                'hs_note_body': note_html,
+                'hs_timestamp': datetime.now(timezone.utc).isoformat(),
+            }
+
+            if eng['hubspot_note_id']:
+                # Update existing note
+                _hubspot_api('PATCH', f"/crm/v3/objects/notes/{eng['hubspot_note_id']}", access_token,
+                             json_body={'properties': note_props})
+                logger.info("Updated HubSpot note %s for engagement %s", eng['hubspot_note_id'], eng_name)
             else:
-                # Create new engagement
-                if deal_name:
-                    cur.execute("""
-                        INSERT INTO engagements (client_id, name, focus_area, status, hubspot_deal_id)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (db_client_id, deal_name, focus_area or None, status, deal_id))
-                    conn.commit()
-                    logger.info("Created engagement from HubSpot deal %s: %s", deal_id, deal_name)
+                # Create new note
+                resp = _hubspot_api('POST', '/crm/v3/objects/notes', access_token,
+                                    json_body={'properties': note_props})
+                note_id = resp.get('id')
+                if note_id and company_hs_id:
+                    try:
+                        _hubspot_api('PUT',
+                            f'/crm/v3/objects/notes/{note_id}/associations/companies/{company_hs_id}/note_to_company',
+                            access_token)
+                    except Exception as e:
+                        logger.warning("Failed to associate note %s with company: %s", note_id, e)
+                eng['hubspot_note_id'] = note_id
+                logger.info("Created HubSpot note %s for engagement %s", note_id, eng_name)
 
-            deals_pulled += 1
+            # Update tracking
+            cur.execute("UPDATE engagements SET hubspot_note_id = %s, hubspot_synced_at = NOW() WHERE id = %s",
+                        (eng['hubspot_note_id'], eng['id']))
+            conn.commit()
+            synced += 1
+
         except Exception as e:
-            logger.warning("Failed to pull deal %s: %s", deal_id, e)
+            logger.warning("Failed to push engagement results %s: %s", eng.get('name', '?'), e)
 
-    return deals_pulled
+    return synced
 
 
 def _push_enrichment_note(access_token, company_id, client_record, client_key=None):
@@ -1621,23 +1582,24 @@ def handle_sync(event, user):
             except Exception as e:
                 logger.warning("Failed to push contacts/associations for %s: %s", xo_id, e)
 
-        # Push engagements as deals
-        _ensure_deal_properties(access_token)
-        deals_pushed = 0
+        # Push approved engagement results as notes
+        engagements_synced = 0
         for xo_id, record in client_records.items():
             hs_company_id = record.get('hubspot_company_id')
             if not hs_company_id:
                 continue
             try:
-                deals_pushed += _push_engagements_for_client(access_token, cur, conn, xo_id, hs_company_id)
+                client_key = record.get('_client_key')
+                client_name = record.get('company_name', '')
+                engagements_synced += _push_engagement_results_for_client(access_token, cur, conn, xo_id, client_name, hs_company_id, client_key)
             except Exception as e:
-                logger.warning("Failed to push engagements for client %s: %s", xo_id, e)
+                logger.warning("Failed to push engagement results for client %s: %s", xo_id, e)
 
         conn.commit()
         cur.close()
 
-        logger.info("Push complete: %s accounts, %s clients, %s deals. API calls: %s individual -> %s batch",
-                     accounts_pushed, clients_pushed, deals_pushed, api_calls['before'], api_calls['after'])
+        logger.info("Push complete: %s accounts, %s clients, %s engagement notes. API calls: %s individual -> %s batch",
+                     accounts_pushed, clients_pushed, engagements_synced, api_calls['before'], api_calls['after'])
 
         # ── Phase 2: Pull HubSpot -> XO ──
         clients_created, clients_updated, client_conflicts = _pull_companies(access_token, conn, 'client')
@@ -1656,7 +1618,7 @@ def handle_sync(event, user):
                 'pushed': {
                     'accounts': accounts_pushed,
                     'clients': clients_pushed,
-                    'deals': deals_pushed,
+                    'engagements_synced': engagements_synced,
                 },
                 'pulled': {
                     'clients_created': clients_created,
@@ -1760,10 +1722,10 @@ def handle_sync_push(event, user):
         # Push enrichment note
         _push_enrichment_note(access_token, hs_company_id, record, client_key)
 
-        # Push engagements as deals
-        _ensure_deal_properties(access_token)
+        # Push approved engagement results as notes
         db_client_id = record.get('id')
-        deals_pushed = _push_engagements_for_client(access_token, cur, conn, db_client_id, hs_company_id)
+        client_name = record.get('company_name', '')
+        engagements_synced = _push_engagement_results_for_client(access_token, cur, conn, db_client_id, client_name, hs_company_id, client_key)
 
         cur.close()
         return {
@@ -1773,7 +1735,7 @@ def handle_sync_push(event, user):
                 'status': 'pushed',
                 'hubspot_company_id': hs_company_id,
                 'hubspot_contact_id': hs_contact_id,
-                'deals_pushed': deals_pushed,
+                'engagements_synced': engagements_synced,
             })
         }
     except Exception as e:
@@ -1836,9 +1798,6 @@ def handle_sync_pull(event, user):
                 xo_id = str(row[0]) if row else None
             if xo_id:
                 _pull_contacts_for_company(access_token, conn, hubspot_company_id, xo_id)
-                # Pull deals as engagements
-                _ensure_deal_properties(access_token)
-                deals_pulled = _pull_deals_for_company(access_token, cur, conn, hubspot_company_id, xo_id)
 
         cur.close()
         return {
@@ -1849,7 +1808,6 @@ def handle_sync_pull(event, user):
                 'record_type': record_type,
                 'hubspot_company_id': hubspot_company_id,
                 'xo_id': xo_id,
-                'deals_pulled': deals_pulled if xo_id else 0,
             })
         }
     except requests.exceptions.HTTPError as e:

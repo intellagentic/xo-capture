@@ -255,6 +255,8 @@ CREATE TABLE IF NOT EXISTS engagements (
 CREATE INDEX IF NOT EXISTS idx_engagements_client_id ON engagements(client_id);
 CREATE INDEX IF NOT EXISTS idx_engagements_status ON engagements(status);
 ALTER TABLE enrichments ADD COLUMN IF NOT EXISTS engagement_id UUID;
+ALTER TABLE engagements ADD COLUMN IF NOT EXISTS hubspot_note_id TEXT;
+ALTER TABLE engagements ADD COLUMN IF NOT EXISTS hubspot_synced_at TIMESTAMP;
 
 -- Multi-tenant auth
 ALTER TABLE users ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL;
