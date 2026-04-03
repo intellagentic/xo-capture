@@ -219,10 +219,18 @@ def _run_role_migrations():
         # Fix display names for admin users
         cur.execute("UPDATE users SET name = 'Ken Scott' WHERE email = 'ken.scott@intellagentic.io' AND name != 'Ken Scott'")
         cur.execute("UPDATE users SET name = 'Alan Moore' WHERE email = 'alan.moore@intellagentic.io' AND name != 'Alan Moore'")
+        cur.execute("UPDATE users SET name = 'Richie Saville' WHERE email = 'rs@multiversant.com' AND name != 'Richie Saville'")
+        cur.execute("UPDATE users SET name = 'Vamsi Nama' WHERE email = 'vn@multiversant.com' AND name != 'Vamsi Nama'")
+        cur.execute("UPDATE users SET status = 'deactivated' WHERE email = 'ken.scott@intellagentic.com' AND status != 'deactivated'")
+        # Assign users to accounts (idempotent)
+        cur.execute("INSERT INTO accounts (name) SELECT 'Intellagentic' WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE name = 'Intellagentic')")
+        cur.execute("UPDATE users SET account_id = (SELECT id FROM accounts WHERE name = 'Intellagentic') WHERE email IN ('alan.moore@intellagentic.io', 'ken.scott@intellagentic.io', 'rs@multiversant.com', 'vn@multiversant.com') AND account_id IS NULL")
+        cur.execute("UPDATE users SET account_id = (SELECT id FROM accounts WHERE name = 'Intellistack') WHERE email = 'kscott@scottaffiliated.com' AND account_id IS NULL")
+        cur.execute("UPDATE users SET account_id = (SELECT id FROM accounts WHERE name = 'Intellagentic') WHERE account_id IS NULL")
         conn.commit()
         cur.close()
         conn.close()
-        print("Migration complete: users role + account_id + email_hash columns ensured, admins seeded")
+        print("Migration complete: users role + account_id + email_hash columns ensured, admins seeded, account assignments set")
     except Exception as e:
         print(f"Role migration check (non-fatal): {e}")
 
@@ -1876,6 +1884,19 @@ def handle_invite_list(event):
             """, (caller_account_id,))
 
         rows = cur.fetchall()
+
+        # Temporary diagnostic: dump accounts and user summary
+        cur2 = conn.cursor()
+        cur2.execute("SELECT id, name FROM accounts ORDER BY id")
+        accts = cur2.fetchall()
+        for a in accts:
+            print(f"[DIAG] Account: id={a[0]}, name={a[1]}")
+        cur2.execute("SELECT id, name, email, account_role, account_id FROM users WHERE email NOT LIKE 'client-token-%%' ORDER BY account_id NULLS LAST, name")
+        urows = cur2.fetchall()
+        for u in urows:
+            print(f"[DIAG] User: id={u[0]}, name={u[1]}, email={u[2]}, role={u[3]}, account_id={u[4]}")
+        cur2.close()
+
         cur.close()
         conn.close()
 

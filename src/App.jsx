@@ -2867,6 +2867,19 @@ function AccountsScreen({ accounts, setAccounts }) {
   const [contactsExpanded, setContactsExpanded] = useState(false)
   const [addressesExpanded, setAddressesExpanded] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [partnerSearch, setPartnerSearch] = useState('')
+  const [partnerIndustryFilter, setPartnerIndustryFilter] = useState('')
+
+  const partnerIndustries = useMemo(() => [...new Set(accounts.map(a => a.industry).filter(Boolean))].sort(), [accounts])
+  const filteredAccounts = useMemo(() => {
+    let result = accounts
+    if (partnerSearch.trim()) {
+      const q = partnerSearch.toLowerCase()
+      result = result.filter(a => (a.name || '').toLowerCase().includes(q) || (a.company || '').toLowerCase().includes(q) || (a.contacts || []).some(c => ((c.firstName || '') + ' ' + (c.lastName || '')).toLowerCase().includes(q)))
+    }
+    if (partnerIndustryFilter) result = result.filter(a => a.industry === partnerIndustryFilter)
+    return result
+  }, [accounts, partnerSearch, partnerIndustryFilter])
 
   const fetchPartners = async () => {
     setLoading(true)
@@ -2978,10 +2991,27 @@ function AccountsScreen({ accounts, setAccounts }) {
     <div style={{ padding: '1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-          Partners <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b7280)', fontSize: '0.8125rem' }}>({accounts.length})</span>
+          Partners <span style={{ fontWeight: 400, color: 'var(--text-muted, #6b7280)', fontSize: '0.8125rem' }}>({filteredAccounts.length})</span>
         </h2>
         <button onClick={openAdd} className="action-btn red"><Plus size={14} /> Add Partner</button>
       </div>
+      {accounts.length > 0 && (
+        <div style={{ display: 'flex', gap: 12, marginBottom: '0.875rem', alignItems: 'center' }}>
+          <input value={partnerSearch} onChange={e => setPartnerSearch(e.target.value)} placeholder="Search partners..."
+            style={{ width: 300, padding: '0.45rem 0.625rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', height: 36 }} />
+          {partnerIndustries.length > 0 && (
+            <select value={partnerIndustryFilter} onChange={e => setPartnerIndustryFilter(e.target.value)}
+              style={{ width: 150, padding: '0.45rem 0.5rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', height: 36 }}>
+              <option value="">All Industries</option>
+              {partnerIndustries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+            </select>
+          )}
+          {(partnerSearch || partnerIndustryFilter) && (
+            <button onClick={() => { setPartnerSearch(''); setPartnerIndustryFilter('') }}
+              style={{ fontSize: '0.7rem', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear</button>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '2rem' }}>
@@ -2992,9 +3022,13 @@ function AccountsScreen({ accounts, setAccounts }) {
           <Users size={40} style={{ margin: '0 auto 0.75rem', color: 'var(--text-muted, #9ca3af)' }} />
           <p>No partners yet. Add your first channel partner.</p>
         </div>
+      ) : filteredAccounts.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#9ca3af', fontSize: '0.8rem' }}>
+          No partners match your filters.
+        </div>
       ) : (
         <div style={{ background: 'var(--bg-card, #ffffff)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-          {accounts.map((p) => (
+          {filteredAccounts.map((p) => (
             <div key={p.id} style={{
               display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.625rem 0.875rem',
               borderBottom: '1px solid var(--border-color, #e5e7eb)',
