@@ -3378,9 +3378,26 @@ function TeamScreen({ isAdmin, user, accounts }) {
     } catch (err) { alert(err.message) }
   }
 
+  const [teamSearch, setTeamSearch] = useState('')
+  const [teamRoleFilter, setTeamRoleFilter] = useState('')
+  const [teamStatusFilter, setTeamStatusFilter] = useState('')
+
   const roleLabels = { super_admin: 'Super Admin', account_admin: 'Account Admin', account_user: 'Account User', contributor: 'Contributor', client_contact: 'Client Contact' }
   const roleHierarchy = ['super_admin', 'account_admin', 'account_user', 'contributor', 'client_contact']
   const statusColors = { active: { bg: '#dcfce7', color: '#16a34a' }, invited: { bg: '#dbeafe', color: '#2563eb' }, deactivated: { bg: '#fee2e2', color: '#dc2626' } }
+
+  const filteredUsers = useMemo(() => {
+    let result = users
+    if (teamSearch.trim()) {
+      const q = teamSearch.toLowerCase()
+      result = result.filter(u => (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q))
+    }
+    if (teamRoleFilter) result = result.filter(u => u.account_role === teamRoleFilter)
+    if (teamStatusFilter) result = result.filter(u => u.status === teamStatusFilter)
+    return result
+  }, [users, teamSearch, teamRoleFilter, teamStatusFilter])
+
+  const selectStyle = { padding: '0.3rem 0.5rem', fontSize: '0.75rem', border: '1px solid var(--border-color, #d1d5db)', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none' }
 
   return (
     <div className="panel">
@@ -3388,7 +3405,7 @@ function TeamScreen({ isAdmin, user, accounts }) {
         <div className="panel-header-left">
           <Mail size={20} className="icon-red" />
           <h2>Team</h2>
-          <span className="badge-count blue">{users.length}</span>
+          <span className="badge-count blue">{filteredUsers.length}</span>
         </div>
         <button onClick={() => setShowInviteModal(true)} className="action-btn red" style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}>
           <Plus size={14} /> Invite User
@@ -3397,15 +3414,47 @@ function TeamScreen({ isAdmin, user, accounts }) {
       <div style={{ padding: '1.25rem' }}>
         {inviteSuccess && <div style={{ padding: '0.5rem 0.75rem', background: '#dcfce7', borderRadius: 6, fontSize: '0.8rem', color: '#16a34a', marginBottom: '0.75rem' }}>{inviteSuccess}</div>}
 
+        {/* Search and filters */}
+        {users.length > 0 && (
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 0 }}>
+              <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+              <input
+                value={teamSearch} onChange={e => setTeamSearch(e.target.value)}
+                placeholder="Search name or email..."
+                style={{ width: '100%', padding: '0.35rem 0.5rem 0.35rem 1.75rem', fontSize: '0.75rem', border: '1px solid var(--border-color, #d1d5db)', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none' }}
+              />
+            </div>
+            <select value={teamRoleFilter} onChange={e => setTeamRoleFilter(e.target.value)} style={selectStyle}>
+              <option value="">All Roles</option>
+              {roleHierarchy.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
+            </select>
+            <select value={teamStatusFilter} onChange={e => setTeamStatusFilter(e.target.value)} style={selectStyle}>
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="invited">Invited</option>
+              <option value="deactivated">Deactivated</option>
+            </select>
+            {(teamSearch || teamRoleFilter || teamStatusFilter) && (
+              <button onClick={() => { setTeamSearch(''); setTeamRoleFilter(''); setTeamStatusFilter('') }}
+                style={{ fontSize: '0.65rem', color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Clear</button>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <div style={{ textAlign: 'center', padding: '2rem' }}><Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#dc2626' }} /></div>
         ) : users.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: '#9ca3af' }}>
             <p>No team members yet. Invite your first user.</p>
           </div>
+        ) : filteredUsers.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '1.5rem', color: '#9ca3af', fontSize: '0.8rem' }}>
+            No users match your filters.
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {users.map(u => {
+            {filteredUsers.map(u => {
               const sc = statusColors[u.status] || statusColors.active
               return (
                 <div key={u.id} style={{ padding: '0.625rem 0.75rem', border: '1px solid #e5e7eb', borderRadius: 8, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
