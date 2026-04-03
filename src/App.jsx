@@ -2814,7 +2814,7 @@ export default function App() {
             onNavigate={navigateTo}
           />
         )}
-        {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} isAdmin={isAdmin} systemButtons={systemButtons} theme={theme} preferredModel={preferredModel} activeEngagement={activeEngagement} onNavigate={navigateTo} />}
+        {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} isAdmin={isAdmin} systemButtons={systemButtons} theme={theme} preferredModel={preferredModel} activeEngagement={activeEngagement} setActiveEngagement={setActiveEngagement} onNavigate={navigateTo} />}
         {currentScreen === 'skills' && <SkillsScreen clientId={clientId} isAdmin={isAdmin} preferredModel={preferredModel} activeEngagement={activeEngagement} onNavigate={navigateTo} />}
         {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} systemButtons={systemButtons} setSystemButtons={saveSystemButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} inWorkspace={inWorkspace} isAdmin={isAdmin} companyName={companyData.name} />}
         {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
@@ -9613,7 +9613,7 @@ function assembleBrief(results, client) {
   }
 }
 
-function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,preferredModel, activeEngagement, onNavigate }) {
+function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,preferredModel, activeEngagement, setActiveEngagement, onNavigate }) {
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -9622,12 +9622,14 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   const [streamlineSending, setStreamlineSending] = useState(false)
   const [streamlineStatus, setStreamlineStatus] = useState(null) // null | 'sent' | 'error'
   const [protoDownloading, setProtoDownloading] = useState(false)
-  const [briefDownloading, setBriefDownloading] = useState(null) // null | 'docx' | 'pdf'
+  const [briefDownloadLoading, setBriefDownloadLoading] = useState(false)
+  const [deckDownloadLoading, setDeckDownloadLoading] = useState(false)
+  const [briefApproveLoading, setBriefApproveLoading] = useState(false)
+  const [deckApproveLoading, setDeckApproveLoading] = useState(false)
   const [showReviewModal, setShowReviewModal] = useState(null) // null | 'brief' | 'deck'
   const [reviewText, setReviewText] = useState('')
   const [reviewSaving, setReviewSaving] = useState(false)
   const [reviewStatus, setReviewStatus] = useState(null) // null | 'saved' | 'approved'
-  const [approving, setApproving] = useState(false)
   const [currentClient,setCurrentClient]=useState(null)
   const [expandedResult,setExpandedResult]= useState({id:"executiveSummary",name:"Executive Summary",shortDescription:"Here is our understanding of your business",severity: 'high'});
   const [formattedResults,setFormattedResults] = useState([
@@ -9688,14 +9690,23 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
     setReviewSaving(false)
   }
 
-  const handleApprove = async () => {
+  const handleApprove = async (section) => {
     if (!clientId || !currentClient) return
-    setApproving(true)
+    const setLoading = section === 'deck' ? setDeckApproveLoading : setBriefApproveLoading
+    setLoading(true)
     try {
-      await fetch(`${API_BASE}/clients`, {
-        method: 'PUT', headers: getAuthHeaders(),
-        body: JSON.stringify({ client_id: clientId, company_name: currentClient.company_name, approved: true })
-      })
+      if (activeEngagement) {
+        await fetch(`${API_BASE}/engagements`, {
+          method: 'PUT', headers: getAuthHeaders(),
+          body: JSON.stringify({ engagement_id: activeEngagement.id, approved: true })
+        })
+        setActiveEngagement(prev => prev ? { ...prev, approved_at: new Date().toISOString() } : prev)
+      } else {
+        await fetch(`${API_BASE}/clients`, {
+          method: 'PUT', headers: getAuthHeaders(),
+          body: JSON.stringify({ client_id: clientId, company_name: currentClient.company_name, approved: true })
+        })
+      }
       await fetchClient(clientId)
       setReviewStatus('approved')
       setShowReviewModal(null)
@@ -9703,7 +9714,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
     } catch (err) {
       alert('Approval failed: ' + err.message)
     }
-    setApproving(false)
+    setLoading(false)
   }
 
   const toggleResult = (item) => {
@@ -10259,7 +10270,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
               {item.id === 'deploymentBrief' && (
                 <button onClick={async (e) => {
                   e.stopPropagation()
-                  setBriefDownloading('docx')
+                  setBriefDownloadLoading(true)
                   try {
                     const res = await fetch(`${API_BASE}/results/${clientId}/brief`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ format: 'docx', engagement_id: activeEngagement?.id || undefined }) })
                     const data = await res.json()
@@ -10272,17 +10283,17 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                     const a = document.createElement('a'); a.href = url; a.download = data.filename; a.click()
                     URL.revokeObjectURL(url)
                   } catch (err) { alert('Download failed: ' + err.message) }
-                  setBriefDownloading(null)
+                  setBriefDownloadLoading(false)
                 }}
-                disabled={briefDownloading}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: briefDownloading ? 'wait' : 'pointer', flexShrink: 0, opacity: briefDownloading ? 0.7 : 1 }}>
-                  {briefDownloading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .docx
+                disabled={briefDownloadLoading}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: briefDownloadLoading ? 'wait' : 'pointer', flexShrink: 0, opacity: briefDownloadLoading ? 0.7 : 1 }}>
+                  {briefDownloadLoading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .docx
                 </button>
               )}
               {item.id === 'growthDeck' && (
                 <button onClick={async (e) => {
                   e.stopPropagation()
-                  setBriefDownloading('deck')
+                  setDeckDownloadLoading(true)
                   try {
                     const res = await fetch(`${API_BASE}/results/${clientId}/deck`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ engagement_id: activeEngagement?.id || undefined }) })
                     const data = await res.json()
@@ -10295,11 +10306,11 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                     const a = document.createElement('a'); a.href = url; a.download = data.filename; a.click()
                     URL.revokeObjectURL(url)
                   } catch (err) { alert('Deck download failed: ' + err.message) }
-                  setBriefDownloading(null)
+                  setDeckDownloadLoading(false)
                 }}
-                disabled={briefDownloading}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: briefDownloading ? 'wait' : 'pointer', flexShrink: 0, opacity: briefDownloading ? 0.7 : 1 }}>
-                  {briefDownloading === 'deck' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .pptx
+                disabled={deckDownloadLoading}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: deckDownloadLoading ? 'wait' : 'pointer', flexShrink: 0, opacity: deckDownloadLoading ? 0.7 : 1 }}>
+                  {deckDownloadLoading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .pptx
                 </button>
               )}
               {isDraft && (item.id === 'deploymentBrief' || item.id === 'growthDeck') && (
@@ -10308,12 +10319,15 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   <Edit2 size={13} /> Review
                 </button>
               )}
-              {isDraft && (item.id === 'deploymentBrief' || item.id === 'growthDeck') && (
-                <button onClick={(e) => { e.stopPropagation(); handleApprove() }}
-                  disabled={approving}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: approving ? 'wait' : 'pointer', flexShrink: 0, opacity: approving ? 0.7 : 1 }}>
-                  {approving ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <CheckCircle size={13} />} Approve
-                </button>
+              {isDraft && (item.id === 'deploymentBrief' || item.id === 'growthDeck') && (() => {
+                const isApproving = item.id === 'growthDeck' ? deckApproveLoading : briefApproveLoading
+                return (
+                <button onClick={(e) => { e.stopPropagation(); handleApprove(item.id === 'growthDeck' ? 'deck' : 'brief') }}
+                  disabled={isApproving}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: isApproving ? 'wait' : 'pointer', flexShrink: 0, opacity: isApproving ? 0.7 : 1 }}>
+                  {isApproving ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <CheckCircle size={13} />} Approve
+                </button>)
+              })()}
               )}
               {!isDraft && (item.id === 'deploymentBrief' || item.id === 'growthDeck') && (
                 <span style={{ fontSize: '0.65rem', background: '#dcfce7', color: '#16a34a', padding: '0.15rem 0.5rem', borderRadius: 4, fontWeight: 600, flexShrink: 0 }}>APPROVED</span>
@@ -11574,9 +11588,9 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                     style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem', background: reviewText.trim() ? '#f59e0b' : '#e5e7eb', color: reviewText.trim() ? '#fff' : '#9ca3af', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: reviewText.trim() && !reviewSaving ? 'pointer' : 'not-allowed' }}>
                     {reviewSaving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={14} />} Submit Corrections
                   </button>
-                  <button onClick={handleApprove} disabled={approving}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: approving ? 'wait' : 'pointer' }}>
-                    {approving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <CheckCircle size={14} />} Approve
+                  <button onClick={() => handleApprove(showReviewModal)} disabled={briefApproveLoading || deckApproveLoading}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: (briefApproveLoading || deckApproveLoading) ? 'wait' : 'pointer' }}>
+                    {(briefApproveLoading || deckApproveLoading) ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <CheckCircle size={14} />} Approve
                   </button>
                 </div>
               </>

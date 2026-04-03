@@ -156,6 +156,13 @@ def _run_hubspot_migrations():
         cur.execute("ALTER TABLE engagements ADD COLUMN IF NOT EXISTS hubspot_note_id TEXT")
         cur.execute("ALTER TABLE engagements ADD COLUMN IF NOT EXISTS hubspot_synced_at TIMESTAMP")
         conn.commit()
+        # Temporary diagnostic
+        cur.execute("SELECT e.name, e.approved_at, e.status, c.company_name FROM engagements e JOIN clients c ON e.client_id = c.id WHERE c.company_name LIKE '%%FC Dyn%%'")
+        for r in cur.fetchall():
+            print(f"[DIAG] Engagement: name={r[0]}, approved_at={r[1]}, status={r[2]}, client={r[3]}")
+        cur.execute("SELECT company_name, approved_at FROM clients WHERE company_name LIKE '%%FC Dyn%%'")
+        for r in cur.fetchall():
+            print(f"[DIAG] Client: name={r[0]}, approved_at={r[1]}")
         cur.close()
         conn.close()
         print("HubSpot migration complete: hubspot columns + sync_log + engagement note columns ensured")
@@ -702,6 +709,7 @@ def _create_company_association(access_token, from_company_id, to_company_id, la
 
 def _push_engagement_results_for_client(access_token, cur, conn, db_client_id, client_name, company_hs_id, client_key=None):
     """Push approved engagement results as HubSpot Notes on the Company."""
+    import boto3
     s3 = boto3.client('s3')
     bucket = os.environ.get('BUCKET_NAME', 'xo-client-data-mv')
 
@@ -1582,18 +1590,16 @@ def handle_sync(event, user):
             except Exception as e:
                 logger.warning("Failed to push contacts/associations for %s: %s", xo_id, e)
 
-        # Push approved engagement results as notes
+        # Push approved engagement results as notes (all clients, not just changed ones)
         engagements_synced = 0
-        for xo_id, record in client_records.items():
-            hs_company_id = record.get('hubspot_company_id')
-            if not hs_company_id:
-                continue
+        cur.execute("SELECT id, company_name, hubspot_company_id, encryption_key FROM clients WHERE hubspot_company_id IS NOT NULL")
+        all_clients_for_eng = cur.fetchall()
+        for c_row in all_clients_for_eng:
             try:
-                client_key = record.get('_client_key')
-                client_name = record.get('company_name', '')
-                engagements_synced += _push_engagement_results_for_client(access_token, cur, conn, xo_id, client_name, hs_company_id, client_key)
+                c_key = unwrap_client_key(c_row[3]) if c_row[3] else None
+                engagements_synced += _push_engagement_results_for_client(access_token, cur, conn, str(c_row[0]), c_row[1] or '', c_row[2], c_key)
             except Exception as e:
-                logger.warning("Failed to push engagement results for client %s: %s", xo_id, e)
+                logger.warning("Failed to push engagement results for client %s: %s", c_row[1], e)
 
         conn.commit()
         cur.close()
