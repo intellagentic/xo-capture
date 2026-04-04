@@ -10252,6 +10252,11 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   <h3 style={{fontSize: '0.95rem', fontWeight: 600,color: item.id==="solutions"?"white":'var(--text-primary)', margin: 0}}>
                     {item.name}
                   </h3>
+                  {item.id==="solutions" && <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '24px' }}>
+                    <img src={intellistackLogo} alt="Intellistack" style={{ height: '22px' }} />
+                    <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#fff' }}>+</span>
+                    <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#C0392B' }}>XO</span>
+                  </div>}
                   <span style={{
                     fontSize: '0.65rem',
                     fontWeight: 700,
@@ -10608,7 +10613,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               </div>
                               {expandedSubBlocks.xo ? <ChevronDown size={18} style={{ color: '#fff', flexShrink: 0 }} /> : <ChevronRight size={18} style={{ color: '#fff', flexShrink: 0 }} />}
                             </div>
-                            {expandedSubBlocks.xo && (() => {
+                          </div>
+                          {expandedSubBlocks.xo && (() => {
                               // Parse opportunities from client_summary — extract **bold title:** lines
                               const rawOpps = displayResults.client_summary || '';
                               const titleRegex = /[•*\-]\s*\*\*([^:*]+)/g;
@@ -10678,11 +10684,10 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               ].slice(0, 6);
 
                               return (
-                              <div style={{ background: '#1a1a2e', color: '#e2e8f0', maxHeight: '500px', overflowY: 'auto' }}>
+                              <div style={{ background: '#1a1a2e', color: '#e2e8f0', margin: '0.75rem', marginTop: '12px', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
                                 {/* Console Header */}
                                 <div style={{ padding: '0.75rem 1.25rem', marginBottom: '16px', borderBottom: '1px solid #2d2d4a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#fff' }}>Intellagentic</span>
                                     <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#C0392B' }}>XO</span>
                                     <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Console</span>
                                     <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>— {currentClient?.company_name || 'Client'}</span>
@@ -10693,7 +10698,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                 <div style={{ display: 'flex' }}>
                                   {/* Left Sidebar */}
                                   <div style={{ width: '200px', flexShrink: 0, background: '#0f0f23', borderRight: '1px solid #2d2d4a', padding: '0.75rem' }}>
-                                    <div style={{ fontSize: '0.55rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.625rem' }}>Data Sources</div>
+                                    <div style={{ fontSize: '0.55rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.625rem' }}>Layer 1: Data Sources</div>
                                     {sourceItems.map((s, i) => (
                                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.375rem', padding: '0.35rem 0.375rem', marginBottom: '0.2rem', borderRadius: 4, background: '#1a1a2e' }}>
                                         {s.icon === 'globe' ? <Globe size={11} style={{ color: '#22c55e', marginTop: 2, flexShrink: 0 }} /> : s.icon === 'sparkle' ? <Sparkles size={11} style={{ color: '#a855f7', marginTop: 2, flexShrink: 0 }} /> : <FileText size={11} style={{ color: '#3b82f6', marginTop: 2, flexShrink: 0 }} />}
@@ -10718,10 +10723,6 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
 
                                   {/* Main Content */}
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    {/* Layer 1: Key Metrics */}
-                                    <div style={{ padding: '0.625rem 0.75rem 0' }}>
-                                      <div style={{ fontSize: '0.55rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.375rem' }}>Layer 1: Key Metrics</div>
-                                    </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: '#2d2d4a' }}>
                                       {matchedMetrics.map((m, i) => (
                                         <div key={i} style={{ background: '#1a1a2e', padding: '0.75rem' }}>
@@ -10748,37 +10749,60 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                     )}
 
                                     {/* Layer 3 */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1px', background: '#2d2d4a', borderTop: '1px solid #2d2d4a' }}>
-                                      {/* XO Monitoring */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1px', background: '#2d2d4a', borderTop: '1px solid #2d2d4a' }}>
+                                      {/* XO Insights — merged flagged + opportunities */}
                                       <div style={{ background: '#1a1a2e', padding: '0.625rem 0.75rem' }}>
-                                        <div style={{ fontSize: '0.55rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>Layer 3: XO Monitoring</div>
-                                        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                                          <AlertTriangle size={11} style={{ color: '#f59e0b' }} /> Flagged Items
-                                          <span style={{ fontSize: '0.6rem', background: '#ef444420', color: '#ef4444', padding: '0.1rem 0.35rem', borderRadius: 3, marginLeft: 'auto' }}>{monitorItems.length}</span>
+                                        <div style={{ fontSize: '0.55rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.375rem' }}>Layer 3: XO Predictive Insights</div>
+
+                                        {/* Flagged Items */}
+                                        <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                                          <AlertTriangle size={10} style={{ color: '#f59e0b' }} /> Flagged
+                                          <span style={{ fontSize: '0.55rem', background: '#ef444420', color: '#ef4444', padding: '0.1rem 0.3rem', borderRadius: 3, marginLeft: 'auto' }}>{monitorItems.length}</span>
                                         </div>
                                         {monitorItems.map((item, i) => (
-                                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0', borderBottom: i < monitorItems.length - 1 ? '1px solid #2d2d4a' : 'none' }}>
+                                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0', borderBottom: '1px solid #2d2d4a' }}>
                                             <div style={{ width: 6, height: 6, borderRadius: '50%', background: item.severity === 'high' ? '#ef4444' : item.severity === 'medium' ? '#f59e0b' : '#3b82f6', flexShrink: 0 }} />
                                             <span style={{ fontSize: '0.65rem', color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
                                             <span style={{ fontSize: '0.5rem', color: item.status === 'Flagged' ? '#ef4444' : item.status === 'Monitoring' ? '#f59e0b' : '#3b82f6', fontWeight: 600, flexShrink: 0 }}>{item.status}</span>
                                           </div>
                                         ))}
+
+                                        {/* Divider */}
+                                        <div style={{ borderTop: '1px solid #3b82f640', margin: '0.5rem 0', paddingTop: '0.375rem' }}>
+                                          <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                                            <Zap size={10} style={{ color: '#22c55e' }} /> Opportunities
+                                            <span style={{ fontSize: '0.55rem', background: '#22c55e20', color: '#22c55e', padding: '0.1rem 0.3rem', borderRadius: 3, marginLeft: 'auto' }}>{opportunities.length}</span>
+                                          </div>
+                                          {opportunities.slice(0, 5).map((opp, i) => (
+                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0', borderBottom: i < Math.min(opportunities.length, 5) - 1 ? '1px solid #2d2d4a' : 'none' }}>
+                                              <span style={{ fontSize: '0.55rem', color: '#22c55e', fontWeight: 700, flexShrink: 0, width: 14, textAlign: 'center' }}>{i + 1}</span>
+                                              <span style={{ fontSize: '0.65rem', color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.title}</span>
+                                              <CheckCircle size={10} style={{ color: '#22c55e', flexShrink: 0 }} />
+                                            </div>
+                                          ))}
+                                        </div>
                                       </div>
 
-                                      {/* XO Predictive Analysis */}
-                                      <div style={{ background: '#ffffff', padding: '0.625rem 0.75rem' }}>
-                                        <div style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>Layer 3: XO Predictive Analysis</div>
-                                        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#1a1a2e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                                          <Zap size={11} style={{ color: '#C0392B' }} /> Opportunities
-                                          <span style={{ fontSize: '0.6rem', background: '#C0392B15', color: '#C0392B', padding: '0.1rem 0.35rem', borderRadius: 3, marginLeft: 'auto' }}>{opportunities.length}</span>
-                                        </div>
-                                        {opportunities.slice(0, 4).map((opp, i) => (
-                                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0', borderBottom: i < Math.min(opportunities.length, 4) - 1 ? '1px solid #e5e7eb' : 'none' }}>
-                                            <span style={{ fontSize: '0.55rem', color: '#C0392B', fontWeight: 700, flexShrink: 0, width: 14, textAlign: 'center' }}>{i + 1}</span>
-                                            <span style={{ fontSize: '0.65rem', color: '#1a1a2e', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.title}</span>
-                                            <CheckCircle size={11} style={{ color: '#22c55e', flexShrink: 0 }} />
+                                      {/* XO Insight Summary Card */}
+                                      <div style={{ background: '#0f0f23', padding: '0.75rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                        <div style={{ background: '#1a1a2e', borderRadius: 6, borderLeft: '3px solid #f59e0b', padding: '0.875rem' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.625rem' }}>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#fff' }}>Intellagentic</span>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#C0392B' }}>XO</span>
                                           </div>
-                                        ))}
+                                          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#fff', lineHeight: 1, marginBottom: '0.25rem' }}>{(monitorItems.length || 0) + (opportunities.length || 0)}</div>
+                                          <div style={{ fontSize: '0.75rem', color: '#e2e8f0', fontWeight: 600, marginBottom: '0.5rem' }}>Insights Detected</div>
+                                          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                            <span style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 600 }}>{monitorItems.length} Flagged</span>
+                                            <span style={{ fontSize: '0.6rem', color: '#64748b' }}>·</span>
+                                            <span style={{ fontSize: '0.6rem', color: '#22c55e', fontWeight: 600 }}>{opportunities.length} Opportunities</span>
+                                          </div>
+                                          {displayResults.bottom_line && (
+                                            <div style={{ fontSize: '0.65rem', color: '#94a3b8', lineHeight: 1.5, borderTop: '1px solid #2d2d4a', paddingTop: '0.5rem', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                              {displayResults.bottom_line}
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
@@ -10786,7 +10810,6 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               </div>
                               );
                             })()}
-                          </div>
                         </div>:
                     (expandedResult.id==="rapidDeployment"?
                         <div>
