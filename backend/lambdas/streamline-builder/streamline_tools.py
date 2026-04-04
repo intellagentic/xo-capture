@@ -164,6 +164,15 @@ def build_incoming_webhook_config():
     return {"authenticationType": "NONE"}
 
 
+def build_document_config(name="Document"):
+    """Build a minimal document config that the builder can render."""
+    return {
+        "name": name,
+        "type": "DYNAMIC",
+        "templates": []
+    }
+
+
 SUPPORTED_STEP_TYPES = {
     'data_capture', 'notification', 'new_logic_step', 'outbound_webhook', 'incoming_webhook',
     'document', 'google_drive', 'google_sheets', 'sign', 'collaboration',
@@ -221,6 +230,8 @@ def build_streamline_schema(tool_input):
             )
         elif step_type == "incoming_webhook":
             step_obj["config"] = build_incoming_webhook_config()
+        elif step_type == "document":
+            step_obj["config"] = build_document_config(step.get("description", "Document"))
 
         steps.append(step_obj)
         prev_description = step["description"]

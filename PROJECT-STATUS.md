@@ -3548,6 +3548,61 @@ Remaining:
 - Phase 6: 2FA/MFA (SMS via SNS + TOTP fallback)
 - Polish: Google OAuth on accept-invite page, SES production access (requested, pending AWS review), remove debug logging, hide "Create Client" for contributor/client_contact
 
+**Streamline Builder Integration -- v1 (April 3-4, 2026)**
+
+Architecture:
+- "Build in Streamline" button on each Potential Streamline + XO Applications card on Results page
+- Lambda orchestrator: Bedrock Claude (Sonnet 4.5) with tool-use generates step sequence, Python builds proven config templates
+- Streamline Schema API: declarative single POST /v1/projects creates full project with workflow + steps + edges
+- Async pattern: POST /build-workflow returns build_id in <1s, Lambda self-invokes async for Bedrock + API (~60s), frontend polls GET /build-workflow/{build_id} every 5s
+
+Step types with proven working config:
+- Form (data_capture): group wrapper, text fields, static_content header, presentation.form objects
+- Logic (new_logic_step): branches with targets pointing to next step (empty targets silently drop subsequent steps)
+- Notification: emailConfig with recipients array, smsConfig null
+- Incoming Webhook: authenticationType NONE
+- Outbound Webhook: request object with url/method/body/headers
+
+Step types created without config (configured in Streamline builder):
+- Document: DYNAMIC type with empty templates array
+- Google Drive: created as step, user connects Drive OAuth in builder
+- All integration steps (Slack, S3, Sheets, etc.): created as steps, configured in builder
+
+API quirks discovered and encoded:
+- Form components config causes 500 -- only text type fields work, select/number/date rejected
+- Logic branch targets MUST reference next step description or all subsequent steps silently dropped
+- Google Drive requires connection ID for config -- created without config, builder handles connection
+- Notification field mappings (mustache syntax) rejected in API -- use plain text, map in builder
+- 25+ valid step types enumerated from API error response
+
+Test case: FC Dynamics Report QA Review Workflow
+- 5 steps created: Form -> Logic -> Document -> Google Drive -> Notification
+- All edges wired, Logic branches target Document step
+- Builder opens, all steps visible with icons and labels
+- Document step opens for template upload
+- Google Drive step visible but requires Drive connection before editor opens
+
+Known limitations (v1):
+- Google Drive step editor crashes until Drive OAuth connected in Streamline
+- Logic branch conditions are generic Yes/No (specific conditions configured in builder)
+- Form fields are text-only templates (select/number/date types not yet supported via API)
+- One workflow per Build button click (no batch creation)
+
+Infrastructure:
+- Lambda: xo-streamline-builder (Python 3.11, 120s timeout, 256MB)
+- API Gateway: POST /build-workflow, GET /build-workflow/{build_id}, OPTIONS on both
+- IAM: xo-streamline-self-invoke policy for async self-invocation
+- Env vars: STREAMLINE_API_KEY, STREAMLINE_API_BASE, BEDROCK_REGION, AWS_BEARER_TOKEN_BEDROCK, JWT_SECRET, DATABASE_URL
+- DB: workflow_builds table tracks build status, project IDs, manual steps
+
+Branch: feature/streamline-builder (not merged to main)
+
+Next:
+- Workflow-specific form fields (Claude generates field names relevant to the client's use case)
+- Logic branch condition intelligence (map to actual form field values)
+- Expand to other FC Dynamics workflows
+- Test on other engagements and clients
+
 ---
 
 **END OF PROJECT STATUS**
