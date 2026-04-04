@@ -9620,6 +9620,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   const [expandedTables, setExpandedTables] = useState({})
   const [expandedProblems, setExpandedProblems] = useState({})
   const [streamlineSending, setStreamlineSending] = useState(false)
+  const [buildingWorkflow, setBuildingWorkflow] = useState({}) // { [appIndex]: 'building' | 'done' | 'error' }
+  const [buildResults, setBuildResults] = useState({}) // { [appIndex]: { project_id, needs_ui_config } }
   const [streamlineStatus, setStreamlineStatus] = useState(null) // null | 'sent' | 'error'
   const [protoDownloading, setProtoDownloading] = useState(false)
   const [briefDownloadLoading, setBriefDownloadLoading] = useState(false)
@@ -10525,31 +10527,89 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                         </div>:
                     (expandedResult.id==="whatwecando"?
                         <div>
-                          {/* Streamline Applications */}
+                          {/* Streamline Applications with Build buttons */}
                           {displayResults.streamline_applications && (
                               <div style={{ padding: '1.5rem', background: 'var(--bg-primary)' }}>
-                                  {displayResults.streamline_applications.split('\n').filter(line => line.trim()).map((line, idx) => {
+                                  {(() => {
+                                    let currentAppIndex = -1
+                                    return displayResults.streamline_applications.split('\n').filter(line => line.trim()).map((line, idx) => {
                                     const trimmed = line.trim()
-                                    // Bold headers like **1. Title**
                                     const boldMatch = trimmed.match(/^\*\*(.+)\*\*$/)
                                     if (boldMatch) {
+                                      currentAppIndex++
                                       return (
                                           <h3 key={idx} style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', margin: idx === 0 ? '0 0 0.5rem 0' : '1.25rem 0 0.5rem 0' }}>
                                             {boldMatch[1]}
                                           </h3>
                                       )
                                     }
-                                    // Labeled lines like "Problem: ...", "Workflow: ...", "Integrations: ...", "Outcome: ..."
                                     const labelMatch = trimmed.match(/^(Problem|Workflow|Integrations|Outcome):\s*(.+)/)
                                     if (labelMatch) {
+                                      const isOutcome = labelMatch[1] === 'Outcome'
+                                      const appIdx = currentAppIndex
+                                      const appData = displayStreamlineApplications[appIdx]
+                                      const bStatus = buildingWorkflow[appIdx]
+                                      const bResult = buildResults[appIdx]
                                       return (
-                                          <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.35rem', paddingLeft: '0.75rem' }}>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: labelMatch[1] === 'Problem' ? '#ef4444' : labelMatch[1] === 'Workflow' ? '#3b82f6' : '#6b7280', minWidth: '90px', flexShrink: 0 }}>{labelMatch[1]}:</span>
-                                            <span style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)' }}>{labelMatch[2]}</span>
+                                          <div key={idx}>
+                                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.35rem', paddingLeft: '0.75rem' }}>
+                                              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: labelMatch[1] === 'Problem' ? '#ef4444' : labelMatch[1] === 'Workflow' ? '#3b82f6' : '#6b7280', minWidth: '90px', flexShrink: 0 }}>{labelMatch[1]}:</span>
+                                              <span style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)' }}>{labelMatch[2]}</span>
+                                            </div>
+                                            {isOutcome && appData && (
+                                              <div style={{ paddingLeft: '0.75rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
+                                                {bStatus === 'done' && bResult ? (
+                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <CheckCircle size={14} style={{ color: '#22c55e' }} />
+                                                    <span style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 600 }}>Built in Streamline</span>
+                                                    {bResult.needs_ui_config?.length > 0 && (
+                                                      <span style={{ fontSize: '0.65rem', color: '#f59e0b' }}>({bResult.needs_ui_config.length} steps need UI config)</span>
+                                                    )}
+                                                  </div>
+                                                ) : (
+                                                  <button
+                                                    disabled={bStatus === 'building'}
+                                                    onClick={async () => {
+                                                      setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'building' }))
+                                                      try {
+                                                        const res = await fetch(`${API_BASE}/build-workflow`, {
+                                                          method: 'POST', headers: getAuthHeaders(),
+                                                          body: JSON.stringify({
+                                                            client_id: clientId,
+                                                            engagement_id: activeEngagement?.id || undefined,
+                                                            app_index: appIdx,
+                                                            app_data: appData
+                                                          })
+                                                        })
+                                                        const data = await res.json()
+                                                        if (data.success) {
+                                                          setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'done' }))
+                                                          setBuildResults(prev => ({ ...prev, [appIdx]: data }))
+                                                        } else {
+                                                          setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'error' }))
+                                                          alert('Build failed: ' + (data.error || 'Unknown error'))
+                                                        }
+                                                      } catch (err) {
+                                                        setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'error' }))
+                                                        alert('Build failed: ' + err.message)
+                                                      }
+                                                    }}
+                                                    style={{
+                                                      display: 'flex', alignItems: 'center', gap: '0.35rem',
+                                                      padding: '0.3rem 0.6rem', fontSize: '0.7rem', fontWeight: 600,
+                                                      background: bStatus === 'building' ? '#94a3b8' : bStatus === 'error' ? '#ef4444' : '#2563eb',
+                                                      color: '#fff', border: 'none', borderRadius: 6,
+                                                      cursor: bStatus === 'building' ? 'wait' : 'pointer',
+                                                    }}>
+                                                    {bStatus === 'building' ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={12} />}
+                                                    {bStatus === 'building' ? 'Building...' : bStatus === 'error' ? 'Retry Build' : 'Build in Streamline'}
+                                                  </button>
+                                                )}
+                                              </div>
+                                            )}
                                           </div>
                                       )
                                     }
-                                    // Bullet points
                                     if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
                                       return (
                                           <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', marginBottom: '0.5rem', paddingLeft: '0.5rem' }}>
@@ -10558,13 +10618,12 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                           </div>
                                       )
                                     }
-                                    // Regular paragraphs
                                     return (
                                         <p key={idx} style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
                                           {trimmed}
                                         </p>
                                     )
-                                  })}
+                                  })})()}
                               </div>
                           )}
                         </div>:

@@ -277,3 +277,20 @@ CREATE TABLE IF NOT EXISTS user_client_assignments (
 );
 CREATE INDEX IF NOT EXISTS idx_uca_user_id ON user_client_assignments(user_id);
 CREATE INDEX IF NOT EXISTS idx_uca_client_id ON user_client_assignments(client_id);
+
+-- Workflow builds tracking
+CREATE TABLE IF NOT EXISTS workflow_builds (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id UUID REFERENCES clients(id),
+    engagement_id UUID REFERENCES engagements(id),
+    app_index INTEGER,
+    app_title TEXT,
+    streamline_project_id TEXT,
+    streamline_project_url TEXT,
+    status TEXT DEFAULT 'building',
+    steps_json TEXT,
+    needs_ui_config TEXT,
+    error TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    completed_at TIMESTAMP
+);
