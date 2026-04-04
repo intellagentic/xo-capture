@@ -10328,7 +10328,6 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   {isApproving ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <CheckCircle size={13} />} Approve
                 </button>)
               })()}
-              )}
               {!isDraft && (item.id === 'deploymentBrief' || item.id === 'growthDeck') && (
                 <span style={{ fontSize: '0.65rem', background: '#dcfce7', color: '#16a34a', padding: '0.15rem 0.5rem', borderRadius: 4, fontWeight: 600, flexShrink: 0 }}>APPROVED</span>
               )}
