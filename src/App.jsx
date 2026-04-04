@@ -9619,6 +9619,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   const [error, setError] = useState(null)
   const [expandedTables, setExpandedTables] = useState({})
   const [expandedProblems, setExpandedProblems] = useState({})
+  const [expandedSubBlocks, setExpandedSubBlocks] = useState({})
+  const [lastExpandedSection, setLastExpandedSection] = useState(null)
   const [streamlineSending, setStreamlineSending] = useState(false)
   const [streamlineStatus, setStreamlineStatus] = useState(null) // null | 'sent' | 'error'
   const [protoDownloading, setProtoDownloading] = useState(false)
@@ -9717,13 +9719,26 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
     setLoading(false)
   }
 
+  useEffect(() => {
+    if (lastExpandedSection) {
+      const timer = setTimeout(() => {
+        document.querySelector(`[data-section="${lastExpandedSection}"]`)?.scrollIntoView({ behavior: 'instant', block: 'start' });
+        setLastExpandedSection(null);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [lastExpandedSection])
+
   const toggleResult = (item) => {
-    if(expandedResult === null || expandedResult !== item) setExpandedResult(item);
-    else setExpandedResult(null);
+    if(expandedResult === null || expandedResult !== item) {
+      setExpandedResult(item);
+      if (item.id === 'solutions') setExpandedSubBlocks({});
+      setLastExpandedSection(item.id);
+    } else setExpandedResult(null);
   }
 
   const toggleSummary = (item) => {
-    if(item===null || item!==expandedSummary) setExpandedSummary(item);
+    if(item===null || item!==expandedSummary) { setExpandedSummary(item); setLastExpandedSection(item.id); }
     else setExpandedSummary(null);
   }
 
@@ -9781,7 +9796,9 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   }
 
   const toggleProblem = (index) => {
+    const expanding = !expandedProblems[index];
     setExpandedProblems(prev => ({ ...prev, [index]: !prev[index] }))
+    if (expanding) setLastExpandedSection('problem-' + index);
   }
 
   const getSeverityColor = (severity) => {
@@ -10208,6 +10225,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
               const IconCompe = ICON_MAP[item.icon] || Zap
               return <div
               key={index}
+              data-section={item.id}
             style={{
               borderRadius: '10px',
               background: 'var(--bg-card-alt)',
@@ -10215,9 +10233,10 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
             }}
           >
             <div
+                id={`section-${item.id}`}
                 onClick={() => toggleResult(item)}
                 style={{
-                  padding: '1rem 1.25rem',
+                                    padding: '1rem 1.25rem',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -10362,6 +10381,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                           const expSummary = expandedSummary !==null && expandedSummary.id=== summaryItem.id;
                           return <div
                               key={index1}
+                              data-section={summaryItem.id}
                               style={{
                                 borderRadius: '10px',
                                 background: 'var(--bg-card-alt)',
@@ -10371,9 +10391,10 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               className={"panel"}
                           >
                             <div
+                                id={`section-${summaryItem.id}`}
                                 onClick={() => toggleSummary(summaryItem)}
                                 style={{
-                                  padding: '1rem 1.25rem',
+                                                                    padding: '1rem 1.25rem',
                                   cursor: 'pointer',
                                   display: 'flex',
                                   alignItems: 'center',
@@ -10452,6 +10473,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               {displayResults.problems?.map((problem, index) => (
                                   <div
                                       key={index}
+                                      data-section={`problem-${index}`}
                                       style={{
                                         border: `1px solid ${getSeverityColor(problem.severity)}20`,
                                         borderLeft: `4px solid ${getSeverityColor(problem.severity)}`,
@@ -10461,9 +10483,10 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                       }}
                                   >
                                     <div
+                                        id={`section-problem-${index}`}
                                         onClick={() => toggleProblem(index)}
                                         style={{
-                                          padding: '1rem 1.25rem',
+                                                                                    padding: '1rem 1.25rem',
                                           cursor: 'pointer',
                                           display: 'flex',
                                           alignItems: 'center',
@@ -10525,12 +10548,15 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                     (expandedResult.id==="solutions"?
                         <div>
                           {/* Sub-block 1: Intellistack Potential Streamline Applications */}
-                          <div style={{ margin: '0.75rem', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            <div style={{ background: '#000', padding: '0.625rem 1rem', display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                              <img src={intellistackLogo} alt="Intellistack" style={{ height: '20px' }} />
-                              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>Potential Streamline Applications</span>
+                          <div data-section="streamline" style={{ margin: '0.75rem', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <div id="section-streamline" onClick={() => { const opening = !expandedSubBlocks.streamline; setExpandedSubBlocks(prev => ({ ...prev, streamline: opening })); if (opening) setLastExpandedSection('streamline'); }} style={{ background: '#000', padding: '0.625rem 1rem', display: 'flex', alignItems: 'center', gap: '0.625rem', cursor: 'pointer', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                                <img src={intellistackLogo} alt="Intellistack" style={{ height: '20px' }} />
+                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>Potential Streamline Applications</span>
+                              </div>
+                              {expandedSubBlocks.streamline ? <ChevronDown size={18} style={{ color: '#fff', flexShrink: 0 }} /> : <ChevronRight size={18} style={{ color: '#fff', flexShrink: 0 }} />}
                             </div>
-                          {displayResults.streamline_applications && (
+                          {expandedSubBlocks.streamline && displayResults.streamline_applications && (
                               <div style={{ padding: '1.5rem', background: 'var(--bg-primary)' }}>
                                   {displayResults.streamline_applications.split('\n').filter(line => line.trim()).map((line, idx) => {
                                     const trimmed = line.trim()
@@ -10574,14 +10600,19 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                           </div>
 
                           {/* Sub-block 2: Intellagentic XO */}
-                          <div style={{ margin: '0.75rem', marginTop: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            <div style={{ background: '#000', padding: '0.625rem 1rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>Intellagentic</span>
-                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#C0392B' }}>XO</span>
+                          <div data-section="xo" style={{ margin: '0.75rem', marginTop: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <div id="section-xo" onClick={() => { const opening = !expandedSubBlocks.xo; setExpandedSubBlocks(prev => ({ ...prev, xo: opening })); if (opening) setLastExpandedSection('xo'); }} style={{ background: '#000', padding: '0.625rem 1rem', display: 'flex', alignItems: 'center', gap: '0.375rem', cursor: 'pointer', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>Intellagentic</span>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#C0392B' }}>XO</span>
+                              </div>
+                              {expandedSubBlocks.xo ? <ChevronDown size={18} style={{ color: '#fff', flexShrink: 0 }} /> : <ChevronRight size={18} style={{ color: '#fff', flexShrink: 0 }} />}
                             </div>
+                            {expandedSubBlocks.xo && (
                             <div style={{ padding: '1.5rem', background: 'var(--bg-primary)', color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic' }}>
                               XO console coming soon
                             </div>
+                            )}
                           </div>
                         </div>:
                     (expandedResult.id==="rapidDeployment"?
