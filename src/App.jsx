@@ -10531,6 +10531,28 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                           {displayResults.streamline_applications && (
                               <div style={{ padding: '1.5rem', background: 'var(--bg-primary)' }}>
                                   {(() => {
+                                    // Parse apps for Build button data
+                                    const parsedApps = []
+                                    try {
+                                      const blocks = displayResults.streamline_applications.split('\n\n')
+                                      for (const block of blocks) {
+                                        if (block.trim().indexOf('. ') >= 0) {
+                                          const lines = block.split('\n')
+                                          if (lines.length > 3) {
+                                            const titleParts = lines[0].replaceAll('*', '').split('. ')
+                                            parsedApps.push({
+                                              rank: titleParts[0] || '',
+                                              title: titleParts[1] || '',
+                                              problem: (lines[1] || '').replace('Problem: ', ''),
+                                              workflow: (lines[2] || '').replace('Workflow: ', '').split(' → '),
+                                              integrations: (lines[3] || '').replace('Integrations: ', ''),
+                                              outcome: (lines[4] || '').replace('Outcome: ', ''),
+                                            })
+                                          }
+                                        }
+                                      }
+                                    } catch (e) {}
+
                                     let currentAppIndex = -1
                                     return displayResults.streamline_applications.split('\n').filter(line => line.trim()).map((line, idx) => {
                                     const trimmed = line.trim()
@@ -10547,7 +10569,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                     if (labelMatch) {
                                       const isOutcome = labelMatch[1] === 'Outcome'
                                       const appIdx = currentAppIndex
-                                      const appData = displayStreamlineApplications[appIdx]
+                                      const appData = parsedApps[appIdx]
                                       const bStatus = buildingWorkflow[appIdx]
                                       const bResult = buildResults[appIdx]
                                       return (
@@ -10559,11 +10581,19 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                             {isOutcome && appData && (
                                               <div style={{ paddingLeft: '0.75rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
                                                 {bStatus === 'done' && bResult ? (
-                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                    <CheckCircle size={14} style={{ color: '#22c55e' }} />
-                                                    <span style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 600 }}>Built in Streamline</span>
+                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                      <CheckCircle size={14} style={{ color: '#22c55e' }} />
+                                                      <span style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 600 }}>Workflow created in Streamline</span>
+                                                    </div>
                                                     {bResult.needs_ui_config?.length > 0 && (
-                                                      <span style={{ fontSize: '0.65rem', color: '#f59e0b' }}>({bResult.needs_ui_config.length} steps need UI config)</span>
+                                                      <span style={{ fontSize: '0.65rem', color: '#f59e0b' }}>Add in builder: {bResult.needs_ui_config.join(' → ')}</span>
+                                                    )}
+                                                    {bResult.project_id && (
+                                                      <a href={`https://app.streamline.intellistack.ai/projects/${bResult.project_id}/builder`} target="_blank" rel="noopener noreferrer"
+                                                        style={{ fontSize: '0.7rem', color: '#2563eb', fontWeight: 600, textDecoration: 'underline' }}>
+                                                        Open Builder →
+                                                      </a>
                                                     )}
                                                   </div>
                                                 ) : (
@@ -10572,7 +10602,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                                     onClick={async () => {
                                                       setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'building' }))
                                                       try {
-                                                        const res = await fetch(`${API_BASE}/build-workflow`, {
+                                                        const startRes = await fetch(`${API_BASE}/build-workflow`, {
                                                           method: 'POST', headers: getAuthHeaders(),
                                                           body: JSON.stringify({
                                                             client_id: clientId,
@@ -10581,14 +10611,28 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                                             app_data: appData
                                                           })
                                                         })
-                                                        const data = await res.json()
-                                                        if (data.success) {
-                                                          setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'done' }))
-                                                          setBuildResults(prev => ({ ...prev, [appIdx]: data }))
-                                                        } else {
-                                                          setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'error' }))
-                                                          alert('Build failed: ' + (data.error || 'Unknown error'))
+                                                        const startData = await startRes.json()
+                                                        if (!startRes.ok || !startData.build_id) {
+                                                          throw new Error(startData.error || 'Failed to start build')
                                                         }
+                                                        // Poll for completion
+                                                        const buildId = startData.build_id
+                                                        let elapsed = 0
+                                                        while (elapsed < 120000) {
+                                                          await new Promise(r => setTimeout(r, 5000))
+                                                          elapsed += 5000
+                                                          const pollRes = await fetch(`${API_BASE}/build-workflow/${buildId}`, { headers: getAuthHeaders() })
+                                                          const pollData = await pollRes.json()
+                                                          if (pollData.status === 'complete') {
+                                                            setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'done' }))
+                                                            setBuildResults(prev => ({ ...prev, [appIdx]: { success: true, project_id: pollData.project_id, needs_ui_config: pollData.needs_ui_config || [] } }))
+                                                            return
+                                                          }
+                                                          if (pollData.status === 'failed') {
+                                                            throw new Error(pollData.error || 'Build failed')
+                                                          }
+                                                        }
+                                                        throw new Error('Build timed out — check Streamline')
                                                       } catch (err) {
                                                         setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'error' }))
                                                         alert('Build failed: ' + err.message)

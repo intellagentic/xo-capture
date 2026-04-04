@@ -90,10 +90,25 @@ def _run_migrations():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_engagements_client_id ON engagements(client_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_engagements_status ON engagements(status)")
         cur.execute("ALTER TABLE enrichments ADD COLUMN IF NOT EXISTS engagement_id UUID")
+        cur.execute("""CREATE TABLE IF NOT EXISTS workflow_builds (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            client_id UUID REFERENCES clients(id),
+            engagement_id UUID REFERENCES engagements(id),
+            app_index INTEGER,
+            app_title TEXT,
+            streamline_project_id TEXT,
+            streamline_project_url TEXT,
+            status TEXT DEFAULT 'building',
+            steps_json TEXT,
+            needs_ui_config TEXT,
+            error TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            completed_at TIMESTAMP
+        )""")
         conn.commit()
         cur.close()
         conn.close()
-        print("Migration complete: all client columns + engagements table ensured")
+        print("Migration complete: all client columns + engagements + workflow_builds tables ensured")
     except Exception as e:
         print(f"Migration check (non-fatal): {e}")
 
