@@ -3550,4 +3550,21 @@ Remaining:
 
 ---
 
+**April 4, 2026:**
+- SES production access approved — invite emails can now send to any address
+- Results page restructured — Solutions parent section with collapsible Intellistack Streamline and Intellagentic XO sub-blocks
+- Removed "+ XO" from Streamline Applications title
+- Scroll-to-section on expand (needs further polish)
+- Fixed stray )} characters on Results section headers
+- Fixed Rapid Prototype download — crypto_helper missing from Lambda package
+- Independent loading states for Brief/Deck approve and download buttons
+- SNS SMS configured — SenderID "XO" registered for UK, sandbox exit requested
+- Team page search/filter deployed and consistent across all list pages
+
+Backlog:
+- Scroll-to-section positioning needs further refinement
+- 2FA with email codes (SES ready), SMS pending sandbox exit
+
+---
+
 **END OF PROJECT STATUS**
