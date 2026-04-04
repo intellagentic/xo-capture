@@ -9635,7 +9635,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   const [formattedResults,setFormattedResults] = useState([
     {id:"executiveSummary",icon:"TrendingUp",name:"Executive Summary",shortDescription:"Here is our understanding of your business",severity: 'high'},
     {id:"problemsIdentified",icon:"AlertTriangle",name:"Problems Identified",shortDescription:"Key pain points and gaps surfaced by the analysis",severity: 'high'},
-    {id:"whatwecando",icon:"Zap",name:"Potential Streamline Applications",shortDescription:"",severity: 'high'},
+    {id:"solutions",icon:"Zap",name:"Solutions",shortDescription:"",severity: 'high'},
     {id:"rapidDeployment",icon:"Package",name:"Rapid Deployment",shortDescription:"Timeline and action plan",severity: 'high'},
     {id:"technicalSection",icon:"Globe",name:"Technical Section",shortDescription:"",severity: 'high'},
     {id:"deploymentBrief",icon:"FileText",name:"Deployment Brief",shortDescription:"CLIENT-READY XO DEPLOYMENT DOCUMENT",severity: 'high'},
@@ -10223,15 +10223,15 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '1rem',
-                  backgroundColor:item.id==="whatwecando"?"black":"",
-                  color:item.id==="whatwecando"?"white":""
+                  backgroundColor:item.id==="solutions"?"black":"",
+                  color:item.id==="solutions"?"white":""
                 }}
             >
               <div style={{flex: 1}}>
                 <div style={{display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem'}}>
-                  {item.id==="whatwecando"?<img src={intellistackLogo} alt="Intellistack" style={{ height: '22px' }} />:<IconCompe size={20} className="icon-red" />}
-                  <h3 style={{fontSize: '0.95rem', fontWeight: 600,color: item.id==="whatwecando"?"white":'var(--text-primary)', margin: 0}}>
-                    {item.id==="whatwecando" ? <>Potential Streamline + <span style={{ color: '#CC0000' }}>XO</span> Applications</> : item.name}
+                  {item.id==="solutions"?<Zap size={20} style={{ color: '#fff' }} />:<IconCompe size={20} className="icon-red" />}
+                  <h3 style={{fontSize: '0.95rem', fontWeight: 600,color: item.id==="solutions"?"white":'var(--text-primary)', margin: 0}}>
+                    {item.name}
                   </h3>
                   <span style={{
                     fontSize: '0.65rem',
@@ -10522,9 +10522,14 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               ))}
                             </div>
                         </div>:
-                    (expandedResult.id==="whatwecando"?
+                    (expandedResult.id==="solutions"?
                         <div>
-                          {/* Streamline Applications */}
+                          {/* Sub-block 1: Intellistack Potential Streamline Applications */}
+                          <div style={{ margin: '0.75rem', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <div style={{ background: '#000', padding: '0.625rem 1rem', display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                              <img src={intellistackLogo} alt="Intellistack" style={{ height: '20px' }} />
+                              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>Potential Streamline Applications</span>
+                            </div>
                           {displayResults.streamline_applications && (
                               <div style={{ padding: '1.5rem', background: 'var(--bg-primary)' }}>
                                   {displayResults.streamline_applications.split('\n').filter(line => line.trim()).map((line, idx) => {
@@ -10566,6 +10571,18 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                   })}
                               </div>
                           )}
+                          </div>
+
+                          {/* Sub-block 2: Intellagentic XO */}
+                          <div style={{ margin: '0.75rem', marginTop: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <div style={{ background: '#000', padding: '0.625rem 1rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>Intellagentic</span>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#C0392B' }}>XO</span>
+                            </div>
+                            <div style={{ padding: '1.5rem', background: 'var(--bg-primary)', color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                              XO console coming soon
+                            </div>
+                          </div>
                         </div>:
                     (expandedResult.id==="rapidDeployment"?
                         <div>
