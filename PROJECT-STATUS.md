@@ -3567,4 +3567,16 @@ Backlog:
 
 ---
 
+**April 6, 2026:**
+
+XO CONSOLE + CLIENT FORM FIXES
+
+- XO Console Layer 3 mobile fix -- reduced font sizes on mobile (<768px), removed whiteSpace: nowrap, added overflow-wrap: break-word, stacked grid to single column. Scoped CSS classes (xo-layer3, xo-layer3-text, xo-layer3-header, xo-layer3-subheader) in index.css @media block. No changes outside Layer 3 section.
+- Channel Partner dropdown -- fixed duplicate name display ("Intellistack -- Intellistack"). Now shows single name when account_name and company match.
+- New Client modal -- renamed "Partner Information" to "Client Information", save button updated to match.
+- Client Branding uploads -- added prominent amber message "Save client first to enable logo and icon uploads" when clientId is null.
+- Super_admin consent bypass -- super_admin users can now upload docs on Your Data page without client consent gate. Consent status shows "Admin Bypass -- client consent pending" in amber when client hasn't consented yet.
+
+---
+
 **END OF PROJECT STATUS**

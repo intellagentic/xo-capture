@@ -2803,6 +2803,7 @@ export default function App() {
             companyData={companyData}
             onNavigate={navigateTo}
             preferredModel={preferredModel}
+            isAdmin={isAdmin}
           />
         )}
         {currentScreen === 'enrich' && (
@@ -3806,7 +3807,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Building2 size={20} className="icon-red" />
-            <h2>Partner Information</h2>
+            <h2>Client Information</h2>
           </div>
           <button className="modal-close" onClick={guardedClose}>
             <X size={20} />
@@ -4127,7 +4128,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                 >
                   <option value="">None</option>
                   {accounts.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}{p.company ? ` — ${p.company}` : ''}</option>
+                    <option key={p.id} value={p.id}>{p.name}{p.company && p.company !== p.name ? ` — ${p.company}` : ''}</option>
                   ))}
                 </select>
               </div>
@@ -4251,10 +4252,12 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                 <Image size={16} style={{ color: '#dc2626' }} />
                 <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>Client Branding</span>
-                {!clientId && (
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)' }}>(save partner info first)</span>
-                )}
               </div>
+              {!clientId && (
+                <p style={{ fontSize: '0.85rem', fontStyle: 'italic', color: '#d97706', margin: '0 0 0.75rem 0' }}>
+                  Save client first to enable logo and icon uploads
+                </p>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 {/* Logo Upload */}
@@ -4360,7 +4363,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
               justifyContent: 'center'
             }}
           >
-            Save Partner Information
+            Save Client Information
           </button>
         </div>
       </div>
@@ -5714,7 +5717,7 @@ function formatDateTime(isoString) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric',hour:'numeric',minute:'numeric',hour12:true })
 }
 
-function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
+function SourcesScreen({ clientId, companyData, onNavigate,preferredModel, isAdmin }) {
   const [uploads, setUploads] = useState([])
   const [loading, setLoading] = useState(true)
   const [isDragging, setIsDragging] = useState(false)
@@ -5724,7 +5727,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
   const [replacingId, setReplacingId] = useState(null)
   const [currentClient,setCurrentClient] = useState(null)
 
-  const [consentAgreed, setConsentAgreed] = useState(false)
+  const [consentAgreed, setConsentAgreed] = useState(isAdmin || false)
   const [consentAgreedAt, setConsentAgreedAt] = useState('')
   const [existingApps, setExistingApps] = useState('')
 
@@ -6048,7 +6051,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
         if (res.ok) {
           const data = await res.json();
           setCurrentClient(data);
-          setConsentAgreed(data.ndaSigned);
+          setConsentAgreed(isAdmin || data.ndaSigned);
           setConsentAgreedAt(data.ndaSignedAt);
           setExistingApps(data.existingApps);
           //console.log(data);
@@ -6192,7 +6195,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel }) {
             <FileScan size={16} /> {"I AGREE"}
           </button>)}
           {consentAgreed && (<div style={{color:"var(--text-primary)"}}>
-            {consentAgreed?"Consent Agreed: "+formatDateTime(consentAgreedAt):""}
+            {consentAgreedAt ? "Consent Agreed: "+formatDateTime(consentAgreedAt) : isAdmin ? <span style={{ color: '#d97706', fontStyle: 'italic' }}>Admin Bypass — client consent pending</span> : "Consent Agreed: -"}
           </div>)}
         </div>
         <div style={{ padding: '1.25rem',color:"var(--text-muted)"}}>
@@ -10749,34 +10752,34 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                     )}
 
                                     {/* Layer 3 */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1px', background: '#2d2d4a', borderTop: '1px solid #2d2d4a' }}>
+                                    <div className="xo-layer3" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1px', background: '#2d2d4a', borderTop: '1px solid #2d2d4a' }}>
                                       {/* XO Insights — merged flagged + opportunities */}
                                       <div style={{ background: '#1a1a2e', padding: '0.625rem 0.75rem' }}>
-                                        <div style={{ fontSize: '0.55rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.375rem' }}>Layer 3: XO Predictive Insights</div>
+                                        <div className="xo-layer3-header" style={{ fontSize: '0.55rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.375rem' }}>Layer 3: XO Predictive Insights</div>
 
                                         {/* Flagged Items */}
-                                        <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                                        <div className="xo-layer3-subheader" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                                           <AlertTriangle size={10} style={{ color: '#f59e0b' }} /> Flagged
                                           <span style={{ fontSize: '0.55rem', background: '#ef444420', color: '#ef4444', padding: '0.1rem 0.3rem', borderRadius: 3, marginLeft: 'auto' }}>{monitorItems.length}</span>
                                         </div>
                                         {monitorItems.map((item, i) => (
                                           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0', borderBottom: '1px solid #2d2d4a' }}>
                                             <div style={{ width: 6, height: 6, borderRadius: '50%', background: item.severity === 'high' ? '#ef4444' : item.severity === 'medium' ? '#f59e0b' : '#3b82f6', flexShrink: 0 }} />
-                                            <span style={{ fontSize: '0.65rem', color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+                                            <span className="xo-layer3-text" style={{ fontSize: '0.65rem', color: '#e2e8f0', flex: 1, overflow: 'hidden', overflowWrap: 'break-word', whiteSpace: 'normal' }}>{item.title}</span>
                                             <span style={{ fontSize: '0.5rem', color: item.status === 'Flagged' ? '#ef4444' : item.status === 'Monitoring' ? '#f59e0b' : '#3b82f6', fontWeight: 600, flexShrink: 0 }}>{item.status}</span>
                                           </div>
                                         ))}
 
                                         {/* Divider */}
                                         <div style={{ borderTop: '1px solid #3b82f640', margin: '0.5rem 0', paddingTop: '0.375rem' }}>
-                                          <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                                          <div className="xo-layer3-subheader" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                                             <Zap size={10} style={{ color: '#22c55e' }} /> Opportunities
                                             <span style={{ fontSize: '0.55rem', background: '#22c55e20', color: '#22c55e', padding: '0.1rem 0.3rem', borderRadius: 3, marginLeft: 'auto' }}>{opportunities.length}</span>
                                           </div>
                                           {opportunities.slice(0, 5).map((opp, i) => (
                                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0', borderBottom: i < Math.min(opportunities.length, 5) - 1 ? '1px solid #2d2d4a' : 'none' }}>
                                               <span style={{ fontSize: '0.55rem', color: '#22c55e', fontWeight: 700, flexShrink: 0, width: 14, textAlign: 'center' }}>{i + 1}</span>
-                                              <span style={{ fontSize: '0.65rem', color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.title}</span>
+                                              <span className="xo-layer3-text" style={{ fontSize: '0.65rem', color: '#e2e8f0', flex: 1, overflow: 'hidden', overflowWrap: 'break-word', whiteSpace: 'normal' }}>{opp.title}</span>
                                               <CheckCircle size={10} style={{ color: '#22c55e', flexShrink: 0 }} />
                                             </div>
                                           ))}
