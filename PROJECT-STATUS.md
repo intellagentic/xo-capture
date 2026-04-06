@@ -3577,6 +3577,43 @@ XO CONSOLE + CLIENT FORM FIXES
 - Client Branding uploads -- added prominent amber message "Save client first to enable logo and icon uploads" when clientId is null.
 - Super_admin consent bypass -- super_admin users can now upload docs on Your Data page without client consent gate. Consent status shows "Admin Bypass -- client consent pending" in amber when client hasn't consented yet.
 
+FILE VIEW + UPLOAD ERROR HANDLING
+
+File View -- Presigned URL:
+- Fixed View button on uploaded files -- was using hardcoded direct URL to wrong bucket (xo-client-data in us-west-1)
+- Now calls GET /uploads?action=view to generate presigned GET URL from xo-client-data-mv in eu-west-2
+- Presigned URLs include ResponseContentType and ResponseContentDisposition: inline -- PDFs and images open in browser
+- No API Gateway changes -- reuses existing GET /uploads route with action query parameter
+
+Upload Error Handling:
+- Frontend now checks S3 PUT response after each file upload
+- On failure, automatically deletes phantom DB record via DELETE /uploads/{id}
+- Shows error message to user
+- Prevents phantom entries in Data Library
+
+GROWTH DECK -- ENGAGEMENT THREADING
+
+- Engagement name (e.g. "Radiology") now threaded through all Growth Deck slides
+- Title slide: "Scaling Mayo Clinic -- Radiology"
+- Challenge slide: "The Radiology Challenge" instead of generic industry
+- OODA slide: references engagement in deployment context
+- Workflow slide: "Radiology Workflows That Encode Institutional Knowledge"
+- Before/After slide: "Radiology: From System of Record to System of Action"
+- POC slide: "21-Day Radiology Proof of Concept"
+- Next Steps: references engagement scope
+- Falls back to industry name when no engagement selected
+- Updated both frontend (App.jsx) and backend (xo-deck-download Lambda)
+- Removed duplicate engagement subtitle from .pptx title slide
+- Fixed Lambda crash (duplicate engName variable)
+- Changed deck subtitle from "INVESTOR-READY" to "CLIENT-READY"
+
+BUILD IN STREAMLINE BUTTONS
+
+- Restored "Build in Streamline" buttons to Potential Streamline Applications section
+- Blue button after each workflow Outcome line with loading/success/error states
+- Re-added buildingWorkflow and buildResults state variables
+- Calls POST /build-workflow with client_id, engagement_id, app_index, app_data
+
 ---
 
 **END OF PROJECT STATUS**

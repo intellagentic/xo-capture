@@ -53,9 +53,13 @@ def lambda_handler(event, context):
         elif method == 'POST' and '/upload' in path and '/uploads' not in path:
             response = handle_upload(event, user)
 
-        # GET /uploads?client_id=X
+        # GET /uploads?client_id=X (or ?action=view for presigned URL)
         elif method == 'GET' and '/uploads' in path and '{id}' not in path:
-            response = handle_list_uploads(event, user)
+            params = event.get('queryStringParameters') or {}
+            if params.get('action') == 'view':
+                response = handle_view_upload(event, user)
+            else:
+                response = handle_list_uploads(event, user)
 
         # DELETE /uploads/{id}
         elif method == 'DELETE' and '/uploads' in path:
@@ -236,6 +240,85 @@ def handle_upload(event, user):
             'upload_urls': upload_urls,
             'upload_ids': upload_ids
         })
+    }
+
+
+# ============================================================
+# GET /uploads?action=view&client_id=X&s3_key=X — Presigned GET URL
+# ============================================================
+def handle_view_upload(event, user):
+    params = event.get('queryStringParameters') or {}
+    client_id = params.get('client_id', '').strip()
+    s3_key = params.get('s3_key', '').strip()
+
+    if not client_id or not s3_key:
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'client_id and s3_key query parameters are required'})
+        }
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    db_client_id, _ = _verify_client(cur, client_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_account', False), user.get('account_id'), user.get('account_role'))
+    if not db_client_id:
+        cur.close()
+        conn.close()
+        return {
+            'statusCode': 404,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Client not found'})
+        }
+
+    # Verify s3_key belongs to this client
+    cur.execute("SELECT id FROM uploads WHERE client_id = %s AND s3_key = %s AND (status IS NULL OR status != 'deleted')", (db_client_id, s3_key))
+    if not cur.fetchone():
+        cur.close()
+        conn.close()
+        return {
+            'statusCode': 404,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'Upload not found'})
+        }
+
+    cur.close()
+    conn.close()
+
+    CONTENT_TYPES = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.mp3': 'audio/mpeg',
+        '.mp4': 'video/mp4',
+        '.wav': 'audio/wav',
+        '.webm': 'video/webm',
+        '.csv': 'text/csv',
+        '.json': 'application/json',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }
+
+    ext = '.' + s3_key.rsplit('.', 1)[-1].lower() if '.' in s3_key else ''
+    content_type = CONTENT_TYPES.get(ext, 'application/octet-stream')
+
+    url = s3_client.generate_presigned_url(
+        'get_object',
+        Params={
+            'Bucket': BUCKET_NAME,
+            'Key': s3_key,
+            'ResponseContentType': content_type,
+            'ResponseContentDisposition': 'inline'
+        },
+        ExpiresIn=URL_EXPIRATION
+    )
+
+    return {
+        'statusCode': 200,
+        'headers': CORS_HEADERS,
+        'body': json.dumps({'url': url})
     }
 
 

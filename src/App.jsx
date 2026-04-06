@@ -5825,16 +5825,22 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel, isAdm
         })
       })
       if (!res.ok) throw new Error('Failed to get upload URLs')
-      const { upload_urls } = await res.json()
+      const { upload_urls, upload_ids } = await res.json()
 
       // Upload each file
       for (let i = 0; i < filtered.length; i++) {
         const file = filtered[i]
-        await fetch(upload_urls[i], {
+        const s3Res = await fetch(upload_urls[i], {
           method: 'PUT',
           body: file,
           headers: { 'Content-Type': file.type }
         })
+        if (!s3Res.ok) {
+          if (upload_ids && upload_ids[i]) {
+            await fetch(`${API_BASE}/uploads/${upload_ids[i]}`, { method: 'DELETE', headers: getAuthHeaders() }).catch(() => {})
+          }
+          throw new Error(`Upload failed for ${file.name} (${s3Res.status})`)
+        }
         setPendingFiles(prev => prev.map(p =>
           p.file.name === file.name ? { ...p, progress: 100 } : p
         ))
@@ -5845,6 +5851,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel, isAdm
       setPendingFiles(prev => prev.filter(p => p.progress < 100))
     } catch (err) {
       console.error('Upload error:', err)
+      alert('Upload failed: ' + (err.message || 'Unknown error'))
       setPendingFiles([])
     }
   }
@@ -6364,7 +6371,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel, isAdm
                           marginTop: '4px'
                         }}>
                           <button
-                            onClick={(e) => { e.stopPropagation(); window.open(`https://xo-client-data.s3.us-west-1.amazonaws.com/${upload.s3_key}`, '_blank'); setOpenMenuId(null) }}
+                            onClick={async (e) => { e.stopPropagation(); setOpenMenuId(null); try { const res = await fetch(`${API_BASE}/uploads?action=view&client_id=${clientId}&s3_key=${encodeURIComponent(upload.s3_key)}`, { headers: getAuthHeaders() }); const data = await res.json(); if (data.url) window.open(data.url, '_blank'); else alert('Failed to get view URL'); } catch (err) { alert('Failed to get view URL') } }}
                             style={{
                               width: '100%', textAlign: 'left', padding: '0.5rem 0.875rem',
                               background: 'none', border: 'none', cursor: 'pointer',
@@ -9414,7 +9421,7 @@ function parseDeckWorkflows(md, count) {
   return items.slice(0, count)
 }
 
-function assembleDeckData(results, client) {
+function assembleDeckData(results, client, engagementName) {
   if (!results) return null
   const problems = results.problems || results.problems_identified || []
   const plan = results.plan || results.action_plan || {}
@@ -9424,6 +9431,8 @@ function assembleDeckData(results, client) {
 
   const clientName = (client && client.company_name) || results.company_name || 'Client'
   const industry = (client && client.industry) || results.client_industry || 'this domain'
+  const scope = engagementName || industry
+  const scopeCap = scope.charAt(0).toUpperCase() + scope.slice(1)
   const contactName = (client && client.contact_name) || results.client_contact || clientName
   const bottomLine = results.bottom_line || ''
   const streamline = results.streamline_applications || ''
@@ -9467,9 +9476,9 @@ function assembleDeckData(results, client) {
   const phases = []
   const weekTitles = ['Capture & Quick Wins', 'Prototype & Validate', 'Deploy & Decide']
   const defaults = [
-    [`Knowledge Abstraction \u2014 extract ${contactName}'s ${industry} expertise`, 'Map current manual workflows', 'Identify quick-win automations', 'Baseline metrics for ROI measurement'],
-    [`XO shadows live operations \u2014 parallel run alongside manual process`, 'Validate protocol accuracy with domain experts', 'Iterate on constitutional safety rules', 'Stakeholder review of prototype outputs'],
-    [`Full ${industry} dashboard deployed to stakeholders`, 'Operator training and handover', 'Performance metrics vs baseline', 'Evidence-based business case for full deployment'],
+    [`Knowledge Abstraction \u2014 extract ${contactName}'s ${scope} expertise`, 'Map current manual workflows', 'Identify quick-win automations', 'Baseline metrics for ROI measurement'],
+    [`XO shadows live ${scope} operations \u2014 parallel run alongside manual process`, 'Validate protocol accuracy with domain experts', 'Iterate on constitutional safety rules', 'Stakeholder review of prototype outputs'],
+    [`Full ${scope} dashboard deployed to stakeholders`, 'Operator training and handover', 'Performance metrics vs baseline', 'Evidence-based business case for full deployment'],
   ]
   for (let w = 0; w < 3; w++) {
     const pp = planPhases[w] || {}
@@ -9485,33 +9494,36 @@ function assembleDeckData(results, client) {
   const firstAction = truncateDeckClean(cleanDeckText(firstActionRaw), 80)
 
   return {
-    title: `Operational Briefing:\nScaling ${clientName}`,
+    title: engagementName ? `Operational Briefing:\nScaling ${clientName} \u2014 ${engagementName}` : `Operational Briefing:\nScaling ${clientName}`,
     contactLine: `Prepared for ${contactName}  |  ${dateStr}`,
     slideTitle: `Where ${shortName} Stands Today`,
     oodaTitle: shortName,
     stats,
-    challengeTitle: `The ${industry.charAt(0).toUpperCase() + industry.slice(1)} Challenge`,
+    challengeTitle: `The ${scopeCap} Challenge`,
     challenges,
-    problemCallout: problems.length > 0 ? `The cost of these ${problems.length} gaps compounds as ${clientName} scales \u2014 each manual workaround adds latency, risk, and key-person dependency.` : `Operational gaps compound as ${clientName} scales.`,
+    problemCallout: problems.length > 0 ? `The cost of these ${problems.length} ${scope} gaps compounds as ${clientName} scales \u2014 each manual workaround adds latency, risk, and key-person dependency.` : `Operational ${scope} gaps compound as ${clientName} scales.`,
     oodaPhases: [
-      { phase: 'OBSERVE', desc: truncateDeck(`24/7 sentinel scanning ${clientName}'s ${industry} data sources. Data gated by risk classification.`, 150) },
-      { phase: 'ORIENT', desc: truncateDeck(`Mandatory decomposition \u2014 contextualises against ${industry} domain rules. Risks explicitly enumerated.`, 150) },
-      { phase: 'DECIDE', desc: truncateDeck(`Executive framing \u2014 ranks actions, applies ${clientName}'s governance rules. Post-governance validation.`, 150) },
-      { phase: 'ACT', desc: truncateDeck(`Bounded execution via Streamline \u2014 ${contactName}'s team authorises; system executes. Full audit trail.`, 150) },
+      { phase: 'OBSERVE', desc: truncateDeck(`24/7 sentinel scanning ${clientName}'s ${scope} data sources. Data gated by risk classification.`, 150) },
+      { phase: 'ORIENT', desc: truncateDeck(`Mandatory decomposition \u2014 contextualises against ${scope} domain rules. Risks explicitly enumerated.`, 150) },
+      { phase: 'DECIDE', desc: truncateDeck(`Executive framing \u2014 ranks actions, applies ${clientName}'s ${scope} governance rules. Post-governance validation.`, 150) },
+      { phase: 'ACT', desc: truncateDeck(`Bounded execution via Streamline \u2014 ${contactName}'s ${scope} team authorises; system executes. Full audit trail.`, 150) },
     ],
     maturityStart: `${shortName} starts at L1. You pull us forward as confidence builds.`,
+    workflowTitle: engagementName ? `${engagementName} Workflows That Encode Institutional Knowledge` : 'Workflows That Encode Institutional Knowledge',
     workflows: workflowData,
+    beforeAfterTitle: engagementName ? `${engagementName}: From System of Record to System of Action` : 'From System of Record to System of Action',
     comparisons: comparisons.slice(0, 6),
-    impactLine: `Estimated ${problems.length > 3 ? '60' : '40'}% reduction in manual ${industry} operations as ${clientName} scales toward full deployment`,
+    impactLine: `Estimated ${problems.length > 3 ? '60' : '40'}% reduction in manual ${scope} operations as ${clientName} scales toward full deployment`,
+    pocTitle: engagementName ? `21-Day ${engagementName} Proof of Concept` : '21-Day Proof of Concept',
     phases,
     nextSteps: [
-      { num: '1', text: firstAction || `Share ${industry} operational data and system access for knowledge extraction` },
-      { num: '2', text: `Week 1 quick win \u2014 first ${industry} workflow live within 7 days` },
-      { num: '3', text: `21-day pilot \u2014 full ${industry} XO deployment to ${contactName}'s team` },
+      { num: '1', text: firstAction || `Share ${scope} operational data and system access for knowledge extraction` },
+      { num: '2', text: `Week 1 quick win \u2014 first ${scope} workflow live within 7 days` },
+      { num: '3', text: `21-day pilot \u2014 full ${scope} XO deployment to ${contactName}'s team` },
     ],
     successMetric: bottomLine ? truncateDeck(firstDeckSentence(bottomLine, 100), 100) + ' Institutional knowledge encoded into protocol, not people.' : 'Key-person dependency resolved. Institutional knowledge encoded into protocol, not people.',
-    constitutionalSafetyTitle: `Constitutional Safety \u2014 Why This Matters for ${shortName}'s ${industry.charAt(0).toUpperCase() + industry.slice(1)} Operations`,
-    constitutionalSafetyNote: `In ${industry}, a single unchecked decision can cascade into compliance failures, financial exposure, and reputational damage. XO's Two-Brain architecture (Actor + Critic), designed by Dr. Mabrouka Abuhmida, ensures every output is bounded by ${clientName}'s own domain rules \u2014 not advisory guidelines, but hard constitutional constraints with full audit trails.`,
+    constitutionalSafetyTitle: `Constitutional Safety \u2014 Why This Matters for ${shortName}'s ${scopeCap} Operations`,
+    constitutionalSafetyNote: `In ${scope}, a single unchecked decision can cascade into compliance failures, financial exposure, and reputational damage. XO's Two-Brain architecture (Actor + Critic), designed by Dr. Mabrouka Abuhmida, ensures every output is bounded by ${clientName}'s own domain rules \u2014 not advisory guidelines, but hard constitutional constraints with full audit trails.`,
   }
 }
 
@@ -9626,6 +9638,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   const [lastExpandedSection, setLastExpandedSection] = useState(null)
   const [streamlineSending, setStreamlineSending] = useState(false)
   const [streamlineStatus, setStreamlineStatus] = useState(null) // null | 'sent' | 'error'
+  const [buildingWorkflow, setBuildingWorkflow] = useState({}) // { [appIndex]: 'building' | 'done' | 'error' }
+  const [buildResults, setBuildResults] = useState({}) // { [appIndex]: { project_id, needs_ui_config } }
   const [protoDownloading, setProtoDownloading] = useState(false)
   const [briefDownloadLoading, setBriefDownloadLoading] = useState(false)
   const [deckDownloadLoading, setDeckDownloadLoading] = useState(false)
@@ -9644,7 +9658,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
     {id:"rapidDeployment",icon:"Package",name:"Rapid Deployment",shortDescription:"Timeline and action plan",severity: 'high'},
     {id:"technicalSection",icon:"Globe",name:"Technical Section",shortDescription:"",severity: 'high'},
     {id:"deploymentBrief",icon:"FileText",name:"Deployment Brief",shortDescription:"CLIENT-READY XO DEPLOYMENT DOCUMENT",severity: 'high'},
-    {id:"growthDeck",icon:"Package",name:"Growth Deck",shortDescription:"INVESTOR-READY XO GROWTH PRESENTATION",severity: 'high'}
+    {id:"growthDeck",icon:"Package",name:"Growth Deck",shortDescription:"CLIENT-READY XO GROWTH PRESENTATION",severity: 'high'}
   ]);
   const [expandedSummary,setExpandedSummary]= useState(null);
   const [formattedSummary,setFormattedSummary] = useState([
@@ -10566,24 +10580,100 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                             </div>
                           {expandedSubBlocks.streamline && displayResults.streamline_applications && (
                               <div style={{ padding: '1.5rem', background: 'var(--bg-primary)' }}>
-                                  {displayResults.streamline_applications.split('\n').filter(line => line.trim()).map((line, idx) => {
+                                  {(() => {
+                                    const displayStreamlineApplications = []
+                                    const sapps = displayResults.streamline_applications.split("\n\n")
+                                    for (const sapp of sapps) {
+                                      if (sapp.trim().indexOf(". ") >= 0) {
+                                        const sappComps = sapp.split("\n")
+                                        if (sappComps.length > 3) {
+                                          const titleSplit = sappComps[0].replaceAll("*", "").split(". ")
+                                          displayStreamlineApplications.push({
+                                            rank: titleSplit[0], title: titleSplit[1],
+                                            problem: sappComps[1].replace("Problem: ", ""),
+                                            workflow: sappComps[2].replace("Workflow: ", "").split(" → "),
+                                            integrations: sappComps[3].replace("Integrations: ", ""),
+                                            outcome: sappComps[4]?.replace("Outcome: ", "")
+                                          })
+                                        }
+                                      }
+                                    }
+                                    let currentAppIndex = -1
+                                    return displayResults.streamline_applications.split('\n').filter(line => line.trim()).map((line, idx) => {
                                     const trimmed = line.trim()
-                                    // Bold headers like **1. Title**
                                     const boldMatch = trimmed.match(/^\*\*(.+)\*\*$/)
                                     if (boldMatch) {
+                                      currentAppIndex++
                                       return (
                                           <h3 key={idx} style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', margin: idx === 0 ? '0 0 0.5rem 0' : '1.25rem 0 0.5rem 0' }}>
                                             {boldMatch[1]}
                                           </h3>
                                       )
                                     }
-                                    // Labeled lines like "Problem: ...", "Workflow: ...", "Integrations: ...", "Outcome: ..."
                                     const labelMatch = trimmed.match(/^(Problem|Workflow|Integrations|Outcome):\s*(.+)/)
                                     if (labelMatch) {
+                                      const isOutcome = labelMatch[1] === 'Outcome'
+                                      const appIdx = currentAppIndex
+                                      const appData = displayStreamlineApplications[appIdx]
+                                      const bStatus = buildingWorkflow[appIdx]
+                                      const bResult = buildResults[appIdx]
                                       return (
-                                          <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.35rem', paddingLeft: '0.75rem' }}>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: labelMatch[1] === 'Problem' ? '#ef4444' : labelMatch[1] === 'Workflow' ? '#3b82f6' : '#6b7280', minWidth: '90px', flexShrink: 0 }}>{labelMatch[1]}:</span>
-                                            <span style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)' }}>{labelMatch[2]}</span>
+                                          <div key={idx}>
+                                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.35rem', paddingLeft: '0.75rem' }}>
+                                              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: labelMatch[1] === 'Problem' ? '#ef4444' : labelMatch[1] === 'Workflow' ? '#3b82f6' : '#6b7280', minWidth: '90px', flexShrink: 0 }}>{labelMatch[1]}:</span>
+                                              <span style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)' }}>{labelMatch[2]}</span>
+                                            </div>
+                                            {isOutcome && appData && (
+                                              <div style={{ paddingLeft: '0.75rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
+                                                {bStatus === 'done' && bResult ? (
+                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <CheckCircle size={14} style={{ color: '#22c55e' }} />
+                                                    <span style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 600 }}>Built in Streamline</span>
+                                                    {bResult.needs_ui_config?.length > 0 && (
+                                                      <span style={{ fontSize: '0.65rem', color: '#f59e0b' }}>({bResult.needs_ui_config.length} steps need UI config)</span>
+                                                    )}
+                                                  </div>
+                                                ) : (
+                                                  <button
+                                                    disabled={bStatus === 'building'}
+                                                    onClick={async () => {
+                                                      setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'building' }))
+                                                      try {
+                                                        const res = await fetch(`${API_BASE}/build-workflow`, {
+                                                          method: 'POST', headers: getAuthHeaders(),
+                                                          body: JSON.stringify({
+                                                            client_id: clientId,
+                                                            engagement_id: activeEngagement?.id || undefined,
+                                                            app_index: appIdx,
+                                                            app_data: appData
+                                                          })
+                                                        })
+                                                        const data = await res.json()
+                                                        if (data.success) {
+                                                          setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'done' }))
+                                                          setBuildResults(prev => ({ ...prev, [appIdx]: data }))
+                                                        } else {
+                                                          setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'error' }))
+                                                          alert('Build failed: ' + (data.error || 'Unknown error'))
+                                                        }
+                                                      } catch (err) {
+                                                        setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'error' }))
+                                                        alert('Build failed: ' + err.message)
+                                                      }
+                                                    }}
+                                                    style={{
+                                                      display: 'flex', alignItems: 'center', gap: '0.35rem',
+                                                      padding: '0.3rem 0.6rem', fontSize: '0.7rem', fontWeight: 600,
+                                                      background: bStatus === 'building' ? '#94a3b8' : bStatus === 'error' ? '#ef4444' : '#2563eb',
+                                                      color: '#fff', border: 'none', borderRadius: 6,
+                                                      cursor: bStatus === 'building' ? 'wait' : 'pointer',
+                                                    }}>
+                                                    {bStatus === 'building' ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={12} />}
+                                                    {bStatus === 'building' ? 'Building...' : bStatus === 'error' ? 'Retry Build' : 'Build in Streamline'}
+                                                  </button>
+                                                )}
+                                              </div>
+                                            )}
                                           </div>
                                       )
                                     }
@@ -10602,7 +10692,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                           {trimmed}
                                         </p>
                                     )
-                                  })}
+                                  })})()}
                               </div>
                           )}
                           </div>
@@ -11171,7 +11261,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                     (expandedResult.id==="growthDeck"?
                         <div style={{ padding: '1.25rem' }}>
                           {isDraft && <div style={{ background: '#FEE2E2', border: '2px dashed #DC2626', borderRadius: 8, padding: '0.75rem', marginBottom: '1rem', textAlign: 'center' }}><div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#DC2626', letterSpacing: '0.15em' }}>DRAFT</div><div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '0.15rem' }}>Watermarked until reviewed and approved</div></div>}
-                          {(() => { const deck = assembleDeckData(displayResults, currentClient); return deck ? (
+                          {(() => { const deck = assembleDeckData(displayResults, currentClient, activeEngagement?.name); return deck ? (
                             <div>
                               {/* Slide 1: Title */}
                               <div style={{ background: '#1B2A4A', borderRadius: 12, padding: '2rem', marginBottom: '1rem', position: 'relative', overflow: 'hidden' }}>
@@ -11241,7 +11331,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               {/* Slide 4: OODA Loop */}
                               <div style={{ background: '#fff', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #e5e7eb' }}>
                                 <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>SLIDE 4 OF 8</div>
-                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1B2A4A', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>The XO Command Loop for {deck.oodaTitle}</div>
+                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1B2A4A', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>The XO Command Loop for {deck.oodaTitle}{activeEngagement?.name ? ` \u2014 ${activeEngagement.name}` : ''}</div>
                                 {deck.oodaPhases.map((o, i) => {
                                   const colors = { OBSERVE: '#2E75B6', ORIENT: '#1B2A4A', DECIDE: '#C0392B', ACT: '#27AE60' }
                                   return (
@@ -11261,7 +11351,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               {/* Slide 5: Workflows */}
                               <div style={{ background: '#1B2A4A', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem' }}>
                                 <div style={{ fontSize: '0.7rem', color: '#B0BEC5', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>SLIDE 5 OF 8</div>
-                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>Workflows That Encode Institutional Knowledge</div>
+                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>{deck.workflowTitle}</div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                                   {deck.workflows.map((w, i) => {
                                     const accentColors = { BLUE: '#2E75B6', RED: '#C0392B', GREEN: '#27AE60' }
@@ -11278,7 +11368,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               {/* Slide 6: Before & After */}
                               <div style={{ background: '#fff', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #e5e7eb' }}>
                                 <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>SLIDE 6 OF 8</div>
-                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1B2A4A', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>From System of Record to System of Action</div>
+                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1B2A4A', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>{deck.beforeAfterTitle}</div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, borderRadius: 8, overflow: 'hidden' }}>
                                   <div style={{ background: '#555', padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontWeight: 600, color: '#fff', textAlign: 'center' }}>SYSTEM OF RECORD</div>
                                   <div style={{ background: '#2E75B6', padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontWeight: 600, color: '#fff', textAlign: 'center' }}>SYSTEM OF ACTION</div>
@@ -11296,7 +11386,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                               {/* Slide 7: 21-Day POC */}
                               <div style={{ background: '#EDF2F8', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem' }}>
                                 <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>SLIDE 7 OF 8</div>
-                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1B2A4A', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>21-Day Proof of Concept</div>
+                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1B2A4A', marginBottom: '1rem', fontFamily: 'Georgia, serif' }}>{deck.pocTitle}</div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
                                   {deck.phases.map((p, i) => {
                                     const weekColors = ['#2E75B6', '#1B2A4A', '#C0392B']

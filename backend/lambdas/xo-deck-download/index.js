@@ -129,7 +129,7 @@ function parseWorkflows(md, count) {
 }
 
 // ── assembleDeckData: pure JS mapping from analysis JSON to slide data ──
-function assembleDeckData(results) {
+function assembleDeckData(results, engagementName) {
   const problems = results.problems || results.problems_identified || [];
   const plan = results.plan || results.action_plan || {};
   let planPhases = [];
@@ -138,6 +138,8 @@ function assembleDeckData(results) {
 
   const clientName = results.company_name || "Client";
   const industry = results.industry || results.client_industry || "this domain";
+  const scope = engagementName || industry;
+  const scopeCap = scope.charAt(0).toUpperCase() + scope.slice(1);
   const description = results.description || results.client_description || "";
   const contactName = results.client_contact || clientName;
   const bottomLine = results.bottom_line || "";
@@ -212,9 +214,9 @@ function assembleDeckData(results) {
       items = pp.actions.split(/[;\n]/).filter(s => s.trim()).slice(0, 4).map(s => cleanPlanItem(s));
     }
     const defaults = [
-      [`Knowledge Abstraction — extract ${contactName}'s ${industry} expertise`, "Map current manual workflows", "Identify quick-win automations", "Baseline metrics for ROI measurement"],
-      [`XO shadows live operations — parallel run alongside manual process`, "Validate protocol accuracy with domain experts", "Iterate on constitutional safety rules", "Stakeholder review of prototype outputs"],
-      [`Full ${industry} dashboard deployed to stakeholders`, "Operator training and handover", "Performance metrics vs baseline", "Evidence-based business case for full deployment"],
+      [`Knowledge Abstraction — extract ${contactName}'s ${scope} expertise`, "Map current manual workflows", "Identify quick-win automations", "Baseline metrics for ROI measurement"],
+      [`XO shadows live ${scope} operations — parallel run alongside manual process`, "Validate protocol accuracy with domain experts", "Iterate on constitutional safety rules", "Stakeholder review of prototype outputs"],
+      [`Full ${scope} dashboard deployed to stakeholders`, "Operator training and handover", "Performance metrics vs baseline", "Evidence-based business case for full deployment"],
     ];
     while (items.length < 4) items.push(defaults[w][items.length]);
     phases.push({ week: `WEEK ${w + 1}`, title: cleanText(pp.phase || weekTitles[w]), items: items.slice(0, 4) });
@@ -225,9 +227,9 @@ function assembleDeckData(results) {
   const firstActionRaw = Array.isArray(firstActions) ? (typeof firstActions[0] === "string" ? firstActions[0] : firstActions[0]?.action || firstActions[0]?.description || "") : "";
   const firstAction = truncate(cleanText(firstActionRaw), 80);
   const nextSteps = [
-    { num: "1", text: firstAction || `Share ${industry} operational data and system access for knowledge extraction` },
-    { num: "2", text: `Week 1 quick win — first ${industry} workflow live within 7 days` },
-    { num: "3", text: `21-day pilot — full ${industry} XO deployment to ${contactName}'s team` },
+    { num: "1", text: firstAction || `Share ${scope} operational data and system access for knowledge extraction` },
+    { num: "2", text: `Week 1 quick win — first ${scope} workflow live within 7 days` },
+    { num: "3", text: `21-day pilot — full ${scope} XO deployment to ${contactName}'s team` },
   ];
 
   // ── successMetric from bottom_line ──
@@ -237,38 +239,41 @@ function assembleDeckData(results) {
 
   // ── problemCallout ──
   const problemCallout = problems.length > 0
-    ? `The cost of these ${problems.length} gaps compounds as ${clientName} scales — each manual workaround adds latency, risk, and key-person dependency.`
-    : `Operational gaps compound as ${clientName} scales.`;
+    ? `The cost of these ${problems.length} ${scope} gaps compounds as ${clientName} scales — each manual workaround adds latency, risk, and key-person dependency.`
+    : `Operational ${scope} gaps compound as ${clientName} scales.`;
 
   // ── impactLine ──
-  const impactLine = `Estimated ${problems.length > 3 ? "60" : "40"}% reduction in manual ${industry} operations as ${clientName} scales toward full deployment`;
+  const impactLine = `Estimated ${problems.length > 3 ? "60" : "40"}% reduction in manual ${scope} operations as ${clientName} scales toward full deployment`;
 
   // ── Sector-specific text ──
-  const constitutionalSafetyTitle = `Constitutional Safety — Why This Matters for ${shortName}'s ${industry.charAt(0).toUpperCase() + industry.slice(1)} Operations`;
-  const constitutionalSafetyNote = `In ${industry}, a single unchecked decision can cascade into compliance failures, financial exposure, and reputational damage. XO's Two-Brain architecture (Actor + Critic), designed by Dr. Mabrouka Abuhmida, ensures every output is bounded by ${clientName}'s own domain rules — not advisory guidelines, but hard constitutional constraints with full audit trails.`;
+  const constitutionalSafetyTitle = `Constitutional Safety — Why This Matters for ${shortName}'s ${scopeCap} Operations`;
+  const constitutionalSafetyNote = `In ${scope}, a single unchecked decision can cascade into compliance failures, financial exposure, and reputational damage. XO's Two-Brain architecture (Actor + Critic), designed by Dr. Mabrouka Abuhmida, ensures every output is bounded by ${clientName}'s own domain rules — not advisory guidelines, but hard constitutional constraints with full audit trails.`;
 
   // ── OODA descriptions sector-specific (max 150 chars to fit 0.42h card) ──
   const oodaPhases = [
-    { phase: "OBSERVE", desc: truncate(`24/7 sentinel scanning ${clientName}'s ${industry} data sources. Data gated by risk classification.`, 150) },
-    { phase: "ORIENT", desc: truncate(`Mandatory decomposition — contextualises against ${industry} domain rules. Risks explicitly enumerated.`, 150) },
-    { phase: "DECIDE", desc: truncate(`Executive framing — ranks actions, applies ${clientName}'s governance rules. Post-governance validation.`, 150) },
-    { phase: "ACT", desc: truncate(`Bounded execution via Streamline — ${contactName}'s team authorises; system executes. Full audit trail.`, 150) },
+    { phase: "OBSERVE", desc: truncate(`24/7 sentinel scanning ${clientName}'s ${scope} data sources. Data gated by risk classification.`, 150) },
+    { phase: "ORIENT", desc: truncate(`Mandatory decomposition — contextualises against ${scope} domain rules. Risks explicitly enumerated.`, 150) },
+    { phase: "DECIDE", desc: truncate(`Executive framing — ranks actions, applies ${clientName}'s ${scope} governance rules. Post-governance validation.`, 150) },
+    { phase: "ACT", desc: truncate(`Bounded execution via Streamline — ${contactName}'s ${scope} team authorises; system executes. Full audit trail.`, 150) },
   ];
 
   return {
-    title: `Operational Briefing:\nScaling ${clientName}`,
+    title: engagementName ? `Operational Briefing:\nScaling ${clientName} — ${engagementName}` : `Operational Briefing:\nScaling ${clientName}`,
     contactLine: `Prepared for ${contactName}  |  ${dateStr}`,
     slideTitle: `Where ${shortName} Stands Today`,
     oodaTitle: shortName,
     stats,
-    challengeTitle: `The ${industry.charAt(0).toUpperCase() + industry.slice(1)} Challenge`,
+    challengeTitle: `The ${scopeCap} Challenge`,
     challenges,
     problemCallout,
     oodaPhases,
     maturityStart: `${shortName} starts at L1. You pull us forward as confidence builds.`,
+    workflowTitle: engagementName ? `${engagementName} Workflows That Encode Institutional Knowledge` : "Workflows That Encode Institutional Knowledge",
     workflows: workflowData,
+    beforeAfterTitle: engagementName ? `${engagementName}: From System of Record to System of Action` : "From System of Record to System of Action",
     comparisons: comparisons.slice(0, 6),
     impactLine,
+    pocTitle: engagementName ? `21-Day ${engagementName} Proof of Concept` : "21-Day Proof of Concept",
     phases,
     nextSteps,
     successMetric,
@@ -300,13 +305,7 @@ function buildSlide1_Title(pres, data) {
     lineSpacingMultiple: 1.15, valign: "top", margin: 0,
   });
 
-  // Engagement name (if scoped)
-  if (data.engagementName) {
-    s.addText(data.engagementName, {
-      x: 0.7, y: 3.4, w: 8, h: 0.35,
-      fontSize: 16, fontFace: "Arial", color: "B0BEC5", margin: 0,
-    });
-  }
+
 
   // Red accent line
   s.addShape(pres.shapes.LINE, { x: 0.7, y: 3.8, w: 2.5, h: 0, line: { color: RED, width: 3 } });
@@ -452,7 +451,7 @@ function buildSlide4_OODALoop(pres, data) {
   s.addShape(pres.shapes.OVAL, { x: 0.5, y: 0.35, w: 0.45, h: 0.45, fill: { color: NAVY } });
   s.addText("03", { x: 0.5, y: 0.35, w: 0.45, h: 0.45, fontSize: 12, fontFace: "Arial", bold: true, color: WHITE, align: "center", valign: "middle", margin: 0 });
 
-  s.addText(`The XO Command Loop for ${data.oodaTitle || "Client"}`, {
+  s.addText(`The XO Command Loop for ${data.oodaTitle || "Client"}${data.engagementName ? ` — ${data.engagementName}` : ""}`, {
     x: 1.15, y: 0.3, w: 8, h: 0.55,
     fontSize: 26, fontFace: "Georgia", bold: true, color: NAVY, margin: 0,
   });
@@ -496,7 +495,7 @@ function buildSlide5_Workflows(pres, data) {
   s.addShape(pres.shapes.OVAL, { x: 0.5, y: 0.35, w: 0.45, h: 0.45, fill: { color: RED } });
   s.addText("04", { x: 0.5, y: 0.35, w: 0.45, h: 0.45, fontSize: 12, fontFace: "Arial", bold: true, color: WHITE, align: "center", valign: "middle", margin: 0 });
 
-  s.addText("Workflows That Encode Institutional Knowledge", {
+  s.addText(data.workflowTitle || "Workflows That Encode Institutional Knowledge", {
     x: 1.15, y: 0.3, w: 8, h: 0.55,
     fontSize: 24, fontFace: "Georgia", bold: true, color: WHITE, margin: 0,
   });
@@ -524,7 +523,7 @@ function buildSlide6_BeforeAfter(pres, data) {
   s.addShape(pres.shapes.OVAL, { x: 0.5, y: 0.35, w: 0.45, h: 0.45, fill: { color: NAVY } });
   s.addText("05", { x: 0.5, y: 0.35, w: 0.45, h: 0.45, fontSize: 12, fontFace: "Arial", bold: true, color: WHITE, align: "center", valign: "middle", margin: 0 });
 
-  s.addText("From System of Record to System of Action", {
+  s.addText(data.beforeAfterTitle || "From System of Record to System of Action", {
     x: 1.15, y: 0.3, w: 8, h: 0.55,
     fontSize: 26, fontFace: "Georgia", bold: true, color: NAVY, margin: 0,
   });
@@ -569,7 +568,7 @@ function buildSlide7_POC(pres, data) {
   s.addShape(pres.shapes.OVAL, { x: 0.5, y: 0.35, w: 0.45, h: 0.45, fill: { color: NAVY } });
   s.addText("06", { x: 0.5, y: 0.35, w: 0.45, h: 0.45, fontSize: 12, fontFace: "Arial", bold: true, color: WHITE, align: "center", valign: "middle", margin: 0 });
 
-  s.addText("21-Day Proof of Concept", {
+  s.addText(data.pocTitle || "21-Day Proof of Concept", {
     x: 1.15, y: 0.3, w: 8, h: 0.55,
     fontSize: 26, fontFace: "Georgia", bold: true, color: NAVY, margin: 0,
   });
@@ -729,8 +728,9 @@ exports.handler = async (event) => {
     }
 
     // 2. Map analysis JSON → slide data (pure JS, no AI call)
-    const slideData = assembleDeckData(results);
-    slideData.engagementName = results.engagement_name || "";
+    const engName = results.engagement_name || "";
+    const slideData = assembleDeckData(results, engName);
+    slideData.engagementName = engName;
 
     // 3. Build .pptx (draft watermark if not yet approved)
     const isDraft = !results.approved_at;
@@ -738,8 +738,8 @@ exports.handler = async (event) => {
     const buffer = await pres.write({ outputType: "nodebuffer" });
 
     const companyName = (results.company_name || "Client").replace(/\s+/g, "_");
-    const engName = results.engagement_name ? `_${results.engagement_name.replace(/\s+/g, "_")}` : "";
-    const filename = `${companyName}${engName}_XO_Growth_Deck.pptx`;
+    const engFileSuffix = results.engagement_name ? `_${results.engagement_name.replace(/\s+/g, "_")}` : "";
+    const filename = `${companyName}${engFileSuffix}_XO_Growth_Deck.pptx`;
 
     // 4. Return base64 (same response shape as xo-brief-download)
     return {

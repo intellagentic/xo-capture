@@ -514,6 +514,12 @@ body {
   .system-skill-grid { flex-direction: column !important; }
   .system-skill-grid > div { width: 100% !important; min-width: 0 !important; }
   .system-skill-grid .system-skill-desc { white-space: normal !important; }
+
+  /* XO Console Layer 3 mobile */
+  .xo-layer3 { grid-template-columns: 1fr !important; }
+  .xo-layer3-text { font-size: 0.5rem !important; }
+  .xo-layer3-header { font-size: 0.45rem !important; }
+  .xo-layer3-subheader { font-size: 0.5rem !important; }
 }
 
 @media (max-width: 480px) {
