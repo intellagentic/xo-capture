@@ -459,8 +459,8 @@ function buildDocument(brief, isDraft) {
   body.push(pageBreak());
   body.push(sectionHeader("01", `CLIENT PROFILE: ${clientName.toUpperCase()}`));
   body.push(spacer(120));
-  body.push(...mdToParagraphs(summary));
-  if (description) body.push(boldPara("Industry: ", industry + '\n' + description));
+  body.push(boldPara("Industry: ", industry));
+  if (description) body.push(para(description));
   if (primary.evidence) body.push(calloutBox(`THE ${industry.toUpperCase()} CONTEXT`, primary.evidence));
   body.push(spacer());
 
@@ -471,7 +471,6 @@ function buildDocument(brief, isDraft) {
   for (const p of problems) {
     body.push(boldPara(`${p.title || ''} `, `(${p.severity || ''} severity)`));
     body.push(...mdToParagraphs(p.evidence || ''));
-    body.push(boldPara("Recommendation: ", p.recommendation || ''));
     body.push(spacer(80));
   }
   if (primary.evidence) body.push(riskCallout("RISK CONTEXT", primary.evidence));
@@ -513,6 +512,18 @@ function buildDocument(brief, isDraft) {
      { bold: "Audit trail: ", text: "Full provenance logging for every action" },
      { bold: "Feedback loop: ", text: "Operator corrections improve future cycles" }]));
 
+  // Targeted Recommendations (moved from Section 02)
+  if (problems.some(p => p.recommendation)) {
+    body.push(spacer(200));
+    body.push(para("TARGETED RECOMMENDATIONS", { heading: HeadingLevel.HEADING_2 }));
+    for (const p of problems) {
+      if (p.recommendation) {
+        body.push(boldPara(`${p.title || ''}: `, p.recommendation));
+        body.push(spacer(80));
+      }
+    }
+  }
+
   // Section 05 — Constitutional Safety
   body.push(pageBreak());
   body.push(sectionHeader("05", "CONSTITUTIONAL SAFETY"));
@@ -548,19 +559,6 @@ function buildDocument(brief, isDraft) {
   body.push(pageBreak());
   body.push(sectionHeader(streamline ? "07" : "06", "PROOF OF CONCEPT & NEXT STEPS"));
   body.push(spacer(120));
-  for (const p of planPhases) {
-    body.push(boldPara(p.phase || '', ''));
-    for (let i = 0; i < (p.actions || []).length; i++) {
-      body.push(new Paragraph({
-        spacing: { after: 80 }, indent: { left: 360 },
-        children: [
-          new TextRun({ text: `${i + 1}. `, bold: true, size: 20, color: B.teal }),
-          ...xoTextRuns(stripNum(p.actions[i]), { fontSize: 20, color: B.bodyText }),
-        ]
-      }));
-    }
-    body.push(spacer(80));
-  }
   const pocSteps = [
     { step: "1", timeline: "Week 1", action: stripNum((planPhases[0] || {}).actions?.[0] || 'Configure DX Cartridge with domain rules') },
     { step: "2", timeline: "Week 1-2", action: stripNum((planPhases[0] || {}).actions?.[1] || 'Ingest sample data and validate extraction') },
