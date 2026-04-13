@@ -66,7 +66,47 @@ xo-client-data/{client_id}/results/
 ## Commands
 npm run dev          # local dev server
 npm run build        # production build
-# Deploy (after CloudFront is set up):
-cd dist
-aws s3 sync . s3://xo-prototype-frontend/ --delete --region us-west-1
-aws cloudfront create-invalidation --distribution-id XXXXX --paths "/*"
+
+## DEPLOY PATTERNS
+
+Results Lambda -- root .py files are source of truth. Copy into package/ before zipping:
+
+```bash
+cd ~/xo-quickstart/backend/lambdas/results && \
+cp lambda_function.py package/lambda_function.py && \
+cp auth_helper.py package/auth_helper.py && \
+cp crypto_helper.py package/crypto_helper.py && \
+cd package && \
+zip -r /tmp/xo-results.zip . -x "*.git*" > /dev/null && \
+aws lambda update-function-code \
+  --function-name xo-results \
+  --zip-file fileb:///tmp/xo-results.zip \
+  --region eu-west-2 \
+  --profile intellagentic
+```
+
+All other Lambdas deploy from their root directory:
+
+```bash
+cd ~/xo-quickstart/backend/lambdas/{lambda-name} && \
+zip -r /tmp/{lambda-name}.zip . -x "*.git*" > /dev/null && \
+aws lambda update-function-code \
+  --function-name {lambda-name} \
+  --zip-file fileb:///tmp/{lambda-name}.zip \
+  --region eu-west-2 \
+  --profile intellagentic
+```
+
+Frontend deploy:
+
+```bash
+cd ~/xo-quickstart && npm run build && \
+aws s3 sync dist/ s3://xo-prototype-frontend-mv --delete --profile intellagentic && \
+aws cloudfront create-invalidation --distribution-id E7PWZX8BT02CE --paths "/*" --profile intellagentic
+```
+
+System skills deploy (sync git to S3):
+
+```bash
+aws s3 sync ~/xo-quickstart/skills/system/ s3://xo-client-data-mv/_system/skills/ --profile intellagentic --region eu-west-2
+```
