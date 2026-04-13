@@ -9384,8 +9384,8 @@ function truncateDeckClean(text, maxLen) {
 function cleanDeckPlanItem(text) {
   let s = cleanDeckText(text)
   s = s.replace(/\[.*?\]\s*/g, '')
-  s = s.replace(/:.*$/, '').trim()
-  return truncateDeckClean(s, 60)
+  s = s.replace(/^(XO|Streamline|Both|Client|FLAG FOR HUMAN REVIEW)\s*:\s*/i, '').trim()
+  return truncateDeckClean(s, 120)
 }
 
 function parseDeckWorkflows(md, count) {
@@ -9467,8 +9467,8 @@ function assembleDeckData(results, client, engagementName) {
     const prob = problems[i] || problems[problems.length - 1] || {}
     const wf = workflows[i] || workflows[workflows.length - 1] || {}
     comparisons.push({
-      before: truncateDeck(cleanDeckText(prob.title || 'Manual process with no audit trail'), 60),
-      after: truncateDeck(wf.title ? `Streamline + XO automates ${wf.title.toLowerCase()}` : 'Protocol-driven automation with audit trail', 60),
+      before: truncateDeck(cleanDeckText(prob.title || 'Manual process with no audit trail'), 120),
+      after: truncateDeck(wf.title ? `Streamline + XO automates ${wf.title.toLowerCase()}` : 'Protocol-driven automation with audit trail', 120),
     })
   }
   while (comparisons.length < 6) comparisons.push({ before: 'Manual review with key-person dependency', after: 'XO protocol-driven automation with audit trail' })
@@ -10389,12 +10389,49 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   {
                     expandedResult.id==="executiveSummary"?
                       <div>
-                        <div style={{ padding: '1.25rem' }}>
+                        <div style={{ padding: '1.25rem', borderTop: '2px solid #0F969C' }}>
                           <div style={{ fontSize: '0.95rem', lineHeight: 1.7, color: 'var(--text-primary)' }}>
                             {displayResults.summary!==null && displayResults.summary!==undefined?
-                                <div>{displayPhrases.map((phrase)=>{
-                                  return <div style={{display: "list-item",listStyleType: "disc",marginLeft: "1.5rem"}}>{phrase}</div>
-                                })}</div>:"Not analysed yet"}
+                                <div>
+                                  {displayPhrases.map((phrase, pIdx) => {
+                                    if (pIdx === 0) {
+                                      const firstDot = phrase.indexOf('.')
+                                      if (firstDot > 0 && firstDot < phrase.length - 1) {
+                                        const headline = phrase.substring(0, firstDot + 1)
+                                        const rest = phrase.substring(firstDot + 1).trim()
+                                        return <div key={pIdx} style={{ margin: '0 0 1.5rem 0' }}>
+                                          <p style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1a1a2e', lineHeight: 1.5, margin: '0 0 0.75rem 0' }}>{headline}</p>
+                                          {rest && <p style={{ fontSize: '0.95rem', lineHeight: 1.7, color: '#333', margin: 0 }}>{rest}</p>}
+                                        </div>
+                                      }
+                                      return <p key={pIdx} style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1a1a2e', lineHeight: 1.5, margin: '0 0 1.5rem 0' }}>{phrase}</p>
+                                    }
+                                    if (/^key metrics/i.test(phrase)) {
+                                      const sentences = phrase.replace(/^Key metrics:\s*/i, '').split(/\./).filter(s => s.trim() && /\d/.test(s))
+                                      const metrics = sentences.map(s => {
+                                        const t = s.trim()
+                                        const numMatch = t.match(/(\d[\d.,]*(?:[\-–]\d[\d.,]*)?%?\+?)/)
+                                        if (!numMatch) return null
+                                        const value = numMatch[0]
+                                        const label = t.replace(value, '').replace(/^\s*[:\-–—]\s*/, '').trim()
+                                        return { value, label: label.charAt(0).toUpperCase() + label.slice(1) }
+                                      }).filter(Boolean)
+                                      if (metrics.length >= 2) {
+                                        return (
+                                          <div key={pIdx} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                                            {metrics.map((m, mi) => (
+                                              <div key={mi} style={{ flex: 1, minWidth: '180px', background: '#F1F5F9', borderRadius: 8, padding: '1rem', textAlign: 'center' }}>
+                                                <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#0F969C' }}>{m.value}</div>
+                                                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.35rem' }}>{m.label}</div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )
+                                      }
+                                    }
+                                    return <p key={pIdx} style={{ fontSize: '0.95rem', lineHeight: 1.7, color: '#333', margin: '0 0 1.5rem 0' }}>{phrase}</p>
+                                  })}
+                                </div>:"Not analysed yet"}
                           </div>
                         </div>
                         <div>
