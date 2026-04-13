@@ -2044,6 +2044,9 @@ export default function App() {
   const [engagements, setEngagements] = useState([])
   const [activeEngagement, setActiveEngagement] = useState(null)
 
+  // System config
+  const [showStreamlineButtons, setShowStreamlineButtons] = useState(true)
+
   // Partners state (for admin partner management & dropdowns)
   const [accounts, setAccounts] = useState([])
 
@@ -2153,7 +2156,13 @@ export default function App() {
     }
     if (isLoggedIn) {
       fetchExistingClient()
-      if (isAdmin) fetchPartners()
+      if (isAdmin) {
+        fetchPartners()
+        fetch(`${API_BASE}/system-config`, { headers: getAuthHeaders() })
+          .then(res => res.ok ? res.json() : null)
+          .then(data => { if (data) setShowStreamlineButtons(data.show_streamline_buttons !== 'false') })
+          .catch(() => {})
+      }
     }
   }, [isLoggedIn])
 
@@ -2815,7 +2824,7 @@ export default function App() {
             onNavigate={navigateTo}
           />
         )}
-        {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} isAdmin={isAdmin} systemButtons={systemButtons} theme={theme} preferredModel={preferredModel} activeEngagement={activeEngagement} setActiveEngagement={setActiveEngagement} onNavigate={navigateTo} />}
+        {currentScreen === 'results' && <ResultsScreen setShowModal={setShowModal} clientId={clientId} isAdmin={isAdmin} systemButtons={systemButtons} theme={theme} preferredModel={preferredModel} activeEngagement={activeEngagement} setActiveEngagement={setActiveEngagement} onNavigate={navigateTo} showStreamlineButtons={showStreamlineButtons} />}
         {currentScreen === 'skills' && <SkillsScreen clientId={clientId} isAdmin={isAdmin} preferredModel={preferredModel} activeEngagement={activeEngagement} onNavigate={navigateTo} />}
         {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} systemButtons={systemButtons} setSystemButtons={saveSystemButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} inWorkspace={inWorkspace} isAdmin={isAdmin} companyName={companyData.name} />}
         {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
@@ -8224,6 +8233,9 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
   const [s3ConvertAction, setS3ConvertAction] = useState(null)
   const [s3ConvertProgress, setS3ConvertProgress] = useState(null)
   const [s3ConvertRunning, setS3ConvertRunning] = useState(false)
+  // Streamline buttons toggle
+  const [sysStreamlineButtons, setSysStreamlineButtons] = useState(true)
+  const [sysStreamlineButtonsSaving, setSysStreamlineButtonsSaving] = useState(false)
   // HubSpot integration state
   const [hubspotConnected, setHubspotConnected] = useState(false)
   const [hubspotLastSync, setHubspotLastSync] = useState(null)
@@ -8252,6 +8264,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
             setSysEnrichmentUrl(data.enrichment_webhook_url || '')
             setSysWebhookEnabled(data.streamline_webhook_enabled === 'true')
             setSysS3EncEnabled(data.s3_encryption_enabled !== 'false')
+            setSysStreamlineButtons(data.show_streamline_buttons !== 'false')
           }
         })
         .catch(() => {})
@@ -8350,6 +8363,23 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
       setSysWebhookEnabled(!newValue)
     }
     setSysWebhookSaving(false)
+  }
+
+  const toggleSysStreamlineButtons = async () => {
+    const newValue = !sysStreamlineButtons
+    setSysStreamlineButtons(newValue)
+    setSysStreamlineButtonsSaving(true)
+    try {
+      await fetch(`${API_BASE}/system-config`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ config_key: 'show_streamline_buttons', config_value: String(newValue) })
+      })
+    } catch (err) {
+      console.error('Failed to save streamline buttons toggle:', err)
+      setSysStreamlineButtons(!newValue)
+    }
+    setSysStreamlineButtonsSaving(false)
   }
 
   const runS3Convert = async () => {
@@ -8879,7 +8909,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                   disabled={sysWebhookSaving}
                   style={{
                     width: 52, height: 28, borderRadius: 14, border: 'none',
-                    background: sysWebhookEnabled ? '#dc2626' : '#e5e5e5',
+                    background: sysWebhookEnabled ? '#22c55e' : '#e5e5e5',
                     position: 'relative', cursor: sysWebhookSaving ? 'wait' : 'pointer',
                     transition: 'all 0.2s', flexShrink: 0
                   }}
@@ -8895,6 +8925,39 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
               <p style={{ fontSize: '0.7rem', color: C.muted, marginTop: '0.625rem', lineHeight: 1.4 }}>
                 Per-client settings (in client Configuration) override these system defaults.
               </p>
+
+              {/* Build in Streamline Buttons Toggle */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginTop: '0.75rem', padding: '1rem',
+                background: C.surface, borderRadius: 10, border: `1px solid ${C.border}`
+              }}>
+                <div style={{ flex: 1, marginRight: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Build in Streamline Buttons</span>
+                    {sysStreamlineButtonsSaving && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: C.muted }} />}
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: C.muted, marginTop: 4, lineHeight: 1.4 }}>
+                    Show Build in Streamline buttons on Results page for each workflow application
+                  </p>
+                </div>
+                <button
+                  onClick={toggleSysStreamlineButtons}
+                  disabled={sysStreamlineButtonsSaving}
+                  style={{
+                    width: 52, height: 28, borderRadius: 14, border: 'none',
+                    background: sysStreamlineButtons ? '#22c55e' : '#e5e5e5',
+                    position: 'relative', cursor: sysStreamlineButtonsSaving ? 'wait' : 'pointer',
+                    transition: 'all 0.2s', flexShrink: 0
+                  }}
+                >
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%', background: 'white',
+                    position: 'absolute', top: 3, left: sysStreamlineButtons ? 27 : 3,
+                    transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)'
+                  }} />
+                </button>
+              </div>
 
               {/* S3 Encryption Toggle */}
               <div style={{
@@ -8919,7 +8982,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                   }}
                   style={{
                     width: 52, height: 28, borderRadius: 14, border: 'none',
-                    background: sysS3EncEnabled ? '#dc2626' : '#e5e5e5',
+                    background: sysS3EncEnabled ? '#22c55e' : '#e5e5e5',
                     position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0
                   }}
                 >
@@ -9160,7 +9223,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                 disabled={webhookSaving}
                 style={{
                   width: 52, height: 28, borderRadius: 14, border: 'none',
-                  background: webhookEnabled ? '#dc2626' : '#e5e5e5',
+                  background: webhookEnabled ? '#22c55e' : '#e5e5e5',
                   position: 'relative', cursor: webhookSaving ? 'wait' : 'pointer',
                   transition: 'all 0.2s', flexShrink: 0
                 }}
@@ -9628,7 +9691,7 @@ function assembleBrief(results, client) {
   }
 }
 
-function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,preferredModel, activeEngagement, setActiveEngagement, onNavigate }) {
+function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,preferredModel, activeEngagement, setActiveEngagement, onNavigate, showStreamlineButtons }) {
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -10623,7 +10686,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: labelMatch[1] === 'Problem' ? '#ef4444' : labelMatch[1] === 'Workflow' ? '#3b82f6' : '#6b7280', minWidth: '90px', flexShrink: 0 }}>{labelMatch[1]}:</span>
                                               <span style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)' }}>{labelMatch[2]}</span>
                                             </div>
-                                            {isOutcome && appData && (
+                                            {showStreamlineButtons && isOutcome && appData && (
                                               <div style={{ paddingLeft: '0.75rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
                                                 {bStatus === 'done' && bResult ? (
                                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

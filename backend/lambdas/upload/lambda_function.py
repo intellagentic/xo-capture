@@ -98,6 +98,8 @@ def _verify_client(cur, client_id, user_id, is_admin=False, is_client=False, use
     """Verify client exists and belongs to user. Returns (db_client_id, s3_folder) or None."""
     if account_role == 'super_admin' or is_admin:
         cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s", (client_id,))
+    elif is_client and user_client_id and client_id == user_client_id:
+        cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s", (client_id,))
     elif account_role == 'account_admin':
         cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s AND account_id = %s", (client_id, account_id))
     elif account_role in ('account_user', 'client_contact', 'contributor'):
@@ -108,8 +110,6 @@ def _verify_client(cur, client_id, user_id, is_admin=False, is_client=False, use
         """, (client_id, user_id))
     elif is_account and account_id:
         cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s AND account_id = %s", (client_id, account_id))
-    elif is_client and user_client_id and client_id == user_client_id:
-        cur.execute("SELECT id, s3_folder FROM clients WHERE s3_folder = %s", (client_id,))
     else:
         cur.execute(
             "SELECT id, s3_folder FROM clients WHERE s3_folder = %s AND user_id = %s",

@@ -47,6 +47,13 @@ def _get_enrichment_results(client_id, user, engagement_id=None):
             WHERE c.s3_folder = %s{eng_filter}
             ORDER BY e.started_at DESC LIMIT 1
         """, (client_id, *eng_params))
+    elif user.get('is_client') and user.get('client_id') == client_id:
+        cur.execute(f"""
+            SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
+            FROM enrichments e JOIN clients c ON e.client_id = c.id
+            WHERE c.s3_folder = %s{eng_filter}
+            ORDER BY e.started_at DESC LIMIT 1
+        """, (client_id, *eng_params))
     elif account_role == 'account_admin':
         cur.execute(f"""
             SELECT e.status, e.results_s3_key, e.stage, c.encryption_key

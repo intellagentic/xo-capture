@@ -3616,4 +3616,27 @@ BUILD IN STREAMLINE BUTTONS
 
 ---
 
+**April 13, 2026:**
+
+SHARE LINK FIX + STREAMLINE BUTTON TOGGLE
+
+Share Link -- Your Data + Results:
+- Fixed magic link users seeing empty Your Data and Results pages
+- Root cause 1: is_client check was after account_role checks in _verify_client -- magic link users with client_contact role hit the user_client_assignments path and got 404. Moved is_client check before account_role checks in both upload and results Lambdas.
+- Root cause 2: Results Lambda deployed from wrong directory -- cryptography library was in package/ subdirectory instead of zip root. Lambda could not decrypt S3 results. Fixed deploy to zip from package/ directory.
+- Both upload and results Lambdas synced (root and package lambda_function.py match).
+
+Presigned File View:
+- View button on uploaded files now generates presigned GET URL from xo-client-data-mv (eu-west-2)
+- Includes ResponseContentType and ResponseContentDisposition: inline -- PDFs and images render in browser
+- Upload error handling: S3 PUT failures now clean up phantom DB records
+
+Build in Streamline Buttons Toggle:
+- New system config toggle: show_streamline_buttons
+- Admin Configuration page: toggle to show/hide Build in Streamline buttons on Results page
+- When off, all workflow buttons hidden for all users
+- Toggle styling updated to green for active state
+
+---
+
 **END OF PROJECT STATUS**
