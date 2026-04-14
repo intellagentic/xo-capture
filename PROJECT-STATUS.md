@@ -3618,6 +3618,14 @@ BUILD IN STREAMLINE BUTTONS
 
 **April 14, 2026:**
 
+CONTACT PHOTOS
+- Contact avatar on welcome page -- click circle for popover with Upload photo, Paste URL, or Remove photo
+- Photos uploaded to S3 under client contacts folder
+- Avatar displayed on dashboard client list next to primary contact name
+- No backend/DB changes -- photo_url stored in existing contacts_json blob
+
+BACKLOG: Team member photos -- upload once on profile, shows everywhere (Team page, sidebar, auto-populates matching contact avatars by email)
+
 BUG FIXES
 - Country code dropdown: selection now persists when phone number is empty (joinPhone preserved country code)
 - Company LinkedIn field: added to PUT/POST API payloads, added to fetchExistingClient and handleSelectClient data mapping
