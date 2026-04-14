@@ -604,15 +604,23 @@ def handle_branding_upload(event, user):
     conn = get_db_connection()
     cur = conn.cursor()
 
-    db_client_id, _ = _verify_client(cur, client_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_account', False), user.get('account_id'), user.get('account_role'))
-    if not db_client_id:
-        cur.close()
-        conn.close()
-        return {
-            'statusCode': 404,
-            'headers': CORS_HEADERS,
-            'body': json.dumps({'error': 'Client not found'})
-        }
+    # Team photo uploads use _system path -- skip client verification for admins
+    if client_id == '_system' and file_type == 'contact_photo':
+        if not user.get('is_admin', False) and user.get('account_role') not in ('super_admin', 'account_admin'):
+            cur.close()
+            conn.close()
+            return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin required for team photos'})}
+        db_client_id = None
+    else:
+        db_client_id, _ = _verify_client(cur, client_id, user['user_id'], user.get('is_admin', False), user.get('is_client', False), user.get('client_id'), user.get('is_account', False), user.get('account_id'), user.get('account_role'))
+        if not db_client_id:
+            cur.close()
+            conn.close()
+            return {
+                'statusCode': 404,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'error': 'Client not found'})
+            }
 
     if file_type == 'contact_photo':
         s3_key = f"{client_id}/contacts/{contact_index}_photo.{file_extension}"

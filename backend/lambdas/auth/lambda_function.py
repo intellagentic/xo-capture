@@ -273,6 +273,7 @@ def _run_multi_tenant_migrations():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active' CHECK (status IN ('invited', 'active', 'deactivated'))")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS invited_by UUID REFERENCES users(id)")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS invited_at TIMESTAMP")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url TEXT")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_token TEXT")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_expires_at TIMESTAMP")
 
@@ -444,15 +445,17 @@ def _success_response(user_id, email, name, preferred_model='claude-sonnet-4-5-2
     account_role = None
     account_id = None
     tfa_enabled = False
+    photo_url = ''
     try:
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
-        cur.execute("SELECT COALESCE(two_factor_enabled, FALSE), account_role, account_id FROM users WHERE id = %s", (str(user_id),))
+        cur.execute("SELECT COALESCE(two_factor_enabled, FALSE), account_role, account_id, photo_url FROM users WHERE id = %s", (str(user_id),))
         tfa_row = cur.fetchone()
         if tfa_row:
             tfa_enabled = bool(tfa_row[0])
             account_role = tfa_row[1]
             account_id = tfa_row[2]
+            photo_url = tfa_row[3] if len(tfa_row) > 3 else ''
         cur.close()
         conn.close()
     except Exception:
@@ -471,6 +474,7 @@ def _success_response(user_id, email, name, preferred_model='claude-sonnet-4-5-2
         'two_factor_enabled': tfa_enabled,
         'account_role': account_role,
         'account_id': account_id,
+        'photo_url': photo_url or '',
     }
     if client_id:
         user_data['client_id'] = client_id
@@ -1408,6 +1412,14 @@ def handle_preferences(event):
         body = json.loads(event.get('body', '{}'))
         response_data = {}
 
+        # Allow admins to update another user's preferences via target_user_id
+        target_user_id = body.get('user_id')
+        if target_user_id and target_user_id != user_id:
+            caller_role = payload.get('account_role')
+            if caller_role not in ('super_admin', 'account_admin'):
+                return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin required to update other users'})}
+            user_id = target_user_id
+
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
 
@@ -1432,6 +1444,12 @@ def handle_preferences(event):
             cur.execute("UPDATE users SET two_factor_enabled = %s WHERE id = %s", (tfa_val, user_id))
             response_data['two_factor_enabled'] = tfa_val
             print(f"2FA {'enabled' if tfa_val else 'disabled'} for user {user_id}")
+
+        # Update photo_url if provided
+        if 'photo_url' in body:
+            photo_val = body['photo_url'].strip() if body['photo_url'] else ''
+            cur.execute("UPDATE users SET photo_url = %s WHERE id = %s", (photo_val, user_id))
+            response_data['photo_url'] = photo_val
 
         conn.commit()
 
@@ -1869,7 +1887,7 @@ def handle_invite_list(event):
 
         if caller_role == 'super_admin':
             cur.execute("""
-                SELECT u.id, u.email, u.name, u.account_role, u.status, u.invited_at, u.account_id, a.name as account_name
+                SELECT u.id, u.email, u.name, u.account_role, u.status, u.invited_at, u.account_id, a.name as account_name, u.photo_url
                 FROM users u
                 LEFT JOIN accounts a ON u.account_id = a.id
                 WHERE u.email NOT LIKE 'client-token-%%'
@@ -1877,7 +1895,7 @@ def handle_invite_list(event):
             """)
         else:
             cur.execute("""
-                SELECT u.id, u.email, u.name, u.account_role, u.status, u.invited_at, u.account_id, a.name as account_name
+                SELECT u.id, u.email, u.name, u.account_role, u.status, u.invited_at, u.account_id, a.name as account_name, u.photo_url
                 FROM users u
                 LEFT JOIN accounts a ON u.account_id = a.id
                 WHERE u.account_id = %s AND u.email NOT LIKE 'client-token-%%'
@@ -1906,6 +1924,7 @@ def handle_invite_list(event):
             'account_role': r[3], 'status': r[4],
             'invited_at': r[5].isoformat() if r[5] else None,
             'account_id': r[6], 'account_name': r[7] or '',
+            'photo_url': r[8] or '',
         } for r in rows]
 
         return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'users': users})}

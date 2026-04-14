@@ -804,7 +804,7 @@ function ShareLinkModal({ clientId, onClose }) {
 // ============================================================
 // DASHBOARD SCREEN — Admin multi-client view
 // ============================================================
-function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isAccount, accounts }) {
+function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isAccount, accounts, teamUsers }) {
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -2044,6 +2044,9 @@ export default function App() {
   const [engagements, setEngagements] = useState([])
   const [activeEngagement, setActiveEngagement] = useState(null)
 
+  // Team users state (for cross-referencing photos)
+  const [teamUsers, setTeamUsers] = useState([])
+
   // Partners state (for admin partner management & dropdowns)
   const [accounts, setAccounts] = useState([])
 
@@ -2153,7 +2156,13 @@ export default function App() {
     }
     if (isLoggedIn) {
       fetchExistingClient()
-      if (isAdmin) fetchPartners()
+      if (isAdmin) {
+        fetchPartners()
+        fetch(`${API_BASE}/auth/invite`, { headers: getAuthHeaders() })
+          .then(res => res.ok ? res.json() : null)
+          .then(data => { if (data) setTeamUsers(data.users || []) })
+          .catch(() => {})
+      }
     }
   }, [isLoggedIn])
 
@@ -2572,10 +2581,17 @@ export default function App() {
         }}>
           {sidebarExpanded ? (
             <>
-              <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, border: '1.5px solid rgba(255,255,255,0.3)' }}>
+                  {user?.photo_url ? (
+                    <img src={user.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem', fontWeight: 600 }}>{(user?.name || '?')[0].toUpperCase()}</span>}
+                </div>
+                <div style={{ minWidth: 0 }}>
                 <span style={{ color: 'white', fontWeight: 600, fontSize: '0.8rem', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'Menu'}</span>
                 {isAdmin && <span style={{ display: 'inline-block', fontSize: '0.55rem', fontWeight: 700, color: '#fff', background: '#CC0000', padding: '0.05rem 0.35rem', borderRadius: 4, letterSpacing: '0.04em', marginTop: '0.1rem' }}>XO ADMIN</span>}
                 {user?.email && <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '0.65rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{user.email}</span>}
+                </div>
               </div>
               <button
                 onClick={toggleSidebarPin}
@@ -2777,6 +2793,7 @@ export default function App() {
             isAdmin={isAdmin}
             isAccount={isAccount}
             accounts={accounts}
+            teamUsers={teamUsers}
           />
         )}
         {currentScreen === 'upload' && (
@@ -2799,6 +2816,7 @@ export default function App() {
             setEngagements={setEngagements}
             activeEngagement={activeEngagement}
             setActiveEngagement={setActiveEngagement}
+            teamUsers={teamUsers}
           />
         )}
         {currentScreen === 'sources' && (
@@ -2824,7 +2842,7 @@ export default function App() {
         {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} systemButtons={systemButtons} setSystemButtons={saveSystemButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} inWorkspace={inWorkspace} isAdmin={isAdmin} companyName={companyData.name} />}
         {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
         {currentScreen === 'accounts' && isAdmin && <AccountsScreen accounts={accounts} setAccounts={setAccounts} />}
-        {currentScreen === 'team' && (isAdmin || user?.account_role === 'account_admin') && <TeamScreen isAdmin={isAdmin} user={user} accounts={accounts} />}
+        {currentScreen === 'team' && (isAdmin || user?.account_role === 'account_admin') && <TeamScreen isAdmin={isAdmin} user={user} accounts={accounts} teamUsers={teamUsers} setTeamUsers={setTeamUsers} />}
 
       </main>
 
@@ -3053,8 +3071,8 @@ function AccountsScreen({ accounts, setAccounts }) {
                 <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</div>
                 {(p.contacts && p.contacts.length > 0 && (p.contacts[0].firstName || p.contacts[0].lastName)) ? (
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #9ca3af)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    {p.contacts[0].photo_url ? (
-                      <img src={p.contacts[0].photo_url} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                    {(p.contacts[0].photo_url || (p.contacts[0].email && teamUsers.find(t => t.email === p.contacts[0].email)?.photo_url)) ? (
+                      <img src={p.contacts[0].photo_url || teamUsers.find(t => t.email === p.contacts[0].email)?.photo_url} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                     ) : null}
                     {[p.contacts[0].firstName, p.contacts[0].lastName].filter(Boolean).join(' ')}{p.contacts[0].title ? ` — ${p.contacts[0].title}` : ''}
                   </div>
@@ -3311,9 +3329,11 @@ function AccountsScreen({ accounts, setAccounts }) {
 // ============================================================
 // TEAM SCREEN — User management and invitations
 // ============================================================
-function TeamScreen({ isAdmin, user, accounts }) {
+function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [photoPopover, setPhotoPopover] = useState(null)
+  const [photoUrlInput, setPhotoUrlInput] = useState('')
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
@@ -3325,7 +3345,7 @@ function TeamScreen({ isAdmin, user, accounts }) {
   const fetchUsers = async () => {
     try {
       const res = await fetch(`${API_BASE}/auth/invite`, { headers: getAuthHeaders() })
-      if (res.ok) { const data = await res.json(); setUsers(data.users || []) }
+      if (res.ok) { const data = await res.json(); const u = data.users || []; setUsers(u); if (setTeamUsers) setTeamUsers(u) }
     } catch (err) { console.error('Failed to fetch users:', err) }
     setLoading(false)
   }
@@ -3502,8 +3522,80 @@ function TeamScreen({ isAdmin, user, accounts }) {
               const sc = statusColors[u.status] || statusColors.active
               return (
                 <div key={u.id} style={{ padding: '0.625rem 0.75rem', border: '1px solid #e5e7eb', borderRadius: 8, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', flexShrink: 0 }}>
-                    {(u.name || u.email || '?').charAt(0).toUpperCase()}
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <div
+                      style={{ width: 32, height: 32, borderRadius: '50%', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', overflow: 'hidden', cursor: (['super_admin', 'account_admin'].includes(user?.account_role) || u.id === user?.id) ? 'pointer' : 'default' }}
+                      onClick={() => { if (['super_admin', 'account_admin'].includes(user?.account_role) || u.id === user?.id) { setPhotoPopover(photoPopover === u.id ? null : u.id); setPhotoUrlInput('') } }}
+                    >
+                      {u.photo_url ? (
+                        <img src={u.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none' }} />
+                      ) : (u.name || u.email || '?').charAt(0).toUpperCase()}
+                    </div>
+                    {photoPopover === u.id && (
+                      <>
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setPhotoPopover(null)} />
+                        <div style={{ position: 'absolute', top: 36, left: 0, zIndex: 50, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.375rem', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', minWidth: 140, whiteSpace: 'nowrap' }}>
+                          <button onClick={() => {
+                            setPhotoPopover(null)
+                            const input = document.createElement('input')
+                            input.type = 'file'; input.accept = 'image/*'
+                            input.onchange = async (ev) => {
+                              const file = ev.target.files[0]; if (!file) return
+                              const ext = file.name.split('.').pop().toLowerCase()
+                              const ctMap = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' }
+                              const ct = ctMap[ext]; if (!ct) { alert('Supported: PNG, JPG, GIF, WebP, SVG'); return }
+                              if (file.size > 2 * 1024 * 1024) { alert('File must be under 2MB'); return }
+                              try {
+                                const res = await fetch(`${API_BASE}/upload/branding`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ client_id: '_system', file_type: 'contact_photo', contact_index: `team_${u.id}`, content_type: ct, file_extension: ext }) })
+                                if (!res.ok) throw new Error('Failed to get upload URL')
+                                const { upload_url, view_url } = await res.json()
+                                const s3Res = await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': ct }, body: file })
+                                if (!s3Res.ok) throw new Error('Upload failed')
+                                const photoUrl = view_url || ''
+                                await fetch(`${API_BASE}/auth/preferences`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ user_id: u.id, photo_url: photoUrl }) })
+                                setUsers(prev => prev.map(x => x.id === u.id ? { ...x, photo_url: photoUrl } : x))
+                                if (setTeamUsers) setTeamUsers(prev => prev.map(x => x.id === u.id ? { ...x, photo_url: photoUrl } : x))
+                              } catch (err) { console.error('Photo upload failed:', err); alert('Photo upload failed') }
+                            }
+                            input.click()
+                          }} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: '100%', padding: '0.35rem 0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: '#333', borderRadius: 4 }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                            <Upload size={13} /> Upload photo
+                          </button>
+                          {photoUrlInput !== null && photoUrlInput !== '' ? (
+                            <div style={{ display: 'flex', gap: '0.25rem', padding: '0.25rem 0.5rem' }}>
+                              <input type="url" value={photoUrlInput === ' ' ? '' : photoUrlInput} onChange={e => setPhotoUrlInput(e.target.value || ' ')} autoFocus
+                                placeholder="https://..." style={{ flex: 1, padding: '0.25rem 0.375rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.7rem', outline: 'none', width: 120 }} />
+                              <button onClick={async () => {
+                                const url = photoUrlInput.trim()
+                                if (url) {
+                                  await fetch(`${API_BASE}/auth/preferences`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ user_id: u.id, photo_url: url }) })
+                                  setUsers(prev => prev.map(x => x.id === u.id ? { ...x, photo_url: url } : x))
+                                  if (setTeamUsers) setTeamUsers(prev => prev.map(x => x.id === u.id ? { ...x, photo_url: url } : x))
+                                }
+                                setPhotoPopover(null)
+                              }} style={{ padding: '0.25rem 0.5rem', background: '#0F969C', color: '#fff', border: 'none', borderRadius: 4, fontSize: '0.65rem', cursor: 'pointer', fontWeight: 600 }}>Save</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setPhotoUrlInput(' ')} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: '100%', padding: '0.35rem 0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: '#333', borderRadius: 4 }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'} onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                              <Link size={13} /> Paste URL
+                            </button>
+                          )}
+                          {u.photo_url && (
+                            <button onClick={async () => {
+                              await fetch(`${API_BASE}/auth/preferences`, { method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify({ user_id: u.id, photo_url: '' }) })
+                              setUsers(prev => prev.map(x => x.id === u.id ? { ...x, photo_url: '' } : x))
+                              if (setTeamUsers) setTeamUsers(prev => prev.map(x => x.id === u.id ? { ...x, photo_url: '' } : x))
+                              setPhotoPopover(null)
+                            }} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: '100%', padding: '0.35rem 0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: '#dc2626', borderRadius: 4 }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'} onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                              <Trash2 size={13} /> Remove photo
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{u.name}</div>
@@ -4610,7 +4702,7 @@ function BrandingScreen({ clientId, companyData, setCompanyData }) {
 // ============================================================
 // UPLOAD SCREEN
 // ============================================================
-function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onClientCreate, onComplete, onOpenCompanyModal, configButtons, systemButtons, onNavigate, isAdmin, isAccount, onSelectClient, accounts, engagements, setEngagements, activeEngagement, setActiveEngagement }) {
+function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onClientCreate, onComplete, onOpenCompanyModal, configButtons, systemButtons, onNavigate, isAdmin, isAccount, onSelectClient, accounts, engagements, setEngagements, activeEngagement, setActiveEngagement, teamUsers }) {
   const [error, setError] = useState(null)
   const [sourceCount, setSourceCount] = useState(0)
   const [activeCount, setActiveCount] = useState(0)
@@ -5129,15 +5221,17 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 <div style={{ display: 'flex', gap: '0.625rem' }}>
                   {/* Contact Photo */}
                   <div style={{ flexShrink: 0, position: 'relative' }}>
-                    <div
+                    {(() => {
+                      const resolvedPhoto = contact.photo_url || (contact.email && teamUsers && teamUsers.find(t => t.email === contact.email)?.photo_url) || '';
+                      return <div
                       style={{ width: 48, height: 48, borderRadius: '50%', background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'pointer', border: '2px solid #d1d5db' }}
                       onClick={() => { setPhotoPopover(photoPopover === idx ? null : idx); setPhotoUrlInput('') }}
                     >
-                      {contact.photo_url ? (
-                        <img src={contact.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none' }} />
+                      {resolvedPhoto ? (
+                        <img src={resolvedPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none' }} />
                       ) : null}
-                      {!contact.photo_url && <Users size={20} style={{ color: '#9ca3af' }} />}
-                    </div>
+                      {!resolvedPhoto && <Users size={20} style={{ color: '#9ca3af' }} />}
+                    </div>})()}
                     {photoPopover === idx && (
                       <>
                         <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setPhotoPopover(null)} />
