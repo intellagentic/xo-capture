@@ -794,3 +794,31 @@ When creating a brief for a new client, adapt:
 8. **Section 06:** Their deliverables in the POC timeline, their success metric
 
 The structure is fixed. The content is entirely domain-adapted.
+
+---
+
+## Component Definitions
+
+These blocks are parsed at runtime by `parseFormattingSkill()` in the brief-download Lambda. Each block defines the visual properties for a reusable document component.
+
+```component: oodaPhaseCard
+layout: "4-column-row"
+cell_border: { "color": "#DDDDDD", "width": 4, "style": "all-sides" }
+cell_background: #FFFFFF
+cell_margins: { "top": 120, "bottom": 120, "left": 140, "right": 140 }
+phase_name: { "font": "Trebuchet MS", "size": 24, "weight": "bold", "color": "#0F969C" }
+subtitle: { "font": "Calibri", "size": 20, "weight": "bold", "color": "#1A1A2E" }
+items: { "font": "Calibri", "size": 20, "weight": "normal", "style": "bullet-list" }
+```
+
+```component: problemCard
+border_width: 18
+border_position: left
+background: #F7FAFA
+severity_colors:
+  high: #CC0000
+  medium: #E67E22
+  low: #27AE60
+title: { "font": "Calibri", "size": 22, "weight": "bold" }
+evidence: { "font": "Calibri", "size": 20, "bold_first_sentence": "true" }
+```
