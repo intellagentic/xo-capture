@@ -3616,6 +3616,14 @@ BUILD IN STREAMLINE BUTTONS
 
 ---
 
+**April 14, 2026:**
+
+BUG FIXES
+- Country code dropdown: selection now persists when phone number is empty (joinPhone preserved country code)
+- Company LinkedIn field: added to PUT/POST API payloads, added to fetchExistingClient and handleSelectClient data mapping
+
+---
+
 **April 13, 2026:**
 
 BRIEF FORMATTING POLISH

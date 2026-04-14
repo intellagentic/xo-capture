@@ -152,7 +152,7 @@ function splitPhone(phone) {
 
 function joinPhone(countryCode, number) {
   const n = number.trim()
-  return n ? `${countryCode} ${n}` : ''
+  return n ? `${countryCode} ${n}` : countryCode
 }
 
 // Auth helpers
@@ -2223,6 +2223,7 @@ export default function App() {
           ndaSignedAt: data.ndaSignedAt || '',
           existingApps: data.existingApps || '',
           website: data.website || '',
+          company_linkedin: data.company_linkedin || '',
           contacts,
           addresses: data.addresses || [],
           industry: data.industry || '',
@@ -2321,6 +2322,7 @@ export default function App() {
             client_id: clientId,
             company_name: data.name,
             website: data.website,
+            company_linkedin: data.company_linkedin || '',
             contacts: data.contacts || [],
             addresses: data.addresses || [],
             industry: data.industry,
@@ -2350,6 +2352,7 @@ export default function App() {
           body: JSON.stringify({
             company_name: data.name,
             website: data.website,
+            company_linkedin: data.company_linkedin || '',
             contacts: data.contacts || [],
             addresses: data.addresses || [],
             industry: data.industry,
@@ -2396,6 +2399,7 @@ export default function App() {
           ndaSignedAt: data.ndaSignedAt || '',
           existingApps: data.existingApps || '',
           website: data.website || '',
+          company_linkedin: data.company_linkedin || '',
           contacts,
           addresses: data.addresses || [],
           industry: data.industry || '',
