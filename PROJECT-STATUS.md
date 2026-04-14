@@ -3624,6 +3624,15 @@ CONTACT PHOTOS
 - Avatar displayed on dashboard client list next to primary contact name
 - No backend/DB changes -- photo_url stored in existing contacts_json blob
 
+TEAM PHOTOS
+- Photo popover on Team page avatars -- Upload photo, Paste URL, Remove photo
+- Admins can edit any team member's photo, users can edit their own
+- Sidebar shows logged-in user's avatar (28px circle)
+- Cross-reference: contact avatars auto-resolve from team member photos by email match
+- S3 upload path: _system/contacts/team_{user_id}_photo.{ext}
+- Auth Lambda: handle_preferences accepts target_user_id for admin photo edits
+- Upload Lambda: _system path bypass for admin team photo uploads
+
 BACKLOG: Team member photos -- upload once on profile, shows everywhere (Team page, sidebar, auto-populates matching contact avatars by email)
 
 BUG FIXES
