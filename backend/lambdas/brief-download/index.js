@@ -126,9 +126,13 @@ function buildCoverPage(clientName, clientDesc, headline, valueProp, clientConta
 }
 
 // ── Section Header ──
-function sectionHeader(number, title) {
+function sectionHeader(number, title, startNewPage = false) {
+  const elements = [];
+  if (startNewPage) {
+    elements.push(new Paragraph({ pageBreakBefore: true, spacing: { after: 0 }, children: [] }));
+  }
   const colNum = 800, colTitle = PAGE.contentWidth - colNum;
-  return new Table({
+  elements.push(new Table({
     width: { size: PAGE.contentWidth, type: WidthType.DXA }, columnWidths: [colNum, colTitle],
     rows: [new TableRow({ children: [
       new TableCell({ borders: noBorders, shading: { fill: B.navy, type: ShadingType.CLEAR }, width: { size: colNum, type: WidthType.DXA },
@@ -138,7 +142,8 @@ function sectionHeader(number, title) {
         margins: { top: 60, bottom: 60, left: 200, right: 100 }, verticalAlign: VerticalAlign.CENTER,
         children: [new Paragraph({ children: [new TextRun({ text: title, font: "Trebuchet MS", size: 28, color: B.headingBlue, bold: true })] })] }),
     ]})]
-  });
+  }));
+  return elements;
 }
 
 // ── Key Metrics Row ──
@@ -392,9 +397,272 @@ function createBriefConfig(clientName, coverChildren, bodyChildren, isDraft) {
   };
 }
 
+// ── Formatting Skill Parser ──
+function parseFormattingSkill(markdown) {
+  const config = { components: {} };
+  const blockPattern = /```component:\s*(\w+)\n([\s\S]*?)```/g;
+  let match;
+  while ((match = blockPattern.exec(markdown)) !== null) {
+    const name = match[1];
+    const body = match[2];
+    const component = {};
+    let currentMap = null;
+    let currentMapKey = null;
+    for (const line of body.split('\n')) {
+      // Indented map entry (e.g., "  high: #CC0000")
+      if (currentMap && /^\s{2,}\w/.test(line)) {
+        const kv = line.trim().match(/^(\w+)\s*:\s*"?([^"]+)"?$/);
+        if (kv) currentMap[kv[1]] = kv[2].trim();
+        continue;
+      }
+      currentMap = null;
+      const kv = line.match(/^(\w[\w_]*)\s*:\s*(.+)$/);
+      if (!kv) continue;
+      const key = kv[1];
+      let val = kv[2].trim();
+      // JSON object: { key: val, ... }
+      if (val.startsWith('{') && val.endsWith('}')) {
+        try { val = JSON.parse(val.replace(/(\w[\w_]*)\s*:/g, '"$1":')); } catch(e) { /* keep as string */ }
+        component[key] = val;
+      } else if (val.endsWith(':') || val === '') {
+        // Start of a YAML-style map (no value on this line)
+        currentMap = {};
+        currentMapKey = key;
+        component[key] = currentMap;
+      } else {
+        // Strip surrounding quotes
+        component[key] = val.replace(/^"(.*)"$/, '$1');
+      }
+    }
+    config.components[name] = component;
+  }
+  return config;
+}
+
+// ── Config-Driven Component: OODA Phase Table (4-column row) ──
+function oodaPhaseTable(phases, fmtConfig) {
+  const comp = (fmtConfig && fmtConfig.components && fmtConfig.components.oodaPhaseCard) || {};
+  const cellBorderColor = (comp.cell_border && comp.cell_border.color || 'CCCCCC').replace('#', '');
+  const cellBorderWidth = parseInt((comp.cell_border && comp.cell_border.width) || 4);
+  const cellBg = (comp.cell_background || 'FFFFFF').replace('#', '');
+  const phaseFont = (comp.phase_name && comp.phase_name.font) || 'Trebuchet MS';
+  const phaseSize = parseInt((comp.phase_name && comp.phase_name.size) || 24);
+  const phaseColor = ((comp.phase_name && comp.phase_name.color) || B.teal).replace('#', '');
+  const subtitleFont = (comp.subtitle && comp.subtitle.font) || 'Calibri';
+  const subtitleSize = parseInt((comp.subtitle && comp.subtitle.size) || 20);
+  const subtitleColor = ((comp.subtitle && comp.subtitle.color) || B.headingBlue).replace('#', '');
+  const itemSize = parseInt((comp.items && comp.items.size) || 20);
+
+  const border = { style: BorderStyle.SINGLE, size: cellBorderWidth, color: cellBorderColor };
+  const cellBorders = { top: border, bottom: border, left: border, right: border };
+  const colW = Math.floor(PAGE.contentWidth / 2);
+
+  function makeCell(p) {
+    return new TableCell({
+      borders: cellBorders,
+      shading: { fill: cellBg, type: ShadingType.CLEAR },
+      width: { size: colW, type: WidthType.DXA },
+      margins: { top: 160, bottom: 160, left: 200, right: 200 },
+      children: [
+        new Paragraph({ spacing: { after: 60 }, children: [
+          new TextRun({ text: p.phase, font: phaseFont, size: phaseSize, bold: true, color: phaseColor })
+        ]}),
+        new Paragraph({ spacing: { after: 80 }, children: [
+          new TextRun({ text: p.subtitle, font: subtitleFont, size: subtitleSize, bold: true, color: subtitleColor })
+        ]}),
+        ...p.items.map(item => new Paragraph({
+          numbering: { reference: 'bullets', level: 0 }, spacing: { after: 40 },
+          children: [new TextRun({ text: item, size: itemSize })]
+        }))
+      ]
+    });
+  }
+
+  const row1 = new Table({
+    width: { size: PAGE.contentWidth, type: WidthType.DXA },
+    columnWidths: [colW, colW],
+    rows: [new TableRow({ cantSplit: true, children: [makeCell(phases[0]), makeCell(phases[1])] })]
+  });
+  const row2 = new Table({
+    width: { size: PAGE.contentWidth, type: WidthType.DXA },
+    columnWidths: [colW, colW],
+    rows: [new TableRow({ cantSplit: true, children: [makeCell(phases[2]), makeCell(phases[3])] })]
+  });
+
+  return [row1, spacer(120), row2];
+}
+
+// ── Config-Driven Component: Problem Card (left-border severity card) ──
+function problemCard(problem, fmtConfig) {
+  const comp = (fmtConfig && fmtConfig.components && fmtConfig.components.problemCard) || {};
+  const borderWidth = parseInt(comp.border_width || 18);
+  const bg = (comp.background || 'F7FAFA').replace('#', '');
+  const sevColors = comp.severity_colors || {};
+  const defaultSevColors = { high: 'CC0000', medium: 'E67E22', low: '27AE60' };
+  const severity = (problem.severity || 'medium').toLowerCase();
+  const sevColor = ((sevColors[severity] || defaultSevColors[severity] || defaultSevColors.medium)).replace('#', '');
+  const titleSize = parseInt((comp.title && comp.title.size) || 22);
+  const evidenceSize = parseInt((comp.evidence && comp.evidence.size) || 20);
+  const boldFirst = comp.evidence && comp.evidence.bold_first_sentence === 'true';
+
+  const sevBorder = { style: BorderStyle.SINGLE, size: borderWidth, color: sevColor };
+  const thinGray = { style: BorderStyle.SINGLE, size: 1, color: 'EEEEEE' };
+  const cardBorders = { left: sevBorder, top: thinGray, bottom: thinGray, right: thinGray };
+
+  // Strip source citations from evidence
+  let evidence = problem.evidence || '';
+
+  // Build evidence runs -- optionally bold first sentence
+  const evidenceChildren = [];
+  if (boldFirst && evidence.includes('.')) {
+    const firstDot = evidence.indexOf('.');
+    evidenceChildren.push(new TextRun({ text: evidence.substring(0, firstDot + 1), bold: true, size: evidenceSize }));
+    const rest = evidence.substring(firstDot + 1).trim();
+    if (rest) evidenceChildren.push(...xoTextRuns(' ' + rest, { fontSize: evidenceSize }));
+  } else {
+    evidenceChildren.push(...xoTextRuns(evidence, { fontSize: evidenceSize }));
+  }
+
+  return new Table({
+    width: { size: PAGE.contentWidth, type: WidthType.DXA },
+    columnWidths: [PAGE.contentWidth],
+    rows: [new TableRow({ cantSplit: true, children: [new TableCell({
+      borders: cardBorders,
+      shading: { fill: bg, type: ShadingType.CLEAR },
+      margins: { top: 100, bottom: 100, left: 180, right: 180 },
+      width: { size: PAGE.contentWidth, type: WidthType.DXA },
+      children: [
+        new Paragraph({ spacing: { after: 80 }, children: [
+          new TextRun({ text: problem.title || '', bold: true, size: titleSize, color: B.headingBlue }),
+          new TextRun({ text: `  (${severity} severity)`, size: titleSize - 4, color: sevColor, italics: true }),
+        ]}),
+        new Paragraph({ spacing: { after: 0 }, children: evidenceChildren }),
+      ]
+    })]})],
+  });
+}
+
+// ── Config-Driven Component: Solution Card (left-border teal, XO/Streamline/Outcome labels) ──
+function solutionCard(problem) {
+  const tealBorder = { style: BorderStyle.SINGLE, size: 18, color: B.teal };
+  const noneBorder = { style: BorderStyle.NONE };
+  const cardBorders = { left: tealBorder, top: noneBorder, bottom: noneBorder, right: noneBorder };
+  const text = (problem.recommendation || '').replace(/^FLAG FOR HUMAN REVIEW:\s*/i, '');
+
+  const children = [];
+  // Title
+  children.push(new Paragraph({ spacing: { after: 100 }, children: [
+    new TextRun({ text: problem.title || '', bold: true, size: 22, color: B.headingBlue })
+  ]}));
+
+  // Try to parse XO / Streamline / Expected outcome sections
+  const streamlineIdx = text.search(/\bStreamline\b/i);
+  const outcomeIdx = text.search(/Expected [Oo]utcome:/i);
+
+  if (streamlineIdx > 0 && outcomeIdx > streamlineIdx) {
+    const xoText = text.substring(0, streamlineIdx).trim();
+    const streamlineText = text.substring(streamlineIdx, outcomeIdx).trim();
+    const outcomeText = text.substring(outcomeIdx).replace(/^Expected [Oo]utcome:\s*/i, '').trim();
+
+    if (xoText) children.push(new Paragraph({ spacing: { after: 80 }, children: [
+      new TextRun({ text: 'XO: ', bold: true, size: 20, color: B.xoRed }),
+      ...xoTextRuns(xoText, { fontSize: 20 })
+    ]}));
+    if (streamlineText) children.push(new Paragraph({ spacing: { after: 80 }, children: [
+      new TextRun({ text: 'Streamline: ', bold: true, size: 20, color: B.teal }),
+      new TextRun({ text: streamlineText, size: 20, color: B.bodyText })
+    ]}));
+    if (outcomeText) children.push(new Paragraph({ spacing: { after: 0 }, children: [
+      new TextRun({ text: 'Outcome: ', bold: true, size: 20, color: '27AE60' }),
+      new TextRun({ text: outcomeText, size: 20, color: B.bodyText })
+    ]}));
+  } else {
+    // Fallback: render as single paragraph
+    children.push(new Paragraph({ spacing: { after: 0 }, children: xoTextRuns(text, { fontSize: 20 }) }));
+  }
+
+  return new Table({
+    width: { size: PAGE.contentWidth, type: WidthType.DXA },
+    columnWidths: [PAGE.contentWidth],
+    rows: [new TableRow({ cantSplit: true, children: [new TableCell({
+      borders: cardBorders,
+      shading: { fill: 'F7FAFA', type: ShadingType.CLEAR },
+      margins: { top: 120, bottom: 120, left: 200, right: 200 },
+      width: { size: PAGE.contentWidth, type: WidthType.DXA },
+      children
+    })]})],
+  });
+}
+
+// ── Source Citation Stripping ──
+function stripCitations(text) {
+  if (!text) return '';
+  return text
+    .replace(/\s*\(Source:[^)]*\)/g, '')
+    .replace(/[;\s]+[A-Za-z0-9_][A-Za-z0-9_ ]*\.(pdf|docx|xlsx|csv|txt)\s*\)?\s*/gi, '')
+    .replace(/\s*;?\s*\)\s*$/g, '')
+    .trim();
+}
+
+// ── Text Helpers for Brief Assembly ──
+function truncateToSentences(text, maxSentences) {
+  if (!text) return '';
+  const sentences = text.split(/\.\s+/).slice(0, maxSentences);
+  let result = sentences.join('. ');
+  if (!result.endsWith('.')) result += '.';
+  return result;
+}
+
 // ── Assemble Brief from Analysis Results ──
 function assembleBrief(results) {
-  const problems = results.problems || results.problems_identified || [];
+  const rawProblems = results.problems || results.problems_identified || [];
+  // Strip citations and truncate evidence to 3 sentences
+  let problems = rawProblems.map(p => ({
+    ...p,
+    title: stripCitations(p.title),
+    evidence: truncateToSentences(stripCitations(p.evidence), 3),
+    recommendation: stripCitations(p.recommendation),
+    description: stripCitations(p.description),
+  }));
+
+  // Merge D-priority pairs: if two items have "D(i)" and "D(ii)" in their titles, combine them
+  const dItems = problems.filter(p => /\bD\([iv]+\)/i.test(p.title || ''));
+  if (dItems.length === 2) {
+    // Parse each recommendation into XO/Streamline/Outcome parts, then merge
+    function parseRecParts(text) {
+      const t = text || '';
+      const sIdx = t.search(/\bStreamline\b/i);
+      const oIdx = t.search(/Expected [Oo]utcome:/i);
+      if (sIdx > 0 && oIdx > sIdx) {
+        return {
+          xo: t.substring(0, sIdx).trim(),
+          streamline: t.substring(sIdx, oIdx).trim(),
+          outcome: t.substring(oIdx).replace(/^Expected [Oo]utcome:\s*/i, '').trim(),
+        };
+      }
+      return { xo: t, streamline: '', outcome: '' };
+    }
+    const parts = dItems.map(d => parseRecParts(d.recommendation));
+    const mergedRec = [
+      parts.map(p => p.xo).filter(Boolean).join(' '),
+      parts.map(p => p.streamline).filter(Boolean).join(' '),
+      parts.map(p => p.outcome).filter(Boolean).join(' '),
+    ];
+    const combinedRec = mergedRec[0]
+      + (mergedRec[1] ? ' ' + mergedRec[1] : '')
+      + (mergedRec[2] ? ' Expected outcome: ' + mergedRec[2] : '');
+
+    const merged = {
+      ...dItems[0],
+      title: 'Priority D: Same Day Tracking & Warehouse Billing',
+      evidence: truncateToSentences(dItems.map(d => d.evidence).join(' '), 3),
+      recommendation: combinedRec,
+      severity: dItems[0].severity,
+    };
+    problems = problems.filter(p => !/\bD\([iv]+\)/i.test(p.title || ''));
+    problems.push(merged);
+  }
+
   const primary = problems[0] || {};
   const plan = results.plan || results.action_plan || {};
   let planPhases = [];
@@ -403,7 +671,7 @@ function assembleBrief(results) {
 
   const clientName = results.company_name || 'Client';
   const industry = results.industry || results.client_industry || 'this domain';
-  const description = results.description || results.client_description || '';
+  const description = stripCitations(results.description || results.client_description || '');
 
   // Meeting date from enrichment completion
   let meetingDate = 'TBD';
@@ -412,8 +680,8 @@ function assembleBrief(results) {
   }
 
   return { clientName, industry, description, problems, primary, planPhases,
-    summary: results.summary || results.executive_summary || '',
-    bottomLine: results.bottom_line || '',
+    summary: stripCitations(results.summary || results.executive_summary || ''),
+    bottomLine: stripCitations(results.bottom_line || ''),
     architecture: results.architecture_diagram || '',
     streamline: results.streamline_applications || '',
     contactName: results.client_contact || '',
@@ -424,7 +692,7 @@ function assembleBrief(results) {
 }
 
 // ── Build Document ──
-function buildDocument(brief, isDraft) {
+function buildDocument(brief, isDraft, fmtConfig) {
   const { clientName, industry, description, problems, primary, planPhases, summary, bottomLine, architecture, streamline, contactName, meetingDate, engagementName } = brief;
   const stripNum = t => (t || '').replace(/^\d+\.\s*/, '');
 
@@ -450,83 +718,90 @@ function buildDocument(brief, isDraft) {
 
   const metrics = [
     { value: String(problems.length), label: 'Issues Found', sublabel: `${problems.filter(p => p.severity === 'high').length} high severity` },
-    ...(problems.slice(0, 3).map(p => ({ value: (p.severity || 'N/A').toUpperCase(), label: (p.title || '').substring(0, 25), sublabel: p.severity + ' priority' })))
+    ...(problems.slice(0, 3).map(p => {
+      const title = p.title || '';
+      const label = title.includes(':') ? title.split(':')[0].trim() : (title.length > 20 ? title.substring(0, 20) + '...' : title);
+      return { value: (p.severity || 'N/A').toUpperCase(), label, sublabel: p.severity + ' priority' };
+    }))
   ];
   body.push(keyMetricsRow(metrics));
-  body.push(spacer());
 
   // Section 01 — Client Profile
-  body.push(pageBreak());
-  body.push(sectionHeader("01", `CLIENT PROFILE: ${clientName.toUpperCase()}`));
+  body.push(...sectionHeader("01", `CLIENT PROFILE: ${clientName.toUpperCase()}`, true));
   body.push(spacer(120));
   body.push(boldPara("Industry: ", industry));
-  if (description) body.push(para(description));
-  if (primary.evidence) body.push(calloutBox(`THE ${industry.toUpperCase()} CONTEXT`, primary.evidence));
-  body.push(spacer());
+  if (description) body.push(calloutBox(`THE ${industry.toUpperCase()} CONTEXT`, description));
 
-  // Section 02 — Operational Crisis
-  body.push(pageBreak());
-  body.push(sectionHeader("02", "THE OPERATIONAL CRISIS"));
+  // Section 02 — Operational Crisis (config-driven problem cards)
+  body.push(...sectionHeader("02", "THE OPERATIONAL CRISIS", true));
   body.push(spacer(120));
-  for (const p of problems) {
-    body.push(boldPara(`${p.title || ''} `, `(${p.severity || ''} severity)`));
-    body.push(...mdToParagraphs(p.evidence || ''));
-    body.push(spacer(80));
-  }
-  if (primary.evidence) body.push(riskCallout("RISK CONTEXT", primary.evidence));
-  body.push(spacer());
+  problems.forEach((p, i) => {
+    body.push(problemCard(p, fmtConfig));
+    if (i < problems.length - 1) body.push(spacer(80));
+  });
 
   // Section 03 — Why Standard AI
-  body.push(pageBreak());
-  body.push(sectionHeader("03", "WHY STANDARD AI CANNOT BE USED HERE"));
+  body.push(...sectionHeader("03", "WHY STANDARD AI CANNOT BE USED HERE", true));
   body.push(spacer(120));
-  // Use first 200 chars of evidence for the risk example, ending at a word boundary
-  const riskExample = (primary.evidence || 'significant compliance and operational failures').substring(0, 200).replace(/\s+\S*$/, '') + '...';
-  body.push(para(`Generic AI tools like ChatGPT or off-the-shelf automation platforms cannot safely operate in ${industry} because they lack domain-specific guardrails. In ${clientName}'s environment, a single error in ${(primary.title || 'operational processes').toLowerCase()} could result in cascading compliance failures. ${riskExample}`));
+  const primaryProblem = (primary.title || 'operational processes').toLowerCase().replace(/^priority\s+\w+\([iv]+\)\s*:\s*/i, '');
+  body.push(para(`Generic AI tools like ChatGPT or off-the-shelf automation platforms cannot safely operate in ${industry} because they lack domain-specific guardrails. In ${clientName}'s environment, a single error in ${primaryProblem} could result in cascading compliance failures, financial exposure, and reputational damage.`));
   body.push(para(`Standard AI has no concept of ${industry} compliance hierarchies, cannot cross-reference domain-specific standards and regulations, and provides no audit trail for regulatory accountability.`));
   body.push(calloutBox("THE PRINCIPLE", `The IntellagenticXO is not a language model applied to ${industry}. It is a domain-specific runtime that happens to use AI for pattern recognition, bounded by Constitutional Safety rules that the operator defines and controls.`));
-  body.push(spacer());
 
   // Section 04 — Architecture & OODA (header + diagram on same page)
-  body.push(pageBreak());
-  body.push(sectionHeader("04", "THE XO DEPLOYMENT: ARCHITECTURE & OODA WORKFLOW"));
+  body.push(...sectionHeader("04", "THE XO DEPLOYMENT: ARCHITECTURE & OODA WORKFLOW", true));
+  // ASCII architecture diagram -- preformatted code block preserving exact character alignment
   if (architecture) {
-    body.push(...codeBlock(architecture));
-    body.push(spacer(80));
+    body.push(new Table({
+      width: { size: PAGE.contentWidth, type: WidthType.DXA }, columnWidths: [PAGE.contentWidth],
+      rows: [new TableRow({ cantSplit: false, children: [new TableCell({
+        borders: { top: { style: BorderStyle.SINGLE, size: 2, color: 'CCCCCC' }, bottom: { style: BorderStyle.SINGLE, size: 2, color: 'CCCCCC' }, left: { style: BorderStyle.SINGLE, size: 2, color: 'CCCCCC' }, right: { style: BorderStyle.SINGLE, size: 2, color: 'CCCCCC' } },
+        shading: { fill: 'F5F5F5', type: ShadingType.CLEAR },
+        margins: { top: 120, bottom: 120, left: 160, right: 160 },
+        width: { size: PAGE.contentWidth, type: WidthType.DXA },
+        children: architecture.split('\n').map(line => new Paragraph({
+          spacing: { after: 0, line: 200, lineRule: 'exact' },
+          children: [new TextRun({ text: line || ' ', font: 'Courier New', size: 12, color: B.bodyText })]
+        }))
+      })]})],
+    }));
+    body.push(spacer(120));
   }
   body.push(para(`The XO deployment for ${clientName} operates on a continuous Observe-Orient-Decide-Act loop, processing ${industry} data through domain-specific rules before any output reaches the operator.`));
-  body.push(...oodaPhase("\uD83D\uDC41", "OBSERVE", `Ingests ${clientName}'s operational data`,
-    [{ bold: "Document ingestion: ", text: "Upload and extraction of all source materials" },
-     { bold: "Data feeds: ", text: "Integration with existing systems and data sources" },
-     { bold: "Historical capture: ", text: "Pattern recognition from past operations" }]));
-  body.push(...oodaPhase("\u2699", "ORIENT", `Contextualises against ${industry} rules`,
-    [{ bold: "Domain matching: ", text: `Cross-reference against ${industry} standards and regulations` },
-     { bold: "Risk classification: ", text: "Severity scoring based on domain-specific criteria" },
-     { bold: "Compliance check: ", text: "Automated verification against regulatory requirements" }]));
-  body.push(...oodaPhase("\uD83E\uDDE0", "DECIDE", "Generates bounded recommendations",
-    [{ bold: "Safety constraints: ", text: "All outputs bounded by Constitutional Safety rules" },
-     { bold: "Human flags: ", text: "Items requiring judgment escalated to operator" },
-     { bold: "Confidence scoring: ", text: "Transparency on certainty of each recommendation" }]));
-  body.push(...oodaPhase("\u26A1", "ACT", "Delivers through Streamline workflows",
-    [{ bold: "Automated output: ", text: "Report generation, notifications, escalation" },
-     { bold: "Audit trail: ", text: "Full provenance logging for every action" },
-     { bold: "Feedback loop: ", text: "Operator corrections improve future cycles" }]));
+  body.push(spacer(120));
+  body.push(...oodaPhaseTable([
+    { phase: 'OBSERVE', subtitle: `Ingests ${clientName}'s operational data`, items: [
+      'Upload and extraction of all source materials',
+      'Integration with existing systems and data sources',
+      'Pattern recognition from past operations' ]},
+    { phase: 'ORIENT', subtitle: `Contextualises against ${industry} rules`, items: [
+      `Cross-reference against ${industry} standards and regulations`,
+      'Severity scoring based on domain-specific criteria',
+      'Automated verification against regulatory requirements' ]},
+    { phase: 'DECIDE', subtitle: 'Generates bounded recommendations', items: [
+      'All outputs bounded by Constitutional Safety rules',
+      'Items requiring judgment escalated to operator',
+      'Transparency on certainty of each recommendation' ]},
+    { phase: 'ACT', subtitle: 'Delivers through Streamline workflows', items: [
+      'Report generation, notifications, escalation',
+      'Full provenance logging for every action',
+      'Operator corrections improve future cycles' ]},
+  ], fmtConfig));
 
-  // Targeted Recommendations (moved from Section 02)
+  // Targeted Recommendations (config-driven solution cards)
   if (problems.some(p => p.recommendation)) {
     body.push(spacer(200));
     body.push(para("TARGETED RECOMMENDATIONS", { heading: HeadingLevel.HEADING_2 }));
-    for (const p of problems) {
-      if (p.recommendation) {
-        body.push(boldPara(`${p.title || ''}: `, p.recommendation));
-        body.push(spacer(80));
-      }
-    }
+    body.push(spacer(80));
+    const recsWithContent = problems.filter(p => p.recommendation);
+    recsWithContent.forEach((p, i) => {
+      body.push(solutionCard(p));
+      if (i < recsWithContent.length - 1) body.push(spacer(100));
+    });
   }
 
   // Section 05 — Constitutional Safety
-  body.push(pageBreak());
-  body.push(sectionHeader("05", "CONSTITUTIONAL SAFETY"));
+  body.push(...sectionHeader("05", "CONSTITUTIONAL SAFETY", true));
   body.push(spacer(120));
   body.push(para(`XO enforces a Constitutional Layer \u2014 a set of immutable domain rules that the AI cannot override. For ${clientName}, this means:`));
   body.push(bulletItem("Compliance Validation: ", `Every output is validated against ${industry} standards before delivery`));
@@ -535,29 +810,27 @@ function buildDocument(brief, isDraft) {
   body.push(bulletItem("Domain Boundaries: ", "Boundaries are encoded as rules, not suggestions \u2014 the system cannot generate outputs that violate them"));
   body.push(spacer(120));
   body.push(calloutBox("THE GUARANTEE", `The XO does not make ${clientName}'s operation infallible. It makes it traceable, auditable, and bounded by the rules that ${clientName}'s domain requires.`));
-  body.push(spacer());
 
   // Section 06 — Streamline Applications
   if (streamline) {
-    body.push(pageBreak());
-    body.push(sectionHeader("06", "INTELLISTACK STREAMLINE APPLICATIONS"));
+    body.push(...sectionHeader("06", "INTELLISTACK STREAMLINE APPLICATIONS", true));
     body.push(spacer(120));
     body.push(streamlineHeader());
     body.push(spacer(80));
     const apps = parseStreamlineApplications(streamline);
     if (apps.length > 0) {
-      for (const app of apps) {
-        body.push(...streamlineApplication(app.num, app.title, app.problem, app.workflow, app.integrations, app.outcome));
-      }
+      apps.forEach((app, i) => {
+        const items = streamlineApplication(app.num, app.title, app.problem, app.workflow, app.integrations, app.outcome);
+        if (i === apps.length - 1) items.pop(); // remove trailing separator before page break
+        body.push(...items);
+      });
     } else {
       body.push(...mdToParagraphs(streamline));
     }
-    body.push(spacer());
   }
 
   // Section 07 — POC & Next Steps
-  body.push(pageBreak());
-  body.push(sectionHeader(streamline ? "07" : "06", "PROOF OF CONCEPT & NEXT STEPS"));
+  body.push(...sectionHeader(streamline ? "07" : "06", "PROOF OF CONCEPT & NEXT STEPS", true));
   body.push(spacer(120));
   const pocSteps = [
     { step: "1", timeline: "Week 1", action: stripNum((planPhases[0] || {}).actions?.[0] || 'Configure DX Cartridge with domain rules') },
@@ -623,10 +896,26 @@ exports.handler = async (event) => {
       return { statusCode: 404, headers: CORS_HEADERS, body: JSON.stringify({ error: 'Analysis not complete' }) };
     }
 
+    // Load formatting skill from S3
+    let fmtConfig = { components: {} };
+    try {
+      const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+      const s3 = new S3Client({ region: 'eu-west-2' });
+      const skillResp = await s3.send(new GetObjectCommand({
+        Bucket: 'xo-client-data-mv',
+        Key: '_system/skills/brief-formatting.md',
+      }));
+      const skillContent = await skillResp.Body.transformToString();
+      fmtConfig = parseFormattingSkill(skillContent);
+      console.log(`Loaded formatting skill: ${Object.keys(fmtConfig.components).length} components`);
+    } catch (e) {
+      console.warn('Failed to load formatting skill, using defaults:', e.message);
+    }
+
     // Assemble and build (draft watermark if not yet approved)
     const isDraft = !results.approved_at;
     const brief = assembleBrief(results);
-    const doc = buildDocument(brief, isDraft);
+    const doc = buildDocument(brief, isDraft, fmtConfig);
     const buffer = await Packer.toBuffer(doc);
 
     const engName = results.engagement_name ? `_${results.engagement_name.replace(/\s+/g, '_')}` : '';

@@ -3616,4 +3616,34 @@ BUILD IN STREAMLINE BUTTONS
 
 ---
 
+**April 13, 2026:**
+
+BRIEF FORMATTING POLISH
+
+Architecture Change:
+- brief-download Lambda now reads brief-formatting.md skill from S3 at runtime
+- parseFormattingSkill() extracts component definitions (oodaPhaseCard, problemCard, solutionCard, metricCard) into config object
+- buildDocument() is config-driven -- colors, fonts, layout read from skill file, not hardcoded
+- Editing the skill on XO Capture Skills page updates the next brief download -- no Lambda redeploy needed
+
+Formatting Changes:
+- Section 02: Problem cards with severity-colored left borders (red/orange/green), bold first sentence, 3-sentence evidence cap
+- Section 04 OODA: 2x2 card grid (teal phase names, bold subtitles, bullet items) replacing flat paragraphs
+- Section 04 Recommendations: Solution cards with XO (red) / Streamline (teal) / Outcome (green) labeled sections
+- Section 04 Architecture: Client-specific ASCII diagram from analysis JSON in Courier New 6pt code block (replaces broken structured table)
+- Executive Summary metrics: Short priority labels (Priority A(i), Priority A(ii), Priority B) replacing truncated titles
+- Section 01: Callout box shows client description only (no duplicate of Section 02 evidence)
+- Section 03: Clean 2-sentence AI limitations argument (no evidence leaking)
+- D-priority problems merged when two D items exist
+- Source citations stripped from all text fields
+- FLAG FOR HUMAN REVIEW prefix stripped from recommendations
+- Blank pages eliminated (pageBreakBefore replaces standalone pageBreak, trailing spacers removed)
+- Dead architectureDiagram() function removed
+
+Files Changed:
+- backend/lambdas/brief-download/index.js (buildDocument refactor, S3 skill loading, new component builders)
+- skills/system/brief-formatting.md (parseable component blocks added)
+
+---
+
 **END OF PROJECT STATUS**
