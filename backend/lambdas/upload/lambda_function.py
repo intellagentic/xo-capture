@@ -585,11 +585,12 @@ def handle_branding_upload(event, user):
             'body': json.dumps({'error': 'client_id is required'})
         }
 
-    if file_type not in ('logo', 'icon'):
+    contact_index = body.get('contact_index')
+    if file_type not in ('logo', 'icon') and not (file_type == 'contact_photo' and contact_index is not None):
         return {
             'statusCode': 400,
             'headers': CORS_HEADERS,
-            'body': json.dumps({'error': 'file_type must be "logo" or "icon"'})
+            'body': json.dumps({'error': 'file_type must be "logo", "icon", or "contact_photo" with contact_index'})
         }
 
     allowed_types = {'image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'}
@@ -613,7 +614,10 @@ def handle_branding_upload(event, user):
             'body': json.dumps({'error': 'Client not found'})
         }
 
-    s3_key = f"{client_id}/branding/{file_type}.{file_extension}"
+    if file_type == 'contact_photo':
+        s3_key = f"{client_id}/contacts/{contact_index}_photo.{file_extension}"
+    else:
+        s3_key = f"{client_id}/branding/{file_type}.{file_extension}"
 
     presigned_url = s3_client.generate_presigned_url(
         'put_object',
@@ -625,25 +629,35 @@ def handle_branding_upload(event, user):
         ExpiresIn=URL_EXPIRATION
     )
 
-    # Update the appropriate column in clients table
-    column = 'logo_s3_key' if file_type == 'logo' else 'icon_s3_key'
-    cur.execute(
-        f"UPDATE clients SET {column} = %s, updated_at = NOW() WHERE id = %s",
-        (s3_key, db_client_id)
-    )
+    # Update the appropriate column in clients table (skip for contact photos -- stored in contacts_json)
+    if file_type != 'contact_photo':
+        column = 'logo_s3_key' if file_type == 'logo' else 'icon_s3_key'
+        cur.execute(
+            f"UPDATE clients SET {column} = %s, updated_at = NOW() WHERE id = %s",
+            (s3_key, db_client_id)
+        )
     conn.commit()
     cur.close()
     conn.close()
 
     print(f"Generated branding upload URL for {file_type}: {s3_key}")
 
+    response_body = {
+        'upload_url': presigned_url,
+        's3_key': s3_key
+    }
+    # For contact photos, include a presigned GET URL so the frontend can display the image after upload
+    if file_type == 'contact_photo':
+        response_body['view_url'] = s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': BUCKET_NAME, 'Key': s3_key},
+            ExpiresIn=URL_EXPIRATION
+        )
+
     return {
         'statusCode': 200,
         'headers': CORS_HEADERS,
-        'body': json.dumps({
-            'upload_url': presigned_url,
-            's3_key': s3_key
-        })
+        'body': json.dumps(response_body)
     }
 
 

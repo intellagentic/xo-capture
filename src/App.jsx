@@ -2906,7 +2906,7 @@ function AccountsScreen({ accounts, setAccounts }) {
     setEditPartner(null)
     setForm({ name: '', website: '', industry: '', notes: '', description: '', futurePlans: '' })
     setFormPainPoints([''])
-    setFormContacts([{ firstName: '', lastName: '', title: '', email: '', phone: '', linkedin: '' }])
+    setFormContacts([{ firstName: '', lastName: '', title: '', email: '', phone: '', linkedin: '', photo_url: '' }])
     setFormAddresses([])
     setContactsExpanded(false)
     setAddressesExpanded(false)
@@ -2925,7 +2925,7 @@ function AccountsScreen({ accounts, setAccounts }) {
     setShowForm(true)
   }
 
-  const addFormContact = () => setFormContacts(prev => [...prev, { firstName: '', lastName: '', title: '', email: '', phone: '', linkedin: '' }])
+  const addFormContact = () => setFormContacts(prev => [...prev, { firstName: '', lastName: '', title: '', email: '', phone: '', linkedin: '', photo_url: '' }])
   const updateFormContact = (index, field, value) => setFormContacts(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c))
   const removeFormContact = (index) => setFormContacts(prev => prev.filter((_, i) => i !== index))
   const addFormAddress = () => setFormAddresses(prev => [...prev, { label: '', address1: '', address2: '', city: '', state: '', postalCode: '', country: '' }])
@@ -3052,7 +3052,12 @@ function AccountsScreen({ accounts, setAccounts }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</div>
                 {(p.contacts && p.contacts.length > 0 && (p.contacts[0].firstName || p.contacts[0].lastName)) ? (
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #9ca3af)' }}>{[p.contacts[0].firstName, p.contacts[0].lastName].filter(Boolean).join(' ')}{p.contacts[0].title ? ` — ${p.contacts[0].title}` : ''}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #9ca3af)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    {p.contacts[0].photo_url ? (
+                      <img src={p.contacts[0].photo_url} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                    ) : null}
+                    {[p.contacts[0].firstName, p.contacts[0].lastName].filter(Boolean).join(' ')}{p.contacts[0].title ? ` — ${p.contacts[0].title}` : ''}
+                  </div>
                 ) : p.email ? (
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #9ca3af)' }}>{p.email}</div>
                 ) : null}
@@ -3659,7 +3664,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
   })
 
   const addContact = () => {
-    setLocalContacts(prev => [...prev, { firstName: '', lastName: '', title: '', email: '', phone: '', linkedin: '' }])
+    setLocalContacts(prev => [...prev, { firstName: '', lastName: '', title: '', email: '', phone: '', linkedin: '', photo_url: '' }])
   }
   const updateContact = (index, field, value) => {
     setLocalContacts(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c))
@@ -4644,6 +4649,8 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
   const [contactsExpanded, setContactsExpanded] = useState(false)
   const [addressesExpanded, setAddressesExpanded] = useState(false)
   const [existingAppsEdit, setExistingAppsEdit] = useState(false)
+  const [photoPopover, setPhotoPopover] = useState(null) // contact index or null
+  const [photoUrlInput, setPhotoUrlInput] = useState('')
 
   // Sync form when companyData changes externally (e.g. client switch)
   useEffect(() => {
@@ -4669,7 +4676,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
   }, [companyData.name, clientId])
 
   const addContact = () => {
-    setFormContacts(prev => [...prev, { firstName: '', lastName: '', title: '', email: '', phone: '', linkedin: '' }])
+    setFormContacts(prev => [...prev, { firstName: '', lastName: '', title: '', email: '', phone: '', linkedin: '', photo_url: '' }])
   }
   const updateContact = (index, field, value) => {
     setFormContacts(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c))
@@ -5119,7 +5126,85 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                     <Trash2 size={12} />
                   </button>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                <div style={{ display: 'flex', gap: '0.625rem' }}>
+                  {/* Contact Photo */}
+                  <div style={{ flexShrink: 0, position: 'relative' }}>
+                    <div
+                      style={{ width: 48, height: 48, borderRadius: '50%', background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'pointer', border: '2px solid #d1d5db' }}
+                      onClick={() => { setPhotoPopover(photoPopover === idx ? null : idx); setPhotoUrlInput('') }}
+                    >
+                      {contact.photo_url ? (
+                        <img src={contact.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none' }} />
+                      ) : null}
+                      {!contact.photo_url && <Users size={20} style={{ color: '#9ca3af' }} />}
+                    </div>
+                    {photoPopover === idx && (
+                      <>
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setPhotoPopover(null)} />
+                        <div style={{
+                          position: 'absolute', top: 52, left: 0, zIndex: 50,
+                          background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.375rem',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)', minWidth: 140, whiteSpace: 'nowrap'
+                        }}>
+                          <button onClick={() => {
+                            setPhotoPopover(null)
+                            const input = document.createElement('input')
+                            input.type = 'file'
+                            input.accept = 'image/*'
+                            input.onchange = async (ev) => {
+                              const file = ev.target.files[0]
+                              if (!file || !clientId) return
+                              const ext = file.name.split('.').pop().toLowerCase()
+                              const contentTypeMap = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' }
+                              const ct = contentTypeMap[ext]
+                              if (!ct) { alert('Supported: PNG, JPG, GIF, WebP, SVG'); return }
+                              if (file.size > 2 * 1024 * 1024) { alert('File must be under 2MB'); return }
+                              try {
+                                const res = await fetch(`${API_BASE}/upload/branding`, {
+                                  method: 'POST', headers: getAuthHeaders(),
+                                  body: JSON.stringify({ client_id: clientId, file_type: 'contact_photo', contact_index: idx, content_type: ct, file_extension: ext })
+                                })
+                                if (!res.ok) throw new Error('Failed to get upload URL')
+                                const { upload_url, view_url } = await res.json()
+                                const s3Res = await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': ct }, body: file })
+                                if (!s3Res.ok) throw new Error('Upload failed')
+                                if (view_url) { updateContact(idx, 'photo_url', view_url); setTimeout(autoSave, 0) }
+                              } catch (err) { console.error('Photo upload failed:', err); alert('Photo upload failed') }
+                            }
+                            input.click()
+                          }} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: '100%', padding: '0.35rem 0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: '#333', borderRadius: 4 }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                            <Upload size={13} /> Upload photo
+                          </button>
+                          {photoUrlInput !== null && photoUrlInput !== '' ? (
+                            <div style={{ display: 'flex', gap: '0.25rem', padding: '0.25rem 0.5rem' }}>
+                              <input type="url" value={photoUrlInput === ' ' ? '' : photoUrlInput} onChange={e => setPhotoUrlInput(e.target.value || ' ')} autoFocus
+                                placeholder="https://..." style={{ flex: 1, padding: '0.25rem 0.375rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.7rem', outline: 'none', width: 120 }} />
+                              <button onClick={() => { if (photoUrlInput.trim()) { updateContact(idx, 'photo_url', photoUrlInput.trim()); setTimeout(autoSave, 0) } setPhotoPopover(null) }}
+                                style={{ padding: '0.25rem 0.5rem', background: '#0F969C', color: '#fff', border: 'none', borderRadius: 4, fontSize: '0.65rem', cursor: 'pointer', fontWeight: 600 }}>Save</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setPhotoUrlInput(' ')} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: '100%', padding: '0.35rem 0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: '#333', borderRadius: 4 }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#f3f4f6'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                              <Link size={13} /> Paste URL
+                            </button>
+                          )}
+                          {contact.photo_url && (
+                            <button onClick={() => { updateContact(idx, 'photo_url', ''); setTimeout(autoSave, 0); setPhotoPopover(null) }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: '100%', padding: '0.35rem 0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: '#dc2626', borderRadius: 4 }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                              <Trash2 size={13} /> Remove photo
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {/* Contact Fields */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.375rem' }}>
                     <input type="text" value={contact.firstName || ''} onChange={(e) => updateContact(idx, 'firstName', e.target.value)} onBlur={autoSave}
                       placeholder="First Name" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
@@ -5147,6 +5232,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                   </div>
                   <input type="url" value={contact.linkedin || ''} onChange={(e) => updateContact(idx, 'linkedin', e.target.value)} onBlur={autoSave}
                     placeholder="LinkedIn URL" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
+                  </div>
                 </div>
               </div>
             ))}
