@@ -8418,6 +8418,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
   const [hubspotLoading, setHubspotLoading] = useState(false)
   const [hubspotConnecting, setHubspotConnecting] = useState(false)
   const [hubspotStatusLoaded, setHubspotStatusLoaded] = useState(false)
+  const [hubspotSyncResult, setHubspotSyncResult] = useState(null)
 
   useEffect(() => {
     if (inWorkspace && clientId) {
@@ -9213,19 +9214,17 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                           headers: getAuthHeaders(),
                         })
                         const data = await res.json()
-                        if (res.ok) {
+                        if (res.ok && data.status === 'complete') {
                           setHubspotLastSync(data.last_sync)
-                          const conflicts = data.conflicts || []
-                          const msg = `Sync complete. Pushed: ${data.pushed?.clients || 0} clients, ${data.pushed?.accounts || 0} accounts. Pulled: ${data.pulled?.clients_created || 0} new, ${data.pulled?.clients_updated || 0} updated.` +
-                            (conflicts.length > 0 ? `\n${conflicts.length} conflict(s) need review.` : '')
-                          alert(msg)
+                          setHubspotSyncResult({ success: true, msg: `Synced ${data.pushed?.accounts || 0} accounts, ${data.pushed?.clients || 0} clients. Pulled ${data.pulled?.clients_created || 0} new, ${data.pulled?.clients_updated || 0} updated.${(data.conflicts || []).length > 0 ? ` ${data.conflicts.length} conflict(s).` : ''}` })
                         } else {
-                          alert(data.error || 'Sync failed')
+                          setHubspotSyncResult({ success: false, msg: data.error || 'Sync returned unexpected response' })
                         }
                       } catch (err) {
-                        alert('Sync failed: ' + err.message)
+                        setHubspotSyncResult({ success: false, msg: 'Sync request failed: ' + err.message })
                       }
                       setHubspotLoading(false)
+                      setTimeout(() => setHubspotSyncResult(null), 8000)
                     }}
                     disabled={hubspotLoading}
                     style={{
@@ -9240,6 +9239,12 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                     {hubspotLoading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={16} />}
                     {hubspotLoading ? 'Syncing...' : 'Sync Now'}
                   </button>
+                  {hubspotSyncResult && (
+                    <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: 8, fontSize: '0.75rem', background: hubspotSyncResult.success ? '#f0fdf4' : '#fef2f2', color: hubspotSyncResult.success ? '#166534' : '#991b1b', border: `1px solid ${hubspotSyncResult.success ? '#22c55e' : '#dc2626'}` }}>
+                      {hubspotSyncResult.success ? <CheckCircle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> : <AlertTriangle size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />}
+                      {hubspotSyncResult.msg}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

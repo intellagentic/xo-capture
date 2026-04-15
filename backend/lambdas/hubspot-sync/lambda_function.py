@@ -316,7 +316,10 @@ def _hubspot_api(method, path, access_token, json_body=None, params=None):
     resp = requests.request(method, url, headers=headers, json=json_body, params=params, timeout=30)
     if not resp.ok:
         error_body = resp.text[:1000] if resp.text else '(empty)'
-        logger.error("HubSpot API %s %s -> %s: %s", method, path, resp.status_code, error_body)
+        if resp.status_code == 409:
+            logger.info("HubSpot API %s %s -> 409 (already exists, expected)", method, path)
+        else:
+            logger.error("HubSpot API %s %s -> %s: %s", method, path, resp.status_code, error_body)
         resp.raise_for_status()
     return resp.json() if resp.content else {}
 
