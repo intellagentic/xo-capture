@@ -10,13 +10,30 @@ You have access to a library of reusable components that IntellagenticXO has alr
 
 ## Mapping rule
 
-For each distinct capability the partner needs, classify it:
+For each distinct capability the partner needs, classify it using the component's **status** field:
 
-1. **Fits an existing component** — the component already provides this; deployment is a configuration exercise.
-2. **Extends an existing component** — the component covers most of it; a minor version bump or adapter covers the rest.
-3. **Needs a new component** — nothing in the library maps; flag as a gap and propose a new component scaffold.
+1. **[EXISTING]** — the component is `v1_shipped` or `in_build` AND already provides this capability. Deployment is a configuration exercise.
+2. **[EXTEND]** — the component is `v1_shipped` or `in_build` BUT the capability requires a new adapter, classification rule, or config dimension. Flag as a minor version bump.
+3. **[NEW]** — the component is `spec` phase OR nothing in the library maps. Flag as a gap requiring a new component scaffold.
+
+**Status-to-tag mapping:**
+- `v1_shipped` deploying as-is → `[EXISTING]`
+- `v1_shipped` or `in_build` adding a capability → `[EXTEND]`
+- `spec` phase → `[NEW]` (not yet buildable; this deployment funds its build)
+- No matching component → `[NEW]` (propose a PascalCase name and one-line purpose)
+
+**Tag format:** Use exactly `[EXISTING]`, `[EXTEND]`, or `[NEW]`. No variants like `[EXISTING - v1]`, `[EXISTING/EXTEND]`, or `[NEW COMPONENT]`. Three tags, three strings, no exceptions.
 
 Always state which of the three applies, name the component (if any), and explain the mapping. When a new component is needed, propose a name and a one-line purpose.
+
+## Streamline convention
+
+Streamline is a **platform layer**, not a component. It provides workflow orchestration that components plug into. In the architecture diagram:
+
+- Streamline appears as a **layer label** (e.g., "Streamline Workflow Layer"), not as a tagged component box.
+- Individual workflows inside the Streamline layer (e.g., "Exception Triage Workflow", "Invoice Reconciliation Workflow") are **configured, not built**. They do NOT carry `[NEW]` tags.
+- Only tag a Streamline box with `[EXISTING]` if the diagram explicitly names "Streamline" as a standalone integration point. Never tag it `[NEW]`.
+- If a capability requires a new Streamline workflow, classify the **component that feeds the workflow** (e.g., ExceptionEngine `[EXTEND]`), not the workflow itself.
 
 ## Output expectation
 
@@ -34,7 +51,7 @@ Unified multi-carrier API abstraction. Normalises rate quoting, label generation
 
 Every logistics operator we work with deals with the same problem: 5+ carrier APIs, each with different auth, different schemas, different rate limits, different deprecation timelines. CarrierGate is the layer that makes the rest of our stack carrier-agnostic.
 
-**Status**
+**Status:** `spec`
 
 **v1 — spec phase.** Spec inputs:
 - [Origin scan (InXpress feasibility)](spec/v1_origin_scan.docx)
@@ -74,7 +91,7 @@ Daily shipment exception detection + CS triage dashboard. Sits on top of Carrier
 
 Logistics operators discover exceptions by manually checking carrier portals one parcel at a time. By the time CS arrives at 09:00, a delay has been brewing for hours. ExceptionEngine inverts the model: machine watches overnight, humans triage exceptions instead of hunting for them.
 
-**Status**
+**Status:** `spec`
 
 **v1 — spec phase.** Spec input:
 - [Origin spec (InXpress prototype)](spec/v1_origin_spec.md) — XO Capture output
