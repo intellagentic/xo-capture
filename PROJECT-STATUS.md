@@ -3,7 +3,7 @@
 **Date:** April 15, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.10)
+**Status:** Deployed & Operational (v2.11)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3699,11 +3699,19 @@ PR #4 -- POC Scoping + [POC]/[PHASE 2] Overlay + Caption Consistency (33a9f8c)
 - Pain Point Target now uses in-scope problem titles
 - Enrich Lambda: model no longer embeds caption inside architecture_diagram
 
+Stale Scope Detection (9f18fad):
+- rapid-prototype: detects stale scope (no problem ID overlap), falls back to full scope with warning
+- Enrich Lambda: auto-clears or trims poc_scope on re-enrichment when problem IDs change
+- Frontend: red warning banner "Scope is stale" with Re-scope link
+
+Streamline/XO Ingestion Decision Rule:
+- component-library.md skill updated with ingestion path decision rule
+- Streamline connector vs XO component classification for data sources
+- Division of responsibility: Streamline owns transport + connectors, XO owns persistent state + domain logic
+
 PENDING ITEMS:
-- Re-enrich InXpress to verify Phase 4 (no model caption in architecture_diagram)
 - Move ~/Documents/workspace-check/ to ~/dev/workspace-check/ + push to github.com/intellagentic/workspace-check
 - Optional: rename xo-quickstart repo to xo-capture
-- Component classification quality: add status field (spec/in_build/v1_shipped) to component READMEs
 
 ---
 

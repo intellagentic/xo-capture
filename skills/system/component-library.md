@@ -125,3 +125,17 @@ If the partner describes a capability that doesn't map cleanly to any component 
 - Propose a component name (PascalCase, noun-phrase) and a one-line purpose.
 - Do NOT invent interface details or claim the component exists.
 - Flag it as `NEW COMPONENT NEEDED` so IntellagenticXO can scaffold it in `01_Components/` and treat this deployment as its v1 build funder.
+
+## Ingestion path decision rule
+
+When classifying a data source, decide between Streamline and an XO component:
+
+- **Streamline connector** — use when the source has a first-class Streamline integration: Salesforce, Redox, Postgres, MySQL, mainstream SaaS with documented connectors. Ingestion is a Streamline workflow configuration, NOT a new component. Do not tag as [NEW] or [EXTEND].
+- **XO component** — use when the source is an edge case: scraped portals, custom aggregators, non-standard APIs, carrier-specific or domain-specific dialects. Build or extend an XO component. Tag [NEW] or [EXTEND] per the existing status rule.
+
+Division of responsibility:
+- Streamline owns transport, standard connectors, PII classification at ingress, and transient workflow execution.
+- XO components own persistent state, domain normalisation, and multi-day/historical logic.
+- Even when Streamline ingests, persistent data belongs in an XO component's store. Streamline holds data only during workflow execution.
+
+For each data source in the client analysis, ask: "Does Streamline have a first-class connector for this?" If yes, ingestion is Streamline config. If no, it's an XO component.
