@@ -187,6 +187,15 @@ def build_spec(client_id, company_name, website_url, contact_name,
         if not p.get('id'):
             p['id'] = slugify_problem(p.get('title', ''))
 
+    # Stale scope detection: if scope is set but no problem IDs intersect, treat as stale
+    current_problem_ids = set(p['id'] for p in problems)
+    scope_stale = False
+    if scope_active and scoped_problem_ids and not scoped_problem_ids.intersection(current_problem_ids):
+        scope_stale = True
+        # Fallback: treat all problems as in-scope
+        scoped_problem_ids = current_problem_ids
+        scoped_new_components = set(n.get('proposed_name', '') for n in analysis.get('component_mapping', {}).get('new_components', []))
+
     lines = []
 
     # Title
@@ -198,10 +207,15 @@ def build_spec(client_id, company_name, website_url, contact_name,
     lines.append(f"- **Generated:** {today}")
     if scope_active and scoped_problem_ids:
         scoped_titles = [p.get('title', '') for p in problems if p.get('id') in scoped_problem_ids]
-        lines.append(f"- **Pain Point Target:** {', '.join(scoped_titles)}")
+        if scoped_titles:
+            lines.append(f"- **Pain Point Target:** {', '.join(scoped_titles)}")
+        else:
+            # All scoped IDs were stale — fallback to all problem titles
+            all_titles = [p.get('title', '') for p in problems]
+            lines.append(f"- **Pain Point Target:** {', '.join(all_titles) or 'See analysis'}")
     else:
-        primary_title = problems[0].get('title', pain_point or '') if problems else (pain_point or '')
-        lines.append(f"- **Pain Point Target:** {primary_title}")
+        primary_title = problems[0].get('title', '') if problems else ''
+        lines.append(f"- **Pain Point Target:** {primary_title or 'See analysis'}")
     lines.append("")
 
     # POC SCOPE (only if scope is set)
@@ -214,6 +228,9 @@ def build_spec(client_id, company_name, website_url, contact_name,
 
         lines.append("## POC SCOPE")
         lines.append("")
+        if scope_stale:
+            lines.append("**Warning:** Scope was set against a previous enrichment. Re-open the Scope POC modal to refresh.")
+            lines.append("")
         lines.append("**In scope (build in 21 days):**")
         for p in in_scope_problems:
             lines.append(f"- {p.get('title', '')}")

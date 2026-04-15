@@ -492,6 +492,39 @@ def _run_enrichment_pipeline(event):
 
         print(f"Analysis complete for client: {client_id}")
 
+        # Check for stale POC scope — diff new problem IDs against saved scope
+        try:
+            conn3 = get_db_connection()
+            cur3 = conn3.cursor()
+            cur3.execute("SELECT poc_scope FROM clients WHERE s3_folder = %s", (client_id,))
+            scope_row = cur3.fetchone()
+            if scope_row and scope_row[0]:
+                saved_scope = scope_row[0] if isinstance(scope_row[0], dict) else json.loads(scope_row[0])
+                saved_problem_ids = set(saved_scope.get('problems', []))
+                new_problem_ids = set()
+                for p in analysis.get('problems', []):
+                    title = p.get('title', '')
+                    slug = re.sub(r'[^a-z0-9\s-]', '', title.lower())
+                    slug = re.sub(r'\s+', '-', slug).strip('-') or 'unknown'
+                    new_problem_ids.add(slug)
+                intersection = saved_problem_ids.intersection(new_problem_ids)
+                if saved_problem_ids and not intersection:
+                    # Fully stale — null out scope
+                    cur3.execute("UPDATE clients SET poc_scope = NULL WHERE s3_folder = %s", (client_id,))
+                    conn3.commit()
+                    print(f"POC scope cleared — no problem ID overlap after re-enrichment for {client_id}")
+                elif saved_problem_ids and intersection != saved_problem_ids:
+                    # Partial overlap — keep intersection only
+                    saved_scope['problems'] = list(intersection)
+                    cur3.execute("UPDATE clients SET poc_scope = %s WHERE s3_folder = %s", (json.dumps(saved_scope), client_id))
+                    conn3.commit()
+                    dropped = saved_problem_ids - intersection
+                    print(f"POC scope trimmed — kept {len(intersection)}, dropped {len(dropped)} stale IDs for {client_id}: {dropped}")
+            cur3.close()
+            conn3.close()
+        except Exception as scope_err:
+            print(f"Non-fatal: scope staleness check failed: {scope_err}")
+
         # Fire webhook to Streamline (non-blocking — enrichment success is independent)
         # Per-client toggle takes priority; fall back to system-level toggle
         webhook_should_fire = streamline_webhook_enabled

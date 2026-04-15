@@ -10475,6 +10475,14 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
           {pocScope ? (() => {
             const scopedProblems = (displayResults.problems || []).filter(p => (pocScope.problems || []).includes(slugifyProblem(p.title)))
             const scopedComps = (displayResults.component_mapping?.new_components || []).filter(n => (pocScope.new_components || []).includes(n.proposed_name))
+            const isStale = (pocScope.problems || []).length > 0 && scopedProblems.length === 0
+            if (isStale) {
+              return <div style={{ background: '#fef2f2', border: '1px solid #dc2626', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <AlertTriangle size={14} style={{ flexShrink: 0, color: '#dc2626' }} />
+                Scope is stale -- problem titles changed after re-enrichment.
+                <button onClick={openScopeModal} style={{ background: 'none', border: 'none', color: '#0F969C', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}>Re-scope</button>
+              </div>
+            }
             const shortNames = [...scopedProblems.map(p => p.title?.replace(/^Priority\s+\w+\([iv]+\)\s*:\s*/i, '').substring(0, 40)), ...scopedComps.map(n => n.proposed_name)].join(', ')
             const isShort = shortNames.length < 120
             return <div onClick={openScopeModal} style={{ cursor: 'pointer', fontSize: '0.75rem', color: '#6b7280' }}>
