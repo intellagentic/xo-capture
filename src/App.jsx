@@ -120,6 +120,10 @@ window.io = {
 };
 
 // Migrate contact: split legacy "name" into firstName/lastName if needed
+function slugifyProblem(title) {
+  return (title || '').toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'unknown'
+}
+
 function migrateContact(c) {
   if (c.firstName !== undefined || c.lastName !== undefined) return c
   const name = c.name || ''
@@ -9836,6 +9840,12 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   const [currentClient,setCurrentClient]=useState(null)
   const [expandedResult,setExpandedResult]= useState({id:"executiveSummary",name:"Executive Summary",shortDescription:"Here is our understanding of your business",severity: 'high'});
   const [componentMappingExpanded, setComponentMappingExpanded] = useState(false);
+  const [pocScope, setPocScope] = useState(null) // null | { problems: [], new_components: [], scoped_at, scoped_by }
+  const [showScopeModal, setShowScopeModal] = useState(false)
+  const [scopeProblems, setScopeProblems] = useState(new Set())
+  const [scopeComponents, setScopeComponents] = useState(new Set())
+  const [scopeSaving, setScopeSaving] = useState(false)
+  const [scopeExpanded, setScopeExpanded] = useState(false)
   const [formattedResults,setFormattedResults] = useState([
     {id:"executiveSummary",icon:"TrendingUp",name:"Executive Summary",shortDescription:"Here is our understanding of your business",severity: 'high'},
     {id:"problemsIdentified",icon:"AlertTriangle",name:"Problems Identified",shortDescription:"Key pain points and gaps surfaced by the analysis",severity: 'high'},
@@ -9864,6 +9874,43 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
         console.error('Failed to fetch client:', err)
       }
     }
+  }
+
+  // Sync POC scope from client data
+  useEffect(() => {
+    if (currentClient?.poc_scope) setPocScope(currentClient.poc_scope)
+    else setPocScope(null)
+  }, [currentClient])
+
+  const openScopeModal = () => {
+    const problems = displayResults?.problems || []
+    const newComps = displayResults?.component_mapping?.new_components || []
+    if (pocScope) {
+      const savedProblems = new Set(pocScope.problems || [])
+      const savedComps = new Set(pocScope.new_components || [])
+      setScopeProblems(new Set(problems.map(p => slugifyProblem(p.title)).filter(id => savedProblems.has(id))))
+      setScopeComponents(new Set(newComps.map(n => n.proposed_name).filter(n => savedComps.has(n))))
+    } else {
+      setScopeProblems(new Set(problems.map(p => slugifyProblem(p.title))))
+      setScopeComponents(new Set(newComps.map(n => n.proposed_name)))
+    }
+    setShowScopeModal(true)
+  }
+
+  const savePocScope = async () => {
+    setScopeSaving(true)
+    try {
+      const res = await fetch(`${API_BASE}/clients?action=scope`, {
+        method: 'PUT', headers: getAuthHeaders(),
+        body: JSON.stringify({ client_id: clientId, problems: [...scopeProblems], new_components: [...scopeComponents] })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setPocScope(data.poc_scope)
+        setShowScopeModal(false)
+      }
+    } catch (err) { console.error('Failed to save scope:', err) }
+    setScopeSaving(false)
   }
 
   const isDraft = activeEngagement ? !activeEngagement.approved_at : !currentClient?.approved_at
@@ -10269,6 +10316,9 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 {protoDownloading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
                 {protoDownloading ? 'Generating...' : 'Download Prototype Spec (.md)'}
               </button>
+              <button onClick={openScopeModal} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: '#0F969C', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+                <Settings size={14} /> Scope POC
+              </button>
               <button
                 onClick={sendToStreamline}
                 disabled={streamlineSending}
@@ -10418,6 +10468,48 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
         </div>
       </div>
 
+
+      {/* POC Scope status + warning */}
+      {isAdmin && displayResults?.status === 'complete' && (
+        <div style={{ padding: '0 0 0.5rem 0' }}>
+          {pocScope ? (() => {
+            const scopedProblems = (displayResults.problems || []).filter(p => (pocScope.problems || []).includes(slugifyProblem(p.title)))
+            const scopedComps = (displayResults.component_mapping?.new_components || []).filter(n => (pocScope.new_components || []).includes(n.proposed_name))
+            const shortNames = [...scopedProblems.map(p => p.title?.replace(/^Priority\s+\w+\([iv]+\)\s*:\s*/i, '').substring(0, 40)), ...scopedComps.map(n => n.proposed_name)].join(', ')
+            const isShort = shortNames.length < 120
+            return <div onClick={openScopeModal} style={{ cursor: 'pointer', fontSize: '0.75rem', color: '#6b7280' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontWeight: 600, color: '#0F969C' }}>Scope:</span>
+                {isShort ? (
+                  <span>{shortNames}</span>
+                ) : (
+                  <>
+                    <span>{pocScope.problems?.length || 0} of {(displayResults.problems || []).length} problems, {pocScope.new_components?.length || 0} of {(displayResults.component_mapping?.new_components || []).length} new components</span>
+                    <button onClick={(e) => { e.stopPropagation(); setScopeExpanded(!scopeExpanded) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0, display: 'flex', alignItems: 'center' }}>
+                      {scopeExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </button>
+                  </>
+                )}
+                <span style={{ color: '#9ca3af' }}>·</span>
+                <span>Scoped by {(pocScope.scoped_by || '').split('@')[0]}</span>
+                {pocScope.scoped_at && <span style={{ color: '#9ca3af' }}>· {new Date(pocScope.scoped_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>}
+              </div>
+              {!isShort && scopeExpanded && (
+                <div style={{ marginTop: '0.35rem', paddingLeft: '3rem', fontSize: '0.7rem', color: '#6b7280' }}>
+                  {scopedProblems.map((p, i) => <div key={i} style={{ marginBottom: '0.15rem' }}>- {p.title}</div>)}
+                  {scopedComps.map((n, i) => <div key={'c'+i} style={{ marginBottom: '0.15rem', color: '#0F969C' }}>- {n.proposed_name}</div>)}
+                </div>
+              )}
+            </div>
+          })() : (
+            <div style={{ background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+              Scope not set — download will include all enriched problems.
+              <button onClick={openScopeModal} style={{ background: 'none', border: 'none', color: '#0F969C', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}>Set scope</button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Concertina sections */}
       <div style={{ padding: '', display: 'grid', gap: '0.75rem' }}>
@@ -12203,6 +12295,66 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Scope POC Modal */}
+      {showScopeModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setShowScopeModal(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', background: 'var(--bg-card, #fff)', borderRadius: 16, padding: '1.5rem', width: '90%', maxWidth: 520, maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>Scope POC -- 21-Day Build</h3>
+              <button onClick={() => setShowScopeModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem' }}><X size={18} /></button>
+            </div>
+            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '1rem' }}>Select which problems and new components to include in the POC. Unselected items become Phase 2 candidates (data model only, no features).</p>
+
+            {/* Problems */}
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Problems</div>
+            {(displayResults?.problems || []).map((p, i) => {
+              const id = slugifyProblem(p.title)
+              const checked = scopeProblems.has(id)
+              return (
+                <label key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', padding: '0.4rem 0', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={checked} onChange={() => {
+                    setScopeProblems(prev => { const next = new Set(prev); checked ? next.delete(id) : next.add(id); return next })
+                  }} style={{ marginTop: 2, accentColor: '#0F969C' }} />
+                  <div>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{p.title}</span>
+                    <span style={{ fontSize: '0.65rem', marginLeft: '0.4rem', padding: '0.1rem 0.3rem', borderRadius: 3, background: p.severity === 'high' ? '#fef2f2' : p.severity === 'medium' ? '#fffbeb' : '#f0fdf4', color: p.severity === 'high' ? '#dc2626' : p.severity === 'medium' ? '#d97706' : '#22c55e', fontWeight: 600 }}>{(p.severity || '').toUpperCase()}</span>
+                  </div>
+                </label>
+              )
+            })}
+
+            {/* New Components */}
+            {displayResults?.component_mapping?.new_components?.length > 0 && (
+              <>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '1rem', marginBottom: '0.5rem' }}>New Components</div>
+                {displayResults.component_mapping.new_components.map((n, i) => {
+                  const checked = scopeComponents.has(n.proposed_name)
+                  return (
+                    <label key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', padding: '0.4rem 0', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={checked} onChange={() => {
+                        setScopeComponents(prev => { const next = new Set(prev); checked ? next.delete(n.proposed_name) : next.add(n.proposed_name); return next })
+                      }} style={{ marginTop: 2, accentColor: '#0F969C' }} />
+                      <div>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>{n.proposed_name}</span>
+                        <span style={{ fontSize: '0.75rem', color: '#6b7280', marginLeft: '0.35rem' }}>{n.purpose}</span>
+                      </div>
+                    </label>
+                  )
+                })}
+              </>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.25rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <button onClick={() => setShowScopeModal(false)} style={{ padding: '0.5rem 1rem', background: 'none', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>Cancel</button>
+              <button onClick={savePocScope} disabled={scopeSaving} style={{ padding: '0.5rem 1rem', background: '#0F969C', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: scopeSaving ? 'wait' : 'pointer' }}>
+                {scopeSaving ? 'Saving...' : 'Save Scope'}
+              </button>
+            </div>
           </div>
         </div>
       )}

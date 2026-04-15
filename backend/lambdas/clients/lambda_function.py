@@ -5,6 +5,7 @@ Creates a new client with S3 folder structure and PostgreSQL record.
 
 import json
 import os
+import re
 import time
 import hashlib
 import secrets
@@ -73,6 +74,7 @@ def _run_migrations():
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;")
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_by TEXT;")
         cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS company_linkedin TEXT;")
+        cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS poc_scope JSONB;")
         # Engagements table
         cur.execute("""CREATE TABLE IF NOT EXISTS engagements (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -340,12 +342,20 @@ def _route_clients(event, user, path, method):
     if path.endswith('/clients/list') and method == 'GET':
         return handle_list_clients(event, user)
     elif method == 'GET':
-        # Route to list handler if no specific client_id requested
         params = event.get('queryStringParameters') or {}
+        if params.get('action') == 'scope':
+            if not user.get('is_admin'):
+                return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
+            return handle_get_scope(event, user)
         if not params.get('client_id'):
             return handle_list_clients(event, user)
         return handle_get_client(event, user)
     elif method == 'PUT':
+        params = event.get('queryStringParameters') or {}
+        if params.get('action') == 'scope':
+            if not user.get('is_admin'):
+                return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Admin access required'})}
+            return handle_update_scope(event, user)
         return handle_update_client(event, user)
     elif method == 'POST':
         if is_client_user:
@@ -931,7 +941,7 @@ def handle_get_client(event, user):
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
                            COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
-                           approved_at, company_linkedin
+                           approved_at, company_linkedin, poc_scope
                     FROM clients WHERE s3_folder = %s
                 """, (client_id,))
             elif user.get('is_account') and user.get('account_id'):
@@ -945,7 +955,7 @@ def handle_get_client(event, user):
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
                            COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
-                           approved_at, company_linkedin
+                           approved_at, company_linkedin, poc_scope
                     FROM clients WHERE s3_folder = %s AND account_id = %s
                 """, (client_id, user['account_id']))
             else:
@@ -959,7 +969,7 @@ def handle_get_client(event, user):
                            future_plans, pain_points_json, invite_webhook_url,
                            encryption_key, updated_by,
                            COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
-                           approved_at, company_linkedin
+                           approved_at, company_linkedin, poc_scope
                     FROM clients WHERE s3_folder = %s AND user_id = %s
                 """, (client_id, user['user_id']))
         else:
@@ -1101,7 +1111,8 @@ def handle_get_client(event, user):
                 'existingApps': (row[28] or '') if len(row) > 28 else '',
                 'ndaSignedAt': row[29].isoformat() if len(row) > 29 and row[29] else None,
                 'approved_at': row[30].isoformat() if len(row) > 30 and row[30] else None,
-                'company_linkedin': (row[31] or '') if len(row) > 31 else ''
+                'company_linkedin': (row[31] or '') if len(row) > 31 else '',
+                'poc_scope': row[32] if len(row) > 32 else None
             })
         }
     except Exception as e:
@@ -1370,6 +1381,63 @@ def handle_proxy(event, user):
         return {'statusCode': e.code, 'headers': CORS_HEADERS, 'body': json.dumps({'error': error_body})}
     except Exception as e:
         print(f"Proxy error: {str(e)}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_get_scope(event, user):
+    """GET /clients/scope?client_id=X — Return current POC scope."""
+    params = event.get('queryStringParameters') or {}
+    client_id = params.get('client_id', '').strip()
+    if not client_id:
+        return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'client_id required'})}
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT poc_scope FROM clients WHERE s3_folder = %s", (client_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not row:
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Client not found'})}
+        scope = row[0]  # JSONB or None
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'poc_scope': scope})}
+    except Exception as e:
+        print(f"Error getting scope: {e}")
+        return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
+
+
+def handle_update_scope(event, user):
+    """PUT /clients/scope — Set POC scope for a client."""
+    try:
+        body = json.loads(event.get('body', '{}'))
+        client_id = body.get('client_id', '').strip()
+        if not client_id:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'client_id required'})}
+
+        scope_data = {
+            'problems': body.get('problems', []),
+            'new_components': body.get('new_components', []),
+            'scoped_at': datetime.now(timezone.utc).isoformat(),
+            'scoped_by': user.get('email', ''),
+        }
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE clients SET poc_scope = %s WHERE s3_folder = %s RETURNING id",
+            (json.dumps(scope_data), client_id)
+        )
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Client not found'})}
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'poc_scope': scope_data})}
+    except Exception as e:
+        print(f"Error updating scope: {e}")
         return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
 
 
