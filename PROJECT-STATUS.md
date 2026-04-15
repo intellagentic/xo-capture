@@ -3727,10 +3727,14 @@ HubSpot Sync UI + Log Fix:
 - Lambda: 409 property-exists responses now logged as INFO not ERROR
 - Both root and package/ lambda_function.py synced
 
+Workspace-Check Tooling Migration:
+- Moved ~/Documents/workspace-check/ to ~/dev/workspace-check/
+- Pushed to github.com/intellagentic/workspace-check (private repo)
+- Contains check.py (workspace validator) + gen_component_library.py (skill generator)
+
 PENDING ITEMS:
 - ExceptionEngine classification non-determinism -- same component classifies as [NEW] in one run, [EXTENDS] in next. Tighten component-library skill so spec-phase is always [NEW].
 - CS Triage Dashboard + Customer Dashboard rendered as standalone [NEW] boxes in architecture_diagram when they are UI surfaces of ExceptionEngine / CustomerPortal respectively. Needs a ui_surface modeling concept in component READMEs.
-- Move ~/Documents/workspace-check/ to ~/dev/workspace-check/ + push to github.com/intellagentic/workspace-check.
 - Optional: rename xo-quickstart repo to xo-capture on GitHub.
 
 ---
