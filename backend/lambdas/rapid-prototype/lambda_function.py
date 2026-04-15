@@ -55,10 +55,52 @@ def lambda_handler(event, context):
     return response
 
 
+def _load_scope(cur, client_id, engagement_id):
+    """Load POC scope: engagement-level first, client-level fallback."""
+    if engagement_id:
+        cur.execute("SELECT poc_scope FROM engagements WHERE id = %s", (engagement_id,))
+        row = cur.fetchone()
+        if row and row[0]:
+            scope = row[0] if isinstance(row[0], dict) else json.loads(row[0]) if isinstance(row[0], str) else None
+            if scope:
+                return scope
+    # Fallback to client-level
+    cur.execute("SELECT poc_scope FROM clients WHERE s3_folder = %s", (client_id,))
+    row = cur.fetchone()
+    if row and row[0]:
+        return row[0] if isinstance(row[0], dict) else json.loads(row[0]) if isinstance(row[0], str) else None
+    return None
+
+
+def _load_analysis(client_id, engagement_id, ck):
+    """Load analysis JSON: engagement-scoped first, root fallback."""
+    paths_tried = []
+    if engagement_id:
+        eng_key = f"{client_id}/engagements/{engagement_id}/results/analysis.json"
+        paths_tried.append(eng_key)
+        try:
+            resp = s3_client.get_object(Bucket=BUCKET_NAME, Key=eng_key)
+            raw = resp['Body'].read()
+            return json.loads(maybe_decrypt_s3_body(ck, raw))
+        except s3_client.exceptions.NoSuchKey:
+            pass
+    # Root fallback
+    root_key = f"{client_id}/results/analysis.json"
+    paths_tried.append(root_key)
+    try:
+        resp = s3_client.get_object(Bucket=BUCKET_NAME, Key=root_key)
+        raw = resp['Body'].read()
+        return json.loads(maybe_decrypt_s3_body(ck, raw))
+    except s3_client.exceptions.NoSuchKey:
+        raise FileNotFoundError(f"No analysis found at: {', '.join(paths_tried)}")
+
+
 def _handle_prototype(event, user):
     try:
         path_params = event.get('pathParameters', {})
         client_id = path_params.get('id', '').strip()
+        query_params = event.get('queryStringParameters') or {}
+        engagement_id = query_params.get('engagement_id', '').strip() or None
 
         if not client_id:
             return {
@@ -74,23 +116,22 @@ def _handle_prototype(event, user):
         if user.get('is_admin'):
             cur.execute("""
                 SELECT company_name, website_url, contact_name, contact_title,
-                       industry, description, pain_point, encryption_key, poc_scope
+                       industry, description, pain_point, encryption_key
                 FROM clients
                 WHERE s3_folder = %s
             """, (client_id,))
         else:
             cur.execute("""
                 SELECT company_name, website_url, contact_name, contact_title,
-                       industry, description, pain_point, encryption_key, poc_scope
+                       industry, description, pain_point, encryption_key
                 FROM clients
                 WHERE s3_folder = %s AND user_id = %s
             """, (client_id, user['user_id']))
 
         row = cur.fetchone()
-        cur.close()
-        conn.close()
-
         if not row:
+            cur.close()
+            conn.close()
             return {
                 'statusCode': 404,
                 'headers': CORS_HEADERS,
@@ -98,10 +139,9 @@ def _handle_prototype(event, user):
             }
 
         ck = unwrap_client_key(row[7]) if row[7] else None
-        poc_scope = row[8] if len(row) > 8 else None
-        if isinstance(poc_scope, str):
-            try: poc_scope = json.loads(poc_scope)
-            except: poc_scope = None
+        poc_scope = _load_scope(cur, client_id, engagement_id)
+        cur.close()
+        conn.close()
 
         company_name = row[0] or 'Unknown Company'
         website_url = row[1] or ''
@@ -111,14 +151,10 @@ def _handle_prototype(event, user):
         description = row[5] or ''
         pain_point = row[6] or ''
 
-        # Read analysis.json from S3 (decrypt with client key)
-        s3_key = f"{client_id}/results/analysis.json"
+        # Read analysis.json from S3 (engagement-scoped with root fallback)
         try:
-            response = s3_client.get_object(Bucket=BUCKET_NAME, Key=s3_key)
-            raw = response['Body'].read()
-            decrypted = maybe_decrypt_s3_body(ck, raw)
-            analysis = json.loads(decrypted)
-        except s3_client.exceptions.NoSuchKey:
+            analysis = _load_analysis(client_id, engagement_id, ck)
+        except FileNotFoundError:
             return {
                 'statusCode': 404,
                 'headers': CORS_HEADERS,

@@ -92,6 +92,21 @@ def _run_migrations():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_engagements_client_id ON engagements(client_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_engagements_status ON engagements(status)")
         cur.execute("ALTER TABLE enrichments ADD COLUMN IF NOT EXISTS engagement_id UUID")
+        cur.execute("ALTER TABLE engagements ADD COLUMN IF NOT EXISTS poc_scope JSONB")
+        # Migrate existing clients.poc_scope to most recent engagement
+        cur.execute("""
+            UPDATE engagements e
+            SET poc_scope = c.poc_scope
+            FROM clients c
+            WHERE e.client_id = c.id
+              AND c.poc_scope IS NOT NULL
+              AND e.poc_scope IS NULL
+              AND e.id = (
+                  SELECT id FROM engagements
+                  WHERE client_id = c.id
+                  ORDER BY created_at DESC LIMIT 1
+              )
+        """)
         conn.commit()
         cur.close()
         conn.close()
@@ -1385,34 +1400,39 @@ def handle_proxy(event, user):
 
 
 def handle_get_scope(event, user):
-    """GET /clients/scope?client_id=X — Return current POC scope."""
+    """GET /clients?action=scope&engagement_id=X — Return POC scope for an engagement."""
     params = event.get('queryStringParameters') or {}
+    engagement_id = params.get('engagement_id', '').strip()
     client_id = params.get('client_id', '').strip()
-    if not client_id:
-        return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'client_id required'})}
+    if not engagement_id and not client_id:
+        return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'engagement_id or client_id required'})}
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT poc_scope FROM clients WHERE s3_folder = %s", (client_id,))
+        if engagement_id:
+            cur.execute("SELECT poc_scope FROM engagements WHERE id = %s", (engagement_id,))
+        else:
+            # Fallback: read from client-level poc_scope (legacy)
+            cur.execute("SELECT poc_scope FROM clients WHERE s3_folder = %s", (client_id,))
         row = cur.fetchone()
         cur.close()
         conn.close()
         if not row:
-            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Client not found'})}
-        scope = row[0]  # JSONB or None
-        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'poc_scope': scope})}
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Not found'})}
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'poc_scope': row[0]})}
     except Exception as e:
         print(f"Error getting scope: {e}")
         return {'statusCode': 500, 'headers': CORS_HEADERS, 'body': json.dumps({'error': str(e)})}
 
 
 def handle_update_scope(event, user):
-    """PUT /clients/scope — Set POC scope for a client."""
+    """PUT /clients?action=scope — Set POC scope for an engagement (or client fallback)."""
     try:
         body = json.loads(event.get('body', '{}'))
+        engagement_id = body.get('engagement_id', '').strip()
         client_id = body.get('client_id', '').strip()
-        if not client_id:
-            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'client_id required'})}
+        if not engagement_id and not client_id:
+            return {'statusCode': 400, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'engagement_id or client_id required'})}
 
         scope_data = {
             'problems': body.get('problems', []),
@@ -1423,15 +1443,21 @@ def handle_update_scope(event, user):
 
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute(
-            "UPDATE clients SET poc_scope = %s WHERE s3_folder = %s RETURNING id",
-            (json.dumps(scope_data), client_id)
-        )
+        if engagement_id:
+            cur.execute(
+                "UPDATE engagements SET poc_scope = %s WHERE id = %s RETURNING id",
+                (json.dumps(scope_data), engagement_id)
+            )
+        else:
+            cur.execute(
+                "UPDATE clients SET poc_scope = %s WHERE s3_folder = %s RETURNING id",
+                (json.dumps(scope_data), client_id)
+            )
         row = cur.fetchone()
         if not row:
             cur.close()
             conn.close()
-            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Client not found'})}
+            return {'statusCode': 404, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Not found'})}
         conn.commit()
         cur.close()
         conn.close()
@@ -2299,6 +2325,7 @@ def _format_engagement(row, client_key=None):
         'created_at': row[8].isoformat() if row[8] else None,
         'updated_at': row[9].isoformat() if row[9] else None,
         'hubspot_deal_id': row[10] or '',
+        'poc_scope': row[11] if len(row) > 11 else None,
     }
 
 
@@ -2317,7 +2344,7 @@ def handle_list_engagements(event, user):
             cur.execute("""
                 SELECT e.id, e.client_id, e.name, e.focus_area, e.contacts_json,
                        e.status, e.approved_at, e.approved_by,
-                       e.created_at, e.updated_at, e.hubspot_deal_id
+                       e.created_at, e.updated_at, e.hubspot_deal_id, e.poc_scope
                 FROM engagements e
                 JOIN clients c ON c.id = e.client_id
                 WHERE e.id = %s
@@ -2346,7 +2373,7 @@ def handle_list_engagements(event, user):
         cur.execute("""
             SELECT e.id, e.client_id, e.name, e.focus_area, e.contacts_json,
                    e.status, e.approved_at, e.approved_by,
-                   e.created_at, e.updated_at, e.hubspot_deal_id
+                   e.created_at, e.updated_at, e.hubspot_deal_id, e.poc_scope
             FROM engagements e
             JOIN clients c ON c.id = e.client_id
             WHERE c.s3_folder = %s

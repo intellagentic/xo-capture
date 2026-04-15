@@ -9890,21 +9890,12 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
     }
   }
 
-  // Sync POC scope from client data
+  // Sync POC scope from active engagement (or null if no engagement)
   useEffect(() => {
-    if (currentClient?.poc_scope) setPocScope(currentClient.poc_scope)
+    if (activeEngagement?.poc_scope) setPocScope(activeEngagement.poc_scope)
     else setPocScope(null)
-  }, [currentClient])
-
-  // Null scope when engagement changes (scope is stale against a different enrichment)
-  const prevEngagementRef = React.useRef(activeEngagement?.id)
-  useEffect(() => {
-    if (prevEngagementRef.current !== undefined && prevEngagementRef.current !== activeEngagement?.id) {
-      setPocScope(null)
-      setScopeExpanded(false)
-    }
-    prevEngagementRef.current = activeEngagement?.id
-  }, [activeEngagement?.id])
+    setScopeExpanded(false)
+  }, [activeEngagement?.id, activeEngagement?.poc_scope])
 
   const openScopeModal = () => {
     const problems = displayResults?.problems || []
@@ -9922,11 +9913,12 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   }
 
   const savePocScope = async () => {
+    if (!activeEngagement?.id) return
     setScopeSaving(true)
     try {
       const res = await fetch(`${API_BASE}/clients?action=scope`, {
         method: 'PUT', headers: getAuthHeaders(),
-        body: JSON.stringify({ client_id: clientId, problems: [...scopeProblems], new_components: [...scopeComponents] })
+        body: JSON.stringify({ engagement_id: activeEngagement.id, problems: [...scopeProblems], new_components: [...scopeComponents] })
       })
       if (res.ok) {
         const data = await res.json()
@@ -10313,7 +10305,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 onClick={async () => {
                   setProtoDownloading(true)
                   try {
-                    const res = await fetch(`${API_BASE}/rapid-prototype/${clientId}`, { headers: getAuthHeaders() })
+                    const res = await fetch(`${API_BASE}/rapid-prototype/${clientId}${activeEngagement?.id ? `?engagement_id=${activeEngagement.id}` : ''}`, { headers: getAuthHeaders() })
                     if (!res.ok) throw new Error('Failed to generate spec')
                     const blob = await res.blob()
                     const url = URL.createObjectURL(blob)
@@ -10606,7 +10598,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                     e.stopPropagation()
                     setProtoDownloading(true)
                     try {
-                      const res = await fetch(`${API_BASE}/rapid-prototype/${clientId}`, { headers: getAuthHeaders() })
+                      const res = await fetch(`${API_BASE}/rapid-prototype/${clientId}${activeEngagement?.id ? `?engagement_id=${activeEngagement.id}` : ''}`, { headers: getAuthHeaders() })
                       if (!res.ok) throw new Error('Failed to generate spec')
                       const blob = await res.blob()
                       const url = URL.createObjectURL(blob)
@@ -12385,9 +12377,12 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
               </>
             )}
 
+            {!activeEngagement?.id && (
+              <p style={{ fontSize: '0.75rem', color: '#d97706', fontStyle: 'italic', marginTop: '0.75rem' }}>Select an engagement before scoping.</p>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.25rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
               <button onClick={() => setShowScopeModal(false)} style={{ padding: '0.5rem 1rem', background: 'none', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>Cancel</button>
-              <button onClick={savePocScope} disabled={scopeSaving} style={{ padding: '0.5rem 1rem', background: '#0F969C', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: scopeSaving ? 'wait' : 'pointer' }}>
+              <button onClick={savePocScope} disabled={scopeSaving || !activeEngagement?.id} style={{ padding: '0.5rem 1rem', background: activeEngagement?.id ? '#0F969C' : '#d1d5db', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, cursor: (scopeSaving || !activeEngagement?.id) ? 'not-allowed' : 'pointer' }}>
                 {scopeSaving ? 'Saving...' : 'Save Scope'}
               </button>
             </div>
