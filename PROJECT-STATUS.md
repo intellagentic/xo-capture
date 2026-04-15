@@ -1,9 +1,9 @@
 # XO CAPTURE - PROJECT STATUS
 
-**Date:** April 1, 2026
+**Date:** April 15, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.09)
+**Status:** Deployed & Operational (v2.10)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3668,6 +3668,42 @@ Formatting Changes:
 Files Changed:
 - backend/lambdas/brief-download/index.js (buildDocument refactor, S3 skill loading, new component builders)
 - skills/system/brief-formatting.md (parseable component blocks added)
+
+---
+
+**April 15, 2026:**
+
+PR #1 -- Component Library Skill
+- skills/system/component-library.md loaded by enrich Lambda
+- Generator gen_component_library.py scans 01_Components/ READMEs
+- Synced to s3://xo-client-data-mv/_system/skills/ and seeded to DB
+
+PR #2 -- Component Mapping Three-Surface Rendering
+- component_mapping JSON field in enrich Lambda output (fits/extends/new_components/summary_line)
+- Architecture diagram ASCII carries [EXISTING]/[EXTEND]/[NEW] inline tags
+- Results page: admin-only Component Mapping nested under Proposed Architecture, collapsed by default
+- rapid-prototype.md: COMPONENT REUSE MAP section
+
+PR #3 -- rapid-prototype.md Hygiene (c8c9307)
+- Pain_point verbatim dumps fixed (200-char truncate + generic framing)
+- Word-boundary title truncation + [XO + Component] tag prefix stripping
+- Added PROPOSED ARCHITECTURE fenced ASCII to .md
+- Renamed "Out of Scope" to "Weeks 2-3 (Validate & Decide)"
+- SEED DATA uses analysis.sources with [type] reference format
+
+PR #4 -- POC Scoping + [POC]/[PHASE 2] Overlay + Caption Consistency (33a9f8c)
+- clients.poc_scope JSONB + GET/PUT /clients?action=scope endpoints
+- Scope POC modal on Results (admin-only)
+- Status indicator + warning banner; expandable detail when scope set
+- rapid-prototype scope-aware: POC SCOPE header, tag overlay on Component Reuse Map, legend under Proposed Architecture, programmatic summary_line caption
+- Pain Point Target now uses in-scope problem titles
+- Enrich Lambda: model no longer embeds caption inside architecture_diagram
+
+PENDING ITEMS:
+- Re-enrich InXpress to verify Phase 4 (no model caption in architecture_diagram)
+- Move ~/Documents/workspace-check/ to ~/dev/workspace-check/ + push to github.com/intellagentic/workspace-check
+- Optional: rename xo-quickstart repo to xo-capture
+- Component classification quality: add status field (spec/in_build/v1_shipped) to component READMEs
 
 ---
 
