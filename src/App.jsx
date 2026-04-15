@@ -9845,6 +9845,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   const [scopeProblems, setScopeProblems] = useState(new Set())
   const [scopeComponents, setScopeComponents] = useState(new Set())
   const [scopeSaving, setScopeSaving] = useState(false)
+  const [scopeExpanded, setScopeExpanded] = useState(false)
   const [formattedResults,setFormattedResults] = useState([
     {id:"executiveSummary",icon:"TrendingUp",name:"Executive Summary",shortDescription:"Here is our understanding of your business",severity: 'high'},
     {id:"problemsIdentified",icon:"AlertTriangle",name:"Problems Identified",shortDescription:"Key pain points and gaps surfaced by the analysis",severity: 'high'},
@@ -10471,15 +10472,36 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
       {/* POC Scope status + warning */}
       {isAdmin && displayResults?.status === 'complete' && (
         <div style={{ padding: '0 0 0.5rem 0' }}>
-          {pocScope ? (
-            <div style={{ fontSize: '0.75rem', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontWeight: 600, color: '#0F969C' }}>Scope:</span>
-              {pocScope.problems?.length || 0} of {(displayResults.problems || []).length} problems, {pocScope.new_components?.length || 0} of {(displayResults.component_mapping?.new_components || []).length} new components
-              <span style={{ color: '#9ca3af' }}>·</span>
-              Scoped by {(pocScope.scoped_by || '').split('@')[0]}
-              {pocScope.scoped_at && <span style={{ color: '#9ca3af' }}>· {new Date(pocScope.scoped_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>}
+          {pocScope ? (() => {
+            const scopedProblems = (displayResults.problems || []).filter(p => (pocScope.problems || []).includes(slugifyProblem(p.title)))
+            const scopedComps = (displayResults.component_mapping?.new_components || []).filter(n => (pocScope.new_components || []).includes(n.proposed_name))
+            const shortNames = [...scopedProblems.map(p => p.title?.replace(/^Priority\s+\w+\([iv]+\)\s*:\s*/i, '').substring(0, 40)), ...scopedComps.map(n => n.proposed_name)].join(', ')
+            const isShort = shortNames.length < 120
+            return <div onClick={openScopeModal} style={{ cursor: 'pointer', fontSize: '0.75rem', color: '#6b7280' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontWeight: 600, color: '#0F969C' }}>Scope:</span>
+                {isShort ? (
+                  <span>{shortNames}</span>
+                ) : (
+                  <>
+                    <span>{pocScope.problems?.length || 0} of {(displayResults.problems || []).length} problems, {pocScope.new_components?.length || 0} of {(displayResults.component_mapping?.new_components || []).length} new components</span>
+                    <button onClick={(e) => { e.stopPropagation(); setScopeExpanded(!scopeExpanded) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0, display: 'flex', alignItems: 'center' }}>
+                      {scopeExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </button>
+                  </>
+                )}
+                <span style={{ color: '#9ca3af' }}>·</span>
+                <span>Scoped by {(pocScope.scoped_by || '').split('@')[0]}</span>
+                {pocScope.scoped_at && <span style={{ color: '#9ca3af' }}>· {new Date(pocScope.scoped_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>}
+              </div>
+              {!isShort && scopeExpanded && (
+                <div style={{ marginTop: '0.35rem', paddingLeft: '3rem', fontSize: '0.7rem', color: '#6b7280' }}>
+                  {scopedProblems.map((p, i) => <div key={i} style={{ marginBottom: '0.15rem' }}>- {p.title}</div>)}
+                  {scopedComps.map((n, i) => <div key={'c'+i} style={{ marginBottom: '0.15rem', color: '#0F969C' }}>- {n.proposed_name}</div>)}
+                </div>
+              )}
             </div>
-          ) : (
+          })() : (
             <div style={{ background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <AlertTriangle size={14} style={{ flexShrink: 0 }} />
               Scope not set — download will include all enriched problems.
