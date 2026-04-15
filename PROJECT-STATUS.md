@@ -3735,6 +3735,7 @@ Workspace-Check Tooling Migration:
 PENDING ITEMS:
 - ExceptionEngine classification non-determinism -- same component classifies as [NEW] in one run, [EXTENDS] in next. Tighten component-library skill so spec-phase is always [NEW].
 - CS Triage Dashboard + Customer Dashboard rendered as standalone [NEW] boxes in architecture_diagram when they are UI surfaces of ExceptionEngine / CustomerPortal respectively. Needs a ui_surface modeling concept in component READMEs.
+- Generator/skill drift: gen_component_library.py produces the base 108-line template, missing three hand-added sections: (1) status-based tag mapping (spec -> [NEW], in_build/shipped+extending -> [EXTEND], shipped-as-is -> [EXISTING]), (2) Streamline workflow convention (no [NEW] on Streamline sub-workflows), (3) Ingestion path decision rule (Streamline connectors vs XO components). Before next run, bake these into the header template in ~/dev/workspace-check/gen_component_library.py so regeneration doesn't silently wipe them.
 - Optional: rename xo-quickstart repo to xo-capture on GitHub.
 
 ---
