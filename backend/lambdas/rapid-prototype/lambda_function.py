@@ -226,6 +226,37 @@ def build_spec(client_id, company_name, website_url, contact_name,
                 lines.append(f"- [{sev}] {title}")
             lines.append("")
 
+    # COMPONENT REUSE MAP
+    component_mapping = analysis.get('component_mapping', {})
+    if component_mapping and (component_mapping.get('fits') or component_mapping.get('extends') or component_mapping.get('new_components')):
+        lines.append("## COMPONENT REUSE MAP")
+        lines.append("")
+        lines.append("Before building anything new, check what IntellagenticXO already has.")
+        lines.append("")
+        if component_mapping.get('summary_line'):
+            lines.append(f"**{component_mapping['summary_line']}**")
+            lines.append("")
+        for fit in component_mapping.get('fits', []):
+            lines.append(f"### FITS -- {fit.get('component', '')} {fit.get('version', '')}")
+            lines.append(f"- Capability: {fit.get('capability', '')}")
+            lines.append(f"- Action: deploy existing component with config")
+            if fit.get('config_notes'):
+                lines.append(f"- Config notes: {fit['config_notes']}")
+            lines.append("")
+        for ext in component_mapping.get('extends', []):
+            lines.append(f"### EXTENDS -- {ext.get('component', '')} {ext.get('from_version', '')} -> {ext.get('to_version', '')}")
+            lines.append(f"- Capability added: {ext.get('capability', '')}")
+            if ext.get('extension_notes'):
+                lines.append(f"- Extension notes: {ext['extension_notes']}")
+            lines.append("")
+        for new_comp in component_mapping.get('new_components', []):
+            lines.append(f"### NEW COMPONENT NEEDED -- {new_comp.get('proposed_name', '')}")
+            lines.append(f"- Purpose: {new_comp.get('purpose', '')}")
+            if new_comp.get('justification'):
+                lines.append(f"- Justification: {new_comp['justification']}")
+            lines.append(f"- Action: scaffold in 01_Components/{new_comp.get('proposed_name', '')}/; this deployment funds its v1 build")
+            lines.append("")
+
     # WHAT TO BUILD
     lines.append("## WHAT TO BUILD")
     lines.append("")

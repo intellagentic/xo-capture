@@ -1332,7 +1332,9 @@ CLIENT DATA (Uploaded Documents):
 TASK:
 Analyze this business like an MBA analyst presenting on Monday morning.{pain_point_section}
 
-Provide your analysis covering: Executive Summary, Problems Identified, Proposed Architecture, Proposed Data Schema, 7/14/21 Day Action Plan, Bottom Line, Client Summary, and Potential Streamline Applications.
+Provide your analysis covering: Executive Summary, Problems Identified, Proposed Architecture, Component Mapping, Proposed Data Schema, 7/14/21 Day Action Plan, Bottom Line, Client Summary, and Potential Streamline Applications.
+
+ARCHITECTURE DIAGRAM TAGGING: In the architecture_diagram ASCII output, every named component box MUST carry a classification tag: [EXISTING], [EXTEND], or [NEW] based on the Component Library. Immediately after the ASCII diagram, include the summary_line from component_mapping as a one-sentence caption.
 {system_skills_section}
 OUTPUT FORMAT:
 Return ONLY valid JSON in this exact structure. All text fields can include newline characters (\\n) for formatting. Follow the SYSTEM INSTRUCTIONS above for formatting rules:
@@ -1347,7 +1349,19 @@ Return ONLY valid JSON in this exact structure. All text fields can include newl
       "recommendation": "Concrete action: do X, expect Y outcome, costs approximately Z..."
     }}
   ],
-  "architecture_diagram": "ASCII diagram showing proposed system architecture using +, -, |, v, > characters...",
+  "architecture_diagram": "ASCII diagram showing proposed system architecture using +, -, |, v, > characters. Tag every named component box with [EXISTING], [EXTEND], or [NEW]. End with summary_line as a caption.",
+  "component_mapping": {{
+    "fits": [
+      {{"component": "name", "version": "v1", "capability": "what it covers", "config_notes": "specific config needed"}}
+    ],
+    "extends": [
+      {{"component": "name", "from_version": "v1", "to_version": "v1.1", "capability": "what the extension adds", "extension_notes": "specific work"}}
+    ],
+    "new_components": [
+      {{"proposed_name": "PascalCase", "purpose": "one-line", "justification": "why no existing component fits"}}
+    ],
+    "summary_line": "N components. X existing (deploy week 1). Y extensions. Z net-new builds."
+  }},
   "schema": {{
     "tables": [
       {{
