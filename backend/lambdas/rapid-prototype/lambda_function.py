@@ -196,8 +196,12 @@ def build_spec(client_id, company_name, website_url, contact_name,
     # Metadata
     lines.append(f"- **Capture ID:** {client_id}")
     lines.append(f"- **Generated:** {today}")
-    pain_short = (pain_point[:200] + '...') if len(pain_point or '') > 200 else (pain_point or '')
-    lines.append(f"- **Pain Point Target:** {pain_short}")
+    if scope_active and scoped_problem_ids:
+        scoped_titles = [p.get('title', '') for p in problems if p.get('id') in scoped_problem_ids]
+        lines.append(f"- **Pain Point Target:** {', '.join(scoped_titles)}")
+    else:
+        primary_title = problems[0].get('title', pain_point or '') if problems else (pain_point or '')
+        lines.append(f"- **Pain Point Target:** {primary_title}")
     lines.append("")
 
     # POC SCOPE (only if scope is set)
@@ -335,9 +339,6 @@ def build_spec(client_id, company_name, website_url, contact_name,
         lines.append("")
         lines.append("Before building anything new, check what IntellagenticXO already has.")
         lines.append("")
-        if component_mapping.get('summary_line'):
-            lines.append(f"**{component_mapping['summary_line']}**")
-            lines.append("")
         for fit in component_mapping.get('fits', []):
             tag = ' [POC]' if scope_active else ''
             lines.append(f"### FITS -- {fit.get('component', '')} {fit.get('version', '')}{tag}")
