@@ -9,6 +9,16 @@ import os
 import re
 from datetime import datetime
 import boto3
+
+
+def slugify_problem(title):
+    """Identical logic to frontend slugifyProblem — lowercase, strip non-alphanum, whitespace to hyphens, trim."""
+    s = (title or '').lower()
+    s = re.sub(r'[^a-z0-9\s-]', '', s)
+    s = re.sub(r'\s+', '-', s)
+    s = re.sub(r'-+', '-', s)
+    s = s.strip('-')
+    return s or 'unknown'
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
     from crypto_helper import unwrap_client_key, decrypt_s3_body, maybe_decrypt_s3_body
@@ -64,14 +74,14 @@ def _handle_prototype(event, user):
         if user.get('is_admin'):
             cur.execute("""
                 SELECT company_name, website_url, contact_name, contact_title,
-                       industry, description, pain_point, encryption_key
+                       industry, description, pain_point, encryption_key, poc_scope
                 FROM clients
                 WHERE s3_folder = %s
             """, (client_id,))
         else:
             cur.execute("""
                 SELECT company_name, website_url, contact_name, contact_title,
-                       industry, description, pain_point, encryption_key
+                       industry, description, pain_point, encryption_key, poc_scope
                 FROM clients
                 WHERE s3_folder = %s AND user_id = %s
             """, (client_id, user['user_id']))
@@ -88,6 +98,10 @@ def _handle_prototype(event, user):
             }
 
         ck = unwrap_client_key(row[7]) if row[7] else None
+        poc_scope = row[8] if len(row) > 8 else None
+        if isinstance(poc_scope, str):
+            try: poc_scope = json.loads(poc_scope)
+            except: poc_scope = None
 
         company_name = row[0] or 'Unknown Company'
         website_url = row[1] or ''
@@ -121,7 +135,8 @@ def _handle_prototype(event, user):
             industry=industry,
             description=description,
             pain_point=pain_point,
-            analysis=analysis
+            analysis=analysis,
+            poc_scope=poc_scope
         )
 
         # Return as markdown attachment
@@ -150,7 +165,8 @@ def _handle_prototype(event, user):
 
 
 def build_spec(client_id, company_name, website_url, contact_name,
-               contact_title, industry, description, pain_point, analysis):
+               contact_title, industry, description, pain_point, analysis,
+               poc_scope=None):
     """Build the full markdown prototype spec."""
 
     today = datetime.utcnow().strftime('%Y-%m-%d')
@@ -160,6 +176,16 @@ def build_spec(client_id, company_name, website_url, contact_name,
     relationships = schema.get('relationships', [])
     plan = analysis.get('plan', [])
     sources = analysis.get('sources', [])
+
+    # POC scope computation
+    scope_active = poc_scope is not None
+    scoped_problem_ids = set(poc_scope.get('problems', [])) if scope_active else None
+    scoped_new_components = set(poc_scope.get('new_components', [])) if scope_active else None
+
+    # Generate stable IDs for problems
+    for p in problems:
+        if not p.get('id'):
+            p['id'] = slugify_problem(p.get('title', ''))
 
     lines = []
 
@@ -173,6 +199,41 @@ def build_spec(client_id, company_name, website_url, contact_name,
     pain_short = (pain_point[:200] + '...') if len(pain_point or '') > 200 else (pain_point or '')
     lines.append(f"- **Pain Point Target:** {pain_short}")
     lines.append("")
+
+    # POC SCOPE (only if scope is set)
+    if scope_active:
+        in_scope_problems = [p for p in problems if p['id'] in scoped_problem_ids]
+        out_scope_problems = [p for p in problems if p['id'] not in scoped_problem_ids]
+        component_mapping = analysis.get('component_mapping', {})
+        in_scope_comps = [n for n in component_mapping.get('new_components', []) if n.get('proposed_name') in scoped_new_components]
+        out_scope_comps = [n for n in component_mapping.get('new_components', []) if n.get('proposed_name') not in scoped_new_components]
+
+        lines.append("## POC SCOPE")
+        lines.append("")
+        lines.append("**In scope (build in 21 days):**")
+        for p in in_scope_problems:
+            lines.append(f"- {p.get('title', '')}")
+        for c in in_scope_comps:
+            lines.append(f"- New component: {c.get('proposed_name', '')}")
+        lines.append("")
+        if out_scope_problems or out_scope_comps:
+            lines.append("**Phase 2 candidates (scaffold data model only, no features/UI):**")
+            for p in out_scope_problems:
+                lines.append(f"- {p.get('title', '')}")
+            for c in out_scope_comps:
+                lines.append(f"- New component: {c.get('proposed_name', '')}")
+            lines.append("")
+        lines.append("**Instruction to build agent:** Build every item tagged [POC] fully -- features, UI, seed data. For [PHASE 2] items, create the data model tables and relationships so the POC is forward-compatible, but skip features, UI screens, API endpoints, and seed data for Phase 2-only entities.")
+        lines.append("")
+        if poc_scope.get('scoped_by'):
+            scoped_date = ''
+            if poc_scope.get('scoped_at'):
+                try:
+                    from datetime import datetime as dt
+                    scoped_date = dt.fromisoformat(poc_scope['scoped_at'].replace('Z', '+00:00')).strftime('%d %b %Y')
+                except: scoped_date = poc_scope['scoped_at'][:10]
+            lines.append(f"Scoped by {poc_scope['scoped_by']} on {scoped_date}.")
+            lines.append("")
 
     # WHAT THIS IS
     lines.append("## WHAT THIS IS")
@@ -234,16 +295,41 @@ def build_spec(client_id, company_name, website_url, contact_name,
 
     # PROPOSED ARCHITECTURE
     arch_diagram = analysis.get('architecture_diagram', '')
+    component_mapping = analysis.get('component_mapping', {})
     if arch_diagram:
         lines.append("## PROPOSED ARCHITECTURE")
         lines.append("")
+        # POC scope legend
+        if scope_active and component_mapping:
+            poc_items = []
+            phase2_items = []
+            for f in component_mapping.get('fits', []):
+                poc_items.append(f"{f.get('component', '')} [FITS]")
+            for e in component_mapping.get('extends', []):
+                poc_items.append(f"{e.get('component', '')} [EXTENDS]")
+            for n in component_mapping.get('new_components', []):
+                name = n.get('proposed_name', '')
+                if name in scoped_new_components:
+                    poc_items.append(f"{name} [NEW]")
+                else:
+                    phase2_items.append(f"{name} [NEW]")
+            lines.append(f"**POC scope:** {', '.join(poc_items)}")
+            if phase2_items:
+                lines.append(f"**Phase 2:** {', '.join(phase2_items)}")
+            lines.append("")
+            lines.append("(See POC SCOPE section above for rationale. Boxes in the diagram below are drawn for the full target architecture.)")
+            lines.append("")
         lines.append("```")
         lines.append(arch_diagram)
         lines.append("```")
         lines.append("")
+        # Programmatic caption (always, regardless of scope)
+        summary_line = component_mapping.get('summary_line', '')
+        if summary_line:
+            lines.append(f"**{summary_line}**")
+            lines.append("")
 
     # COMPONENT REUSE MAP
-    component_mapping = analysis.get('component_mapping', {})
     if component_mapping and (component_mapping.get('fits') or component_mapping.get('extends') or component_mapping.get('new_components')):
         lines.append("## COMPONENT REUSE MAP")
         lines.append("")
@@ -253,24 +339,30 @@ def build_spec(client_id, company_name, website_url, contact_name,
             lines.append(f"**{component_mapping['summary_line']}**")
             lines.append("")
         for fit in component_mapping.get('fits', []):
-            lines.append(f"### FITS -- {fit.get('component', '')} {fit.get('version', '')}")
+            tag = ' [POC]' if scope_active else ''
+            lines.append(f"### FITS -- {fit.get('component', '')} {fit.get('version', '')}{tag}")
             lines.append(f"- Capability: {fit.get('capability', '')}")
             lines.append(f"- Action: deploy existing component with config")
             if fit.get('config_notes'):
                 lines.append(f"- Config notes: {fit['config_notes']}")
             lines.append("")
         for ext in component_mapping.get('extends', []):
-            lines.append(f"### EXTENDS -- {ext.get('component', '')} {ext.get('from_version', '')} -> {ext.get('to_version', '')}")
+            tag = ' [POC]' if scope_active else ''
+            lines.append(f"### EXTENDS -- {ext.get('component', '')} {ext.get('from_version', '')} -> {ext.get('to_version', '')}{tag}")
             lines.append(f"- Capability added: {ext.get('capability', '')}")
             if ext.get('extension_notes'):
                 lines.append(f"- Extension notes: {ext['extension_notes']}")
             lines.append("")
         for new_comp in component_mapping.get('new_components', []):
-            lines.append(f"### NEW COMPONENT NEEDED -- {new_comp.get('proposed_name', '')}")
+            name = new_comp.get('proposed_name', '')
+            tag = ''
+            if scope_active:
+                tag = ' [POC]' if name in scoped_new_components else ' [PHASE 2]'
+            lines.append(f"### NEW COMPONENT NEEDED -- {name}{tag}")
             lines.append(f"- Purpose: {new_comp.get('purpose', '')}")
             if new_comp.get('justification'):
                 lines.append(f"- Justification: {new_comp['justification']}")
-            lines.append(f"- Action: scaffold in 01_Components/{new_comp.get('proposed_name', '')}/; this deployment funds its v1 build")
+            lines.append(f"- Action: scaffold in 01_Components/{name}/; this deployment funds its v1 build")
             lines.append("")
 
     # WHAT TO BUILD
@@ -300,7 +392,24 @@ def build_spec(client_id, company_name, website_url, contact_name,
             tag = tag_match.group(0) + ' ' if tag_match else ''
             stripped = re.sub(r'^\[[^\]]+\]\s*', '', raw).strip()
             title = stripped[:60].rsplit(' ', 1)[0] + '...' if len(stripped) > 60 else stripped
-            lines.append(f"**Feature {i}: {tag}{title}**")
+            # POC/PHASE 2 tag based on component reference
+            scope_tag = ''
+            if scope_active and tag_match:
+                tag_content = tag_match.group(0)[1:-1]  # strip [ ]
+                # Check if any referenced component is Phase 2
+                comp_names = [c.strip() for c in tag_content.replace('XO +', '').replace('XO', '').replace('Streamline', '').split('+')]
+                comp_names = [c for c in comp_names if c]
+                is_phase2 = any(c in (scoped_new_components ^ scoped_new_components) for c in []) if False else False
+                # FITS/EXTENDS always POC; NEW only POC if in scoped_new_components
+                all_new = [n.get('proposed_name', '') for n in component_mapping.get('new_components', [])]
+                phase2_comps = set(all_new) - scoped_new_components
+                if any(c in phase2_comps for c in comp_names):
+                    scope_tag = '[PHASE 2] '
+                else:
+                    scope_tag = '[POC] '
+            elif scope_active:
+                scope_tag = '[POC] '
+            lines.append(f"**Feature {i}: {scope_tag}{tag}{title}**")
             lines.append("")
             if len(stripped) > 60:
                 lines.append(f"_{stripped}_")

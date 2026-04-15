@@ -1334,7 +1334,7 @@ Analyze this business like an MBA analyst presenting on Monday morning.{pain_poi
 
 Provide your analysis covering: Executive Summary, Problems Identified, Proposed Architecture, Component Mapping, Proposed Data Schema, 7/14/21 Day Action Plan, Bottom Line, Client Summary, and Potential Streamline Applications.
 
-ARCHITECTURE DIAGRAM TAGGING: In the architecture_diagram ASCII output, every named component box MUST carry a classification tag: [EXISTING], [EXTEND], or [NEW] based on the Component Library. Immediately after the ASCII diagram, include the summary_line from component_mapping as a one-sentence caption.
+ARCHITECTURE DIAGRAM TAGGING: In the architecture_diagram ASCII output, every named component box MUST carry a classification tag: [EXISTING], [EXTEND], or [NEW] based on the Component Library. Do NOT include a summary caption inside the architecture_diagram. The caption will be appended programmatically from component_mapping.summary_line.
 {system_skills_section}
 OUTPUT FORMAT:
 Return ONLY valid JSON in this exact structure. All text fields can include newline characters (\\n) for formatting. Follow the SYSTEM INSTRUCTIONS above for formatting rules:
@@ -1349,7 +1349,7 @@ Return ONLY valid JSON in this exact structure. All text fields can include newl
       "recommendation": "Concrete action: do X, expect Y outcome, costs approximately Z..."
     }}
   ],
-  "architecture_diagram": "ASCII diagram showing proposed system architecture using +, -, |, v, > characters. Tag every named component box with [EXISTING], [EXTEND], or [NEW]. End with summary_line as a caption.",
+  "architecture_diagram": "ASCII diagram showing proposed system architecture using +, -, |, v, > characters. Tag every named component box with [EXISTING], [EXTEND], or [NEW]. Do NOT include a summary caption inside this field.",
   "component_mapping": {{
     "fits": [
       {{"component": "name", "version": "v1", "capability": "what it covers", "config_notes": "specific config needed"}}
