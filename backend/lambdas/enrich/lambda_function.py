@@ -496,7 +496,11 @@ def _run_enrichment_pipeline(event):
         try:
             conn3 = get_db_connection()
             cur3 = conn3.cursor()
-            cur3.execute("SELECT poc_scope FROM clients WHERE s3_folder = %s", (client_id,))
+            # Check engagement-level scope first, then client-level fallback
+            if engagement_id:
+                cur3.execute("SELECT poc_scope FROM engagements WHERE id = %s", (engagement_id,))
+            else:
+                cur3.execute("SELECT poc_scope FROM clients WHERE s3_folder = %s", (client_id,))
             scope_row = cur3.fetchone()
             if scope_row and scope_row[0]:
                 saved_scope = scope_row[0] if isinstance(scope_row[0], dict) else json.loads(scope_row[0])
@@ -508,15 +512,16 @@ def _run_enrichment_pipeline(event):
                     slug = re.sub(r'\s+', '-', slug).strip('-') or 'unknown'
                     new_problem_ids.add(slug)
                 intersection = saved_problem_ids.intersection(new_problem_ids)
+                update_table = "engagements" if engagement_id else "clients"
+                update_where = "id = %s" if engagement_id else "s3_folder = %s"
+                update_id = engagement_id if engagement_id else client_id
                 if saved_problem_ids and not intersection:
-                    # Fully stale — null out scope
-                    cur3.execute("UPDATE clients SET poc_scope = NULL WHERE s3_folder = %s", (client_id,))
+                    cur3.execute(f"UPDATE {update_table} SET poc_scope = NULL WHERE {update_where}", (update_id,))
                     conn3.commit()
                     print(f"POC scope cleared — no problem ID overlap after re-enrichment for {client_id}")
                 elif saved_problem_ids and intersection != saved_problem_ids:
-                    # Partial overlap — keep intersection only
                     saved_scope['problems'] = list(intersection)
-                    cur3.execute("UPDATE clients SET poc_scope = %s WHERE s3_folder = %s", (json.dumps(saved_scope), client_id))
+                    cur3.execute(f"UPDATE {update_table} SET poc_scope = %s WHERE {update_where}", (json.dumps(saved_scope), update_id))
                     conn3.commit()
                     dropped = saved_problem_ids - intersection
                     print(f"POC scope trimmed — kept {len(intersection)}, dropped {len(dropped)} stale IDs for {client_id}: {dropped}")

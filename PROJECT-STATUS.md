@@ -3,7 +3,7 @@
 **Date:** April 15, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.15)
+**Status:** Deployed & Operational (v2.16)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -3741,7 +3741,16 @@ Engagement + Scope Coexistence Fix:
 - Visual separator between engagement banner and scope indicator
 - Debug console.log removed
 
+POC Scope on Engagement:
+- Moved POC scope from clients.poc_scope to engagements.poc_scope
+- DB migration: ALTER TABLE engagements ADD COLUMN poc_scope JSONB + one-time data migration from clients
+- Backend: scope GET/PUT endpoints accept engagement_id (client_id fallback); rapid-prototype + results Lambdas accept engagement_id with root S3 analysis fallback
+- Frontend: scope modal saves to engagement; scope syncs from activeEngagement.poc_scope; modal disabled when no active engagement; prototype download appends ?engagement_id=
+- Fixed missing e.poc_scope in list-engagements SELECT query
+- Enrich Lambda stale-scope check operates on engagement or client table as appropriate
+
 PENDING ITEMS:
+- Drop clients.poc_scope column in follow-up once no fallback hits observed for 30 days
 - ExceptionEngine classification non-determinism -- same component classifies as [NEW] in one run, [EXTENDS] in next. Tighten component-library skill so spec-phase is always [NEW].
 - CS Triage Dashboard + Customer Dashboard rendered as standalone [NEW] boxes in architecture_diagram when they are UI surfaces of ExceptionEngine / CustomerPortal respectively. Needs a ui_surface modeling concept in component READMEs.
 - Generator/skill drift: gen_component_library.py produces the base 108-line template, missing three hand-added sections: (1) status-based tag mapping (spec -> [NEW], in_build/shipped+extending -> [EXTEND], shipped-as-is -> [EXISTING]), (2) Streamline workflow convention (no [NEW] on Streamline sub-workflows), (3) Ingestion path decision rule (Streamline connectors vs XO components). Before next run, bake these into the header template in ~/dev/workspace-check/gen_component_library.py so regeneration doesn't silently wipe them.

@@ -115,6 +115,18 @@ def _get_enrichment_results(client_id, user, engagement_id=None):
         results['status'] = 'complete'
         return results, None
     except s3_client.exceptions.NoSuchKey:
+        # Fallback: if engagement-scoped path missing, try root path
+        if engagement_id:
+            root_key = f"{client_id}/results/analysis.json"
+            try:
+                s3_response = s3_client.get_object(Bucket=BUCKET_NAME, Key=root_key)
+                raw = s3_response['Body'].read()
+                decrypted = maybe_decrypt_s3_body(ck, raw)
+                results = json.loads(decrypted)
+                results['status'] = 'complete'
+                return results, None
+            except s3_client.exceptions.NoSuchKey:
+                pass
         return None, {
             'statusCode': 200,
             'headers': CORS_HEADERS,
