@@ -12,7 +12,7 @@
 # PREREQUISITES:
 #   - AWS CLI configured with credentials for account 290528720671
 #   - Node.js and npm installed
-#   - Run from the xo-quickstart (xo-prototype) project root
+#   - Run from the xo-capture project root
 #
 # TEAM:
 #   Ken Scott       -- Co-Founder & President
@@ -86,7 +86,7 @@ echo ""
 # Verify we are in the project root
 if [ ! -f "package.json" ]; then
     echo -e "${RED}ERROR: package.json not found.${NC}"
-    echo "Run this script from the xo-quickstart project root."
+    echo "Run this script from the xo-capture project root."
     echo "  cd ~/Desktop/xo-prototype && ./deploy-xo-capture.sh"
     exit 1
 fi

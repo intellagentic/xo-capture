@@ -3,9 +3,9 @@
 **Date:** April 15, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.13)
+**Status:** Deployed & Operational (v2.14)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
-**Repository:** https://github.com/intellagentic/xo-quickstart
+**Repository:** https://github.com/intellagentic/xo-capture
 
 ---
 
@@ -1723,7 +1723,7 @@ cd backend
 14. **Git & GitHub**
     - Initialized git repository
     - Created .gitignore (excludes secrets, node_modules, dist)
-    - Created GitHub repo: intellagentic/xo-quickstart
+    - Created GitHub repo: intellagentic/xo-capture (originally xo-quickstart)
     - Pushed initial commit with full codebase
 
 15. **Hamburger Menu Sidebar** (Session 2 - Feb 28, 2026)
@@ -2592,7 +2592,7 @@ The XO Capture prototype is **fully operational** and deployed to production. A 
 - Claude API: $10-50 (variable based on document size)
 - **Total: $35-75/month** for prototype usage
 
-**Repository:** All code is version-controlled at https://github.com/intellagentic/xo-quickstart with proper .gitignore to exclude secrets.
+**Repository:** All code is version-controlled at https://github.com/intellagentic/xo-capture with proper .gitignore to exclude secrets.
 
 **v1.51 — Dashboard Filters: Industry Pills + Domain Partner Dropdown**
 - Dashboard now has industry pill filters (horizontal row, red when active) with client counts per industry
@@ -3736,7 +3736,11 @@ PENDING ITEMS:
 - ExceptionEngine classification non-determinism -- same component classifies as [NEW] in one run, [EXTENDS] in next. Tighten component-library skill so spec-phase is always [NEW].
 - CS Triage Dashboard + Customer Dashboard rendered as standalone [NEW] boxes in architecture_diagram when they are UI surfaces of ExceptionEngine / CustomerPortal respectively. Needs a ui_surface modeling concept in component READMEs.
 - Generator/skill drift: gen_component_library.py produces the base 108-line template, missing three hand-added sections: (1) status-based tag mapping (spec -> [NEW], in_build/shipped+extending -> [EXTEND], shipped-as-is -> [EXISTING]), (2) Streamline workflow convention (no [NEW] on Streamline sub-workflows), (3) Ingestion path decision rule (Streamline connectors vs XO components). Before next run, bake these into the header template in ~/dev/workspace-check/gen_component_library.py so regeneration doesn't silently wipe them.
-- Optional: rename xo-quickstart repo to xo-capture on GitHub.
+Repo Rename xo-quickstart -> xo-capture:
+- GitHub repo renamed via gh repo rename
+- Updated all path references in CLAUDE.md, skills/README.md, PROJECT-STATUS.md, deploy-xo-capture.sh
+- RDS instance name (xo-quickstart-db) and DB name (xo_quickstart) left unchanged -- infrastructure names, not repo refs
+- GitHub auto-redirects old URL to new
 
 ---
 

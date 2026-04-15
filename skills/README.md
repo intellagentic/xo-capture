@@ -6,7 +6,7 @@
 System skills injected into every enrichment call. Source of truth is in git -- deploy to S3 with:
 
 ```bash
-aws s3 sync ~/xo-quickstart/skills/system/ s3://xo-client-data-mv/_system/skills/ --profile intellagentic --region eu-west-2
+aws s3 sync ~/xo-capture/skills/system/ s3://xo-client-data-mv/_system/skills/ --profile intellagentic --region eu-west-2
 ```
 
 These are also seeded into the `skills` DB table (with `client_id IS NULL`) by the clients Lambda migration.
