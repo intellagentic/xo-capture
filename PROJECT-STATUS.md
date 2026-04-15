@@ -3699,19 +3699,27 @@ PR #4 -- POC Scoping + [POC]/[PHASE 2] Overlay + Caption Consistency (33a9f8c)
 - Pain Point Target now uses in-scope problem titles
 - Enrich Lambda: model no longer embeds caption inside architecture_diagram
 
+Component Classification Quality (9b8645f):
+- Status-based tag mapping: v1_shipped as-is = [EXISTING], adding capability = [EXTEND], spec = [NEW]
+- Tag format enforcement: exactly [EXISTING], [EXTEND], or [NEW] -- no variants
+- Streamline convention: platform layer not component, workflows configured not built
+- Component status fields added to CarrierGate and ExceptionEngine READMEs
+
 Stale Scope Detection (9f18fad):
 - rapid-prototype: detects stale scope (no problem ID overlap), falls back to full scope with warning
 - Enrich Lambda: auto-clears or trims poc_scope on re-enrichment when problem IDs change
 - Frontend: red warning banner "Scope is stale" with Re-scope link
 
-Streamline/XO Ingestion Decision Rule:
+Streamline/XO Ingestion Decision Rule (3d2143e):
 - component-library.md skill updated with ingestion path decision rule
 - Streamline connector vs XO component classification for data sources
 - Division of responsibility: Streamline owns transport + connectors, XO owns persistent state + domain logic
 
 PENDING ITEMS:
-- Move ~/Documents/workspace-check/ to ~/dev/workspace-check/ + push to github.com/intellagentic/workspace-check
-- Optional: rename xo-quickstart repo to xo-capture
+- ExceptionEngine classification non-determinism -- same component classifies as [NEW] in one run, [EXTENDS] in next. Tighten component-library skill so spec-phase is always [NEW].
+- CS Triage Dashboard + Customer Dashboard rendered as standalone [NEW] boxes in architecture_diagram when they are UI surfaces of ExceptionEngine / CustomerPortal respectively. Needs a ui_surface modeling concept in component READMEs.
+- Move ~/Documents/workspace-check/ to ~/dev/workspace-check/ + push to github.com/intellagentic/workspace-check.
+- Optional: rename xo-quickstart repo to xo-capture on GitHub.
 
 ---
 
