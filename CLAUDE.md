@@ -72,7 +72,7 @@ npm run build        # production build
 Results Lambda -- root .py files are source of truth. Copy into package/ before zipping:
 
 ```bash
-cd ~/xo-quickstart/backend/lambdas/results && \
+cd ~/xo-capture/backend/lambdas/results && \
 cp lambda_function.py package/lambda_function.py && \
 cp auth_helper.py package/auth_helper.py && \
 cp crypto_helper.py package/crypto_helper.py && \
@@ -88,7 +88,7 @@ aws lambda update-function-code \
 All other Lambdas deploy from their root directory:
 
 ```bash
-cd ~/xo-quickstart/backend/lambdas/{lambda-name} && \
+cd ~/xo-capture/backend/lambdas/{lambda-name} && \
 zip -r /tmp/{lambda-name}.zip . -x "*.git*" > /dev/null && \
 aws lambda update-function-code \
   --function-name {lambda-name} \
@@ -100,7 +100,7 @@ aws lambda update-function-code \
 Frontend deploy:
 
 ```bash
-cd ~/xo-quickstart && npm run build && \
+cd ~/xo-capture && npm run build && \
 aws s3 sync dist/ s3://xo-prototype-frontend-mv --delete --profile intellagentic && \
 aws cloudfront create-invalidation --distribution-id E7PWZX8BT02CE --paths "/*" --profile intellagentic
 ```
@@ -108,5 +108,5 @@ aws cloudfront create-invalidation --distribution-id E7PWZX8BT02CE --paths "/*" 
 System skills deploy (sync git to S3):
 
 ```bash
-aws s3 sync ~/xo-quickstart/skills/system/ s3://xo-client-data-mv/_system/skills/ --profile intellagentic --region eu-west-2
+aws s3 sync ~/xo-capture/skills/system/ s3://xo-client-data-mv/_system/skills/ --profile intellagentic --region eu-west-2
 ```
