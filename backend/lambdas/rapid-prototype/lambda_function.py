@@ -6,6 +6,7 @@ from enrichment results + client metadata.
 
 import json
 import os
+import re
 from datetime import datetime
 import boto3
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
@@ -169,13 +170,14 @@ def build_spec(client_id, company_name, website_url, contact_name,
     # Metadata
     lines.append(f"- **Capture ID:** {client_id}")
     lines.append(f"- **Generated:** {today}")
-    lines.append(f"- **Pain Point Target:** {pain_point}")
+    pain_short = (pain_point[:200] + '...') if len(pain_point or '') > 200 else (pain_point or '')
+    lines.append(f"- **Pain Point Target:** {pain_short}")
     lines.append("")
 
     # WHAT THIS IS
     lines.append("## WHAT THIS IS")
     lines.append("")
-    lines.append(f"A rapid prototype that demonstrates how to solve: {pain_point}")
+    lines.append(f"A rapid prototype that demonstrates how IntellagenticXO addresses {company_name}'s priority operational pain points.")
     lines.append("")
 
     # THE CLIENT
@@ -197,8 +199,12 @@ def build_spec(client_id, company_name, website_url, contact_name,
     # THE PROBLEM
     lines.append("## THE PROBLEM")
     lines.append("")
-    lines.append(f"**What They Said:** {pain_point}")
-    lines.append("")
+    summary_text = analysis.get('summary', '')
+    if not summary_text and problems:
+        summary_text = problems[0].get('evidence', '')
+    if summary_text:
+        lines.append(f"**Overview:** {summary_text}")
+        lines.append("")
 
     if problems:
         # Sort by severity -- critical first
@@ -225,6 +231,16 @@ def build_spec(client_id, company_name, website_url, contact_name,
                 title = p.get('title', '')
                 lines.append(f"- [{sev}] {title}")
             lines.append("")
+
+    # PROPOSED ARCHITECTURE
+    arch_diagram = analysis.get('architecture_diagram', '')
+    if arch_diagram:
+        lines.append("## PROPOSED ARCHITECTURE")
+        lines.append("")
+        lines.append("```")
+        lines.append(arch_diagram)
+        lines.append("```")
+        lines.append("")
 
     # COMPONENT REUSE MAP
     component_mapping = analysis.get('component_mapping', {})
@@ -279,20 +295,28 @@ def build_spec(client_id, company_name, website_url, contact_name,
         lines.append("### Core Features (Week 1 -- Build These)")
         lines.append("")
         for i, action in enumerate(day7_actions, 1):
-            lines.append(f"**Feature {i}: {action}**")
+            raw = action.split('. ', 1)[-1] if '. ' in action else action
+            tag_match = re.match(r'^\[[^\]]+\]', raw)
+            tag = tag_match.group(0) + ' ' if tag_match else ''
+            stripped = re.sub(r'^\[[^\]]+\]\s*', '', raw).strip()
+            title = stripped[:60].rsplit(' ', 1)[0] + '...' if len(stripped) > 60 else stripped
+            lines.append(f"**Feature {i}: {tag}{title}**")
             lines.append("")
-            lines.append(f"- Screen: {action} dashboard/view")
+            if len(stripped) > 60:
+                lines.append(f"_{stripped}_")
+                lines.append("")
+            lines.append(f"- Screen: dashboard/view for this feature")
             lines.append(f"- Components: Data table, filters, action buttons")
-            lines.append(f"- API: CRUD endpoints for this feature")
+            lines.append(f"- API: CRUD endpoints")
             lines.append("")
 
     if day14_actions or day21_actions:
-        lines.append("### Out of Scope (Future Phases)")
+        lines.append("### Weeks 2-3 (Validate & Decide)")
         lines.append("")
         for action in day14_actions:
-            lines.append(f"- [Day 14] {action}")
+            lines.append(f"- [Week 2] {action}")
         for action in day21_actions:
-            lines.append(f"- [Day 21] {action}")
+            lines.append(f"- [Week 3] {action}")
         lines.append("")
 
     # DATABASE SCHEMA
@@ -326,16 +350,19 @@ def build_spec(client_id, company_name, website_url, contact_name,
     # SEED DATA
     lines.append("## SEED DATA")
     lines.append("")
-    lines.append("Generate synthetic seed data for all tables above. Base it on:")
+    lines.append("Generate synthetic seed data for all tables above. Base it on these data sources:")
     lines.append("")
     if sources:
+        seen = set()
         for source in sources:
-            name = source.get('name', source.get('filename', 'unknown'))
-            lines.append(f"- Source: {name}")
-    if problems:
-        for p in problems:
-            if p.get('evidence'):
-                lines.append(f"- Evidence: {p['evidence']}")
+            src_type = source.get('type', 'unknown')
+            src_ref = source.get('reference', source.get('name', source.get('filename', 'unknown')))
+            key = f"{src_type}:{src_ref}"
+            if key not in seen:
+                seen.add(key)
+                lines.append(f"- [{src_type}] {src_ref}")
+    else:
+        lines.append("- No specific sources identified. Use industry-appropriate sample data.")
     lines.append("")
     lines.append("Create at least 20 realistic records per table. Use industry-appropriate terminology.")
     lines.append("")
@@ -362,7 +389,10 @@ def build_spec(client_id, company_name, website_url, contact_name,
 
     if day7_actions:
         for i, action in enumerate(day7_actions, 1):
-            lines.append(f"### {action} Screen")
+            raw = action.split('. ', 1)[-1] if '. ' in action else action
+            stripped = re.sub(r'^\[[^\]]+\]\s*', '', raw).strip()
+            title = stripped[:60].rsplit(' ', 1)[0] + '...' if len(stripped) > 60 else stripped
+            lines.append(f"### {title}")
             lines.append("")
             lines.append(f"- List view with filterable table")
             lines.append(f"- Detail view with edit form")
@@ -422,9 +452,9 @@ def build_spec(client_id, company_name, website_url, contact_name,
     lines.append("## BOTTOM LINE")
     lines.append("")
     if contact_name:
-        lines.append(f"This prototype demonstrates to {contact_name} that \"{pain_point}\" can be solved with software.")
+        lines.append(f"This prototype demonstrates to {contact_name} that {company_name}'s operational priorities can be addressed with software -- fast, specific, and measurable.")
     else:
-        lines.append(f"This prototype demonstrates that \"{pain_point}\" can be solved with software.")
+        lines.append(f"This prototype demonstrates that {company_name}'s operational priorities can be addressed with software -- fast, specific, and measurable.")
     lines.append("")
     lines.append("The demo walkthrough should take 4 minutes:")
     lines.append("1. Show the dashboard with real-looking data")
