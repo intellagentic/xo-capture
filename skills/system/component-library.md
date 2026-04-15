@@ -20,6 +20,8 @@ Always state which of the three applies, name the component (if any), and explai
 
 ## Output expectation
 
+In the `component_mapping` JSON field, classify every capability and populate `summary_line`. In the `architecture_diagram` ASCII output, tag each named component box with `[EXISTING]`, `[EXTEND]`, or `[NEW]`, and emit `summary_line` as a caption sentence immediately after the diagram.
+
 In the Results section, include a **Component Mapping** block that lists every capability identified and its classification. This is as important as the Problems and Action Plan blocks — it's how IntellagenticXO decides whether a deployment is mostly configuration (cheap, fast) or requires new component work (slower, first-deployment-funds-build).
 
 ## The library

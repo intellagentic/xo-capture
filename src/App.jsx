@@ -9835,6 +9835,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
   const [reviewStatus, setReviewStatus] = useState(null) // null | 'saved' | 'approved'
   const [currentClient,setCurrentClient]=useState(null)
   const [expandedResult,setExpandedResult]= useState({id:"executiveSummary",name:"Executive Summary",shortDescription:"Here is our understanding of your business",severity: 'high'});
+  const [componentMappingExpanded, setComponentMappingExpanded] = useState(false);
   const [formattedResults,setFormattedResults] = useState([
     {id:"executiveSummary",icon:"TrendingUp",name:"Executive Summary",shortDescription:"Here is our understanding of your business",severity: 'high'},
     {id:"problemsIdentified",icon:"AlertTriangle",name:"Problems Identified",shortDescription:"Key pain points and gaps surfaced by the analysis",severity: 'high'},
@@ -11189,6 +11190,56 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
             </pre>
                                 </div>
                               </div>
+                          )}
+
+                          {/* Component Mapping (admin only, collapsed by default) */}
+                          {isAdmin && displayResults.component_mapping && (
+                            <div className="panel" style={{marginTop:"20px",marginBottom:"10px"}}>
+                              <div className="panel-header" onClick={() => setComponentMappingExpanded(!componentMappingExpanded)} style={{ cursor: 'pointer' }}>
+                                <div className="panel-header-left">
+                                  <Database size={20} className="icon-red" />
+                                  <h2>Component Mapping</h2>
+                                  <span className="badge-count blue">{(displayResults.component_mapping.fits?.length || 0) + (displayResults.component_mapping.extends?.length || 0) + (displayResults.component_mapping.new_components?.length || 0)}</span>
+                                </div>
+                                {componentMappingExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                              </div>
+                              {componentMappingExpanded && (() => {
+                                const cm = displayResults.component_mapping
+                                return <div style={{ padding: '1.25rem' }}>
+                                  {cm.summary_line && <div style={{ background: '#EDF2F8', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 600, color: '#1B2A4A' }}>{cm.summary_line}</div>}
+                                  {cm.fits && cm.fits.length > 0 && <>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#22c55e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>FITS -- Existing Components</div>
+                                    {cm.fits.map((f, i) => (
+                                      <div key={i} style={{ borderLeft: '4px solid #22c55e', background: '#f0fdf4', borderRadius: 6, padding: '0.75rem 1rem', marginBottom: '0.5rem' }}>
+                                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1a1a2e' }}>{f.component} {f.version && <span style={{ color: '#6b7280', fontWeight: 400 }}>{f.version}</span>}</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#333', marginTop: '0.25rem' }}>{f.capability}</div>
+                                        {f.config_notes && <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontStyle: 'italic' }}>Config: {f.config_notes}</div>}
+                                      </div>
+                                    ))}
+                                  </>}
+                                  {cm.extends && cm.extends.length > 0 && <>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '1rem', marginBottom: '0.5rem' }}>EXTENDS -- Component Extensions</div>
+                                    {cm.extends.map((e, i) => (
+                                      <div key={i} style={{ borderLeft: '4px solid #d97706', background: '#fffbeb', borderRadius: 6, padding: '0.75rem 1rem', marginBottom: '0.5rem' }}>
+                                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1a1a2e' }}>{e.component} {e.from_version} → {e.to_version}</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#333', marginTop: '0.25rem' }}>{e.capability}</div>
+                                        {e.extension_notes && <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontStyle: 'italic' }}>Extension: {e.extension_notes}</div>}
+                                      </div>
+                                    ))}
+                                  </>}
+                                  {cm.new_components && cm.new_components.length > 0 && <>
+                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '1rem', marginBottom: '0.5rem' }}>NEW COMPONENT NEEDED</div>
+                                    {cm.new_components.map((n, i) => (
+                                      <div key={i} style={{ borderLeft: '4px solid #dc2626', background: '#fef2f2', borderRadius: 6, padding: '0.75rem 1rem', marginBottom: '0.5rem' }}>
+                                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1a1a2e' }}>{n.proposed_name}</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#333', marginTop: '0.25rem' }}>{n.purpose}</div>
+                                        {n.justification && <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontStyle: 'italic' }}>{n.justification}</div>}
+                                      </div>
+                                    ))}
+                                  </>}
+                                </div>
+                              })()}
+                            </div>
                           )}
 
                           {/* Proposed Schema */}
