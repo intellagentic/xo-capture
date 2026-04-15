@@ -9147,42 +9147,51 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
               </p>
 
               {!hubspotConnected && (
-                <button
-                  onClick={async () => {
-                    setHubspotConnecting(true)
-                    try {
-                      const res = await fetch(`${API_BASE}/hubspot/connect`, {
-                        method: 'POST',
-                        headers: getAuthHeaders(),
-                      })
-                      const data = await res.json()
-                      if (res.ok && data.authorization_url) {
-                        window.open(data.authorization_url, '_blank')
-                      } else {
-                        alert(data.error || 'Failed to initiate HubSpot connection')
+                <div>
+                  <button
+                    onClick={async () => {
+                      setHubspotConnecting(true)
+                      try {
+                        const res = await fetch(`${API_BASE}/hubspot/connect`, {
+                          method: 'POST',
+                          headers: getAuthHeaders(),
+                        })
+                        const data = await res.json()
+                        if (res.ok && data.authorization_url) {
+                          window.open(data.authorization_url, '_blank')
+                        } else if (res.ok && data.connected) {
+                          setHubspotConnected(true)
+                        } else if (res.ok && data.status === 'private_app' && !data.connected) {
+                          alert('Private App token not configured. Set HUBSPOT_PRIVATE_TOKEN in the Lambda environment.')
+                        } else {
+                          alert(data.error || 'Failed to initiate HubSpot connection')
+                        }
+                      } catch (err) {
+                        alert('Failed to connect: ' + err.message)
                       }
-                    } catch (err) {
-                      alert('Failed to connect: ' + err.message)
-                    }
-                    setHubspotConnecting(false)
-                  }}
-                  disabled={hubspotConnecting}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.5rem',
-                    padding: '0.625rem 1.25rem',
-                    background: '#ff7a59', color: '#fff',
-                    border: 'none', borderRadius: 8, fontSize: '0.85rem',
-                    fontWeight: 600, cursor: hubspotConnecting ? 'wait' : 'pointer',
-                    opacity: hubspotConnecting ? 0.7 : 1,
-                  }}
-                >
-                  {hubspotConnecting ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Link size={16} />}
-                  {hubspotConnecting ? 'Connecting...' : 'Connect HubSpot'}
-                </button>
+                      setHubspotConnecting(false)
+                    }}
+                    disabled={hubspotConnecting}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.5rem',
+                      padding: '0.625rem 1.25rem',
+                      background: '#ff7a59', color: '#fff',
+                      border: 'none', borderRadius: 8, fontSize: '0.85rem',
+                      fontWeight: 600, cursor: hubspotConnecting ? 'wait' : 'pointer',
+                      opacity: hubspotConnecting ? 0.7 : 1,
+                    }}
+                    title="Uses a Private App token configured in the Lambda environment. OAuth flow not required."
+                  >
+                    {hubspotConnecting ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Link size={16} />}
+                    {hubspotConnecting ? 'Connecting...' : 'Connect HubSpot'}
+                  </button>
+                  <p style={{ fontSize: '0.65rem', color: C.muted, marginTop: '0.35rem', fontStyle: 'italic' }}>Uses a Private App token configured in the Lambda environment.</p>
+                </div>
               )}
 
               {hubspotConnected && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <p style={{ fontSize: '0.65rem', color: C.muted, fontStyle: 'italic', margin: 0 }}>Connected via Private App token. OAuth flow not required.</p>
                   {hubspotLastSync && (
                     <div style={{
                       padding: '0.5rem 0.75rem',

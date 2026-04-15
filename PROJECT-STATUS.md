@@ -3,7 +3,7 @@
 **Date:** April 15, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.11)
+**Status:** Deployed & Operational (v2.12)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-quickstart
 
@@ -3714,6 +3714,12 @@ Streamline/XO Ingestion Decision Rule (3d2143e):
 - component-library.md skill updated with ingestion path decision rule
 - Streamline connector vs XO component classification for data sources
 - Division of responsibility: Streamline owns transport + connectors, XO owns persistent state + domain logic
+
+HubSpot Configuration Fix:
+- Frontend now handles Private App response (no authorization_url) -- sets hubspotConnected on success
+- Differentiated error: token not set vs token rejected vs OAuth flow
+- Added Private App tooltip on Connect button + italic note when connected
+- Root cause of 401: HubSpot Private App token (pat-eu1-...) returning 401 on /crm/v3/objects/companies -- token may be expired/revoked/scope-limited. Credential issue, not code bug.
 
 PENDING ITEMS:
 - ExceptionEngine classification non-determinism -- same component classifies as [NEW] in one run, [EXTENDS] in next. Tighten component-library skill so spec-phase is always [NEW].
