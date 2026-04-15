@@ -6,6 +6,7 @@ from enrichment results + client metadata.
 
 import json
 import os
+import re
 from datetime import datetime
 import boto3
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
@@ -294,12 +295,15 @@ def build_spec(client_id, company_name, website_url, contact_name,
         lines.append("### Core Features (Week 1 -- Build These)")
         lines.append("")
         for i, action in enumerate(day7_actions, 1):
-            title = action.split('. ', 1)[-1] if '. ' in action else action
-            title_short = title[:60] if len(title) > 60 else title
-            lines.append(f"**Feature {i}: {title_short}**")
+            raw = action.split('. ', 1)[-1] if '. ' in action else action
+            tag_match = re.match(r'^\[[^\]]+\]', raw)
+            tag = tag_match.group(0) + ' ' if tag_match else ''
+            stripped = re.sub(r'^\[[^\]]+\]\s*', '', raw).strip()
+            title = stripped[:60].rsplit(' ', 1)[0] + '...' if len(stripped) > 60 else stripped
+            lines.append(f"**Feature {i}: {tag}{title}**")
             lines.append("")
-            if len(title) > 60:
-                lines.append(f"_{title}_")
+            if len(stripped) > 60:
+                lines.append(f"_{stripped}_")
                 lines.append("")
             lines.append(f"- Screen: dashboard/view for this feature")
             lines.append(f"- Components: Data table, filters, action buttons")
@@ -385,9 +389,10 @@ def build_spec(client_id, company_name, website_url, contact_name,
 
     if day7_actions:
         for i, action in enumerate(day7_actions, 1):
-            title = action.split('. ', 1)[-1] if '. ' in action else action
-            title_short = title[:60] if len(title) > 60 else title
-            lines.append(f"### {title_short} Screen")
+            raw = action.split('. ', 1)[-1] if '. ' in action else action
+            stripped = re.sub(r'^\[[^\]]+\]\s*', '', raw).strip()
+            title = stripped[:60].rsplit(' ', 1)[0] + '...' if len(stripped) > 60 else stripped
+            lines.append(f"### {title}")
             lines.append("")
             lines.append(f"- List view with filterable table")
             lines.append(f"- Detail view with edit form")
