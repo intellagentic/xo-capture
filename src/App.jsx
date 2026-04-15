@@ -9896,6 +9896,16 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
     else setPocScope(null)
   }, [currentClient])
 
+  // Null scope when engagement changes (scope is stale against a different enrichment)
+  const prevEngagementRef = React.useRef(activeEngagement?.id)
+  useEffect(() => {
+    if (prevEngagementRef.current !== undefined && prevEngagementRef.current !== activeEngagement?.id) {
+      setPocScope(null)
+      setScopeExpanded(false)
+    }
+    prevEngagementRef.current = activeEngagement?.id
+  }, [activeEngagement?.id])
+
   const openScopeModal = () => {
     const problems = displayResults?.problems || []
     const newComps = displayResults?.component_mapping?.new_components || []
@@ -10262,7 +10272,11 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
           <div className="panel-header-left">
             <FileText size={20} className="icon-red" />
             <h2>Analysis Results</h2>
-            <span className="badge-count green">Complete</span>
+            {displayResults?.problems?.length > 0 ? (
+              <span className="badge-count green">Complete</span>
+            ) : displayResults?.status === 'processing' ? (
+              <span className="badge-count" style={{ background: 'rgba(245,158,11,0.15)', color: '#d97706' }}>Processing</span>
+            ) : null}
             <span style={{
               marginLeft: 'auto',
               fontSize: '0.7rem',
@@ -10287,7 +10301,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                       {MODEL_LABELS[preferredModel] || preferredModel}
                     </span>
           </div>
-          {isAdmin && displayResults.status === 'complete' && displayResults.summary && displayResults.summary !== 'Analysis failed' && (
+          {isAdmin && displayResults?.problems?.length > 0 && displayResults.summary && displayResults.summary !== 'Analysis failed' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {streamlineStatus === 'sent' && (
                 <span style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 500 }}>Sent to Streamline</span>
@@ -10483,9 +10497,9 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
       </div>
 
 
-      {/* POC Scope status + warning */}
-      {isAdmin && displayResults?.status === 'complete' && (
-        <div style={{ padding: '0 0 0.5rem 0' }}>
+      {/* POC Scope status + warning — render when analysis has data, regardless of status field */}
+      {isAdmin && displayResults?.problems?.length > 0 && (
+        <div style={{ padding: '0.25rem 0 0.5rem 0', borderTop: '1px solid var(--border-color, #e5e7eb)', marginTop: '0.25rem' }}>
           {pocScope ? (() => {
             const scopedProblems = (displayResults.problems || []).filter(p => (pocScope.problems || []).includes(slugifyProblem(p.title)))
             const scopedComps = (displayResults.component_mapping?.new_components || []).filter(n => (pocScope.new_components || []).includes(n.proposed_name))

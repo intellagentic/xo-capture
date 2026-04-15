@@ -3,7 +3,7 @@
 **Date:** April 15, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.14)
+**Status:** Deployed & Operational (v2.15)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -3731,6 +3731,15 @@ Workspace-Check Tooling Migration:
 - Moved ~/Documents/workspace-check/ to ~/dev/workspace-check/
 - Pushed to github.com/intellagentic/workspace-check (private repo)
 - Contains check.py (workspace validator) + gen_component_library.py (skill generator)
+
+Engagement + Scope Coexistence Fix:
+- Root cause: displayResults.status stuck on 'processing' from engagement-scoped enrichment while data exists -- scope indicator gated on status === 'complete', never rendered
+- Fix: loosened conditionals to check problems.length > 0 instead of status string
+- Badge now conditional: shows "Complete" when data exists, "Processing" when status says so
+- Scope nulled on engagement change via useEffect ref tracking
+- POC Scope line added to rapid-prototype .md metadata
+- Visual separator between engagement banner and scope indicator
+- Debug console.log removed
 
 PENDING ITEMS:
 - ExceptionEngine classification non-determinism -- same component classifies as [NEW] in one run, [EXTENDS] in next. Tighten component-library skill so spec-phase is always [NEW].

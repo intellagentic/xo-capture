@@ -216,6 +216,10 @@ def build_spec(client_id, company_name, website_url, contact_name,
     else:
         primary_title = problems[0].get('title', '') if problems else ''
         lines.append(f"- **Pain Point Target:** {primary_title or 'See analysis'}")
+    if scope_active:
+        total_problems = len(problems)
+        total_new = len(analysis.get('component_mapping', {}).get('new_components', []))
+        lines.append(f"- **POC Scope:** {len(scoped_problem_ids)} of {total_problems} problems, {len(scoped_new_components)} of {total_new} components")
     lines.append("")
 
     # POC SCOPE (only if scope is set)
