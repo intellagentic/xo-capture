@@ -10,17 +10,17 @@ You have access to a library of reusable components that IntellagenticXO has alr
 
 ## Mapping rule
 
-For each distinct capability the partner needs, classify it using the component's **status** field:
+For each distinct capability the partner needs, classify it based on whether the component exists in this library:
 
-1. **[EXISTING]** — the component is `v1_shipped` or `in_build` AND already provides this capability. Deployment is a configuration exercise.
-2. **[EXTEND]** — the component is `v1_shipped` or `in_build` BUT the capability requires a new adapter, classification rule, or config dimension. Flag as a minor version bump.
-3. **[NEW]** — the component is `spec` phase OR nothing in the library maps. Flag as a gap requiring a new component scaffold.
+1. **[EXISTING]** — Component entry exists in the library AND is `v1_shipped` AND this deployment uses it as-is with no changes. Deployment is a configuration exercise.
+2. **[EXTEND]** — Component entry exists in the library (any status: `spec`, `in_build`, or `v1_shipped`) AND this deployment builds against it -- drives v1 build, adds a carrier, adds a capability, extends an interface. Spec-phase components in the library are always [EXTEND], never [NEW].
+3. **[NEW]** — NO entry exists in the library. The component must be proposed, named, and scaffolded from scratch. Only [NEW] components can be deferred to Phase 2.
 
-**Status-to-tag mapping:**
-- `v1_shipped` deploying as-is → `[EXISTING]`
-- `v1_shipped` or `in_build` adding a capability → `[EXTEND]`
-- `spec` phase → `[NEW]` (not yet buildable; this deployment funds its build)
-- No matching component → `[NEW]` (propose a PascalCase name and one-line purpose)
+**The key distinction:** `[NEW]` means "no library scaffolding exists." `[EXTEND]` means "library entry exists; this deployment builds against it." A component in `spec` phase has a library entry with a README, interface sketches, and deployment context -- it is [EXTEND], not [NEW].
+
+**Tag lookup rule:**
+- Component name found in the library below → `[EXISTING]` (if shipped and deploying as-is) or `[EXTEND]` (if any work needed, regardless of component status)
+- Component name NOT found below → `[NEW]` (propose a PascalCase name and one-line purpose)
 
 **Tag format:** Use exactly `[EXISTING]`, `[EXTEND]`, or `[NEW]`. No variants like `[EXISTING - v1]`, `[EXISTING/EXTEND]`, or `[NEW COMPONENT]`. Three tags, three strings, no exceptions.
 
