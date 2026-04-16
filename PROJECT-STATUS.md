@@ -3,7 +3,7 @@
 **Date:** April 15, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.17)
+**Status:** Deployed & Operational (v2.18)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -3753,6 +3753,13 @@ PR #7 -- UI Fixes Post-Merge (cc9fd88):
 - Scope indicator count line restored -- always shows "Scope: N of M problems, X of Y components" with titles below
 - Executive Summary metric card parser switched from period split to semicolon split -- avoids breaking on parenthetical text
 - Two-card render restored
+
+Classification Rule Fix (PR #9, 65821b5):
+- Spec-phase library components now tag as [EXTEND] not [NEW]
+- Rule: library entry exists = [EXTEND]; no library entry = [NEW]
+- Skill updated (component-library.md), reseeded to DB + S3
+- Enrich Lambda unchanged (reads rule from skill at runtime)
+- Verified on InXpress re-enrichment: CarrierGate [EXTEND], ExceptionEngine [EXTEND], CustomerStatusPortal [NEW]
 
 Repo Rename xo-quickstart -> xo-capture:
 - GitHub repo renamed via gh repo rename
