@@ -22,7 +22,7 @@ For each distinct capability the partner needs, classify it based on whether the
 - Component name found in the library below → `[EXISTING]` (if shipped and deploying as-is) or `[EXTEND]` (if any work needed, regardless of component status)
 - Component name NOT found below → `[NEW]` (propose a PascalCase name and one-line purpose)
 
-**Tag format:** Use exactly `[EXISTING]`, `[EXTEND]`, or `[NEW]`. No variants like `[EXISTING - v1]`, `[EXISTING/EXTEND]`, or `[NEW COMPONENT]`. Three tags, three strings, no exceptions.
+**Tag format:** Use exactly `[EXISTING]`, `[EXTEND]`, or `[NEW]`. These are verbatim literals. No variants: no `[EXTENDS]`, `[FITS]`, `[EXISTS]`, `[EXTENDED]`, `[EXISTING - v1]`, `[EXISTING/EXTEND]`, `[NEW COMPONENT]`. Three tags, three strings, no exceptions.
 
 Always state which of the three applies, name the component (if any), and explain the mapping. When a new component is needed, propose a name and a one-line purpose.
 

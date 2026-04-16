@@ -365,9 +365,9 @@ def build_spec(client_id, company_name, website_url, contact_name,
             poc_items = []
             phase2_items = []
             for f in component_mapping.get('fits', []):
-                poc_items.append(f"{f.get('component', '')} [FITS]")
+                poc_items.append(f"{f.get('component', '')} [EXISTING]")
             for e in component_mapping.get('extends', []):
-                poc_items.append(f"{e.get('component', '')} [EXTENDS]")
+                poc_items.append(f"{e.get('component', '')} [EXTEND]")
             for n in component_mapping.get('new_components', []):
                 name = n.get('proposed_name', '')
                 if name in scoped_new_components:
@@ -398,7 +398,7 @@ def build_spec(client_id, company_name, website_url, contact_name,
         lines.append("")
         for fit in component_mapping.get('fits', []):
             tag = ' [POC]' if scope_active else ''
-            lines.append(f"### FITS -- {fit.get('component', '')} {fit.get('version', '')}{tag}")
+            lines.append(f"### EXISTING -- {fit.get('component', '')} {fit.get('version', '')}{tag}")
             lines.append(f"- Capability: {fit.get('capability', '')}")
             lines.append(f"- Action: deploy existing component with config")
             if fit.get('config_notes'):
@@ -406,7 +406,7 @@ def build_spec(client_id, company_name, website_url, contact_name,
             lines.append("")
         for ext in component_mapping.get('extends', []):
             tag = ' [POC]' if scope_active else ''
-            lines.append(f"### EXTENDS -- {ext.get('component', '')} {ext.get('from_version', '')} -> {ext.get('to_version', '')}{tag}")
+            lines.append(f"### EXTEND -- {ext.get('component', '')} {ext.get('from_version', '')} -> {ext.get('to_version', '')}{tag}")
             lines.append(f"- Capability added: {ext.get('capability', '')}")
             if ext.get('extension_notes'):
                 lines.append(f"- Extension notes: {ext['extension_notes']}")
@@ -458,7 +458,7 @@ def build_spec(client_id, company_name, website_url, contact_name,
                 comp_names = [c.strip() for c in tag_content.replace('XO +', '').replace('XO', '').replace('Streamline', '').split('+')]
                 comp_names = [c for c in comp_names if c]
                 is_phase2 = any(c in (scoped_new_components ^ scoped_new_components) for c in []) if False else False
-                # FITS/EXTENDS always POC; NEW only POC if in scoped_new_components
+                # EXISTING/EXTEND always POC; NEW only POC if in scoped_new_components
                 all_new = [n.get('proposed_name', '') for n in component_mapping.get('new_components', [])]
                 phase2_comps = set(all_new) - scoped_new_components
                 if any(c in phase2_comps for c in comp_names):
