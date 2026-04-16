@@ -9671,7 +9671,7 @@ function assembleDeckData(results, client, engagementName) {
   const workflowData = workflows.map((w, i) => ({ title: truncateDeck(w.title, 45), desc: truncateDeck(w.desc, 120), accent: accentCycle[i % 3] }))
 
   const comparisons = []
-  const comparisonCount = Math.min(6, Math.max(problems.length, workflows.length))
+  const comparisonCount = Math.min(6, problems.length, workflows.length)
   for (let i = 0; i < comparisonCount; i++) {
     const prob = problems[i]
     const wf = workflows[i]
