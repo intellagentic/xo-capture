@@ -4793,12 +4793,12 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
   }
 
   // Autosave: called on blur from any form field, or with overrides for immediate-toggle fields
-  const autoSave = async (overrides) => {
+  const autoSave = async (overrides, contactsOverride) => {
     const current = overrides ? { ...formData, ...overrides } : formData
     if (!current.name.trim()) return
     setSaving(true)
     const filteredPainPoints = formPainPoints.filter(p => p.trim())
-    const saveData = { ...current, contacts: formContacts, addresses: formAddresses, painPoints: filteredPainPoints }
+    const saveData = { ...current, contacts: contactsOverride || formContacts, addresses: formAddresses, painPoints: filteredPainPoints }
     setCompanyData(prev => ({ ...prev, ...saveData }))
     if (onClientCreate) await onClientCreate(saveData)
     setSaving(false)
@@ -5269,9 +5269,10 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                                 const s3Res = await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': ct }, body: file })
                                 if (!s3Res.ok) throw new Error('Upload failed')
                                 const key = s3_key || view_url
+                                const updatedContacts = formContacts.map((c, i) => i === idx ? { ...c, photo_url: key } : c)
                                 updateContact(idx, 'photo_url', key)
                                 if (s3_key && view_url) setContactPhotoCache(prev => ({ ...prev, [s3_key]: view_url }))
-                                setTimeout(autoSave, 0)
+                                setTimeout(() => autoSave(null, updatedContacts), 0)
                               } catch (err) { console.error('Photo upload failed:', err); alert('Photo upload failed') }
                             }
                             input.click()
@@ -5284,7 +5285,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                             <div style={{ display: 'flex', gap: '0.25rem', padding: '0.25rem 0.5rem' }}>
                               <input type="url" value={photoUrlInput === ' ' ? '' : photoUrlInput} onChange={e => setPhotoUrlInput(e.target.value || ' ')} autoFocus
                                 placeholder="https://..." style={{ flex: 1, padding: '0.25rem 0.375rem', border: '1px solid #d1d5db', borderRadius: 4, fontSize: '0.7rem', outline: 'none', width: 120 }} />
-                              <button onClick={() => { if (photoUrlInput.trim()) { updateContact(idx, 'photo_url', photoUrlInput.trim()); setTimeout(autoSave, 0) } setPhotoPopover(null) }}
+                              <button onClick={() => { if (photoUrlInput.trim()) { const val = photoUrlInput.trim(); const updatedContacts = formContacts.map((c, i) => i === idx ? { ...c, photo_url: val } : c); updateContact(idx, 'photo_url', val); setTimeout(() => autoSave(null, updatedContacts), 0) } setPhotoPopover(null) }}
                                 style={{ padding: '0.25rem 0.5rem', background: '#0F969C', color: '#fff', border: 'none', borderRadius: 4, fontSize: '0.65rem', cursor: 'pointer', fontWeight: 600 }}>Save</button>
                             </div>
                           ) : (
@@ -5295,7 +5296,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                             </button>
                           )}
                           {contact.photo_url && (
-                            <button onClick={() => { updateContact(idx, 'photo_url', ''); setTimeout(autoSave, 0); setPhotoPopover(null) }}
+                            <button onClick={() => { const updatedContacts = formContacts.map((c, i) => i === idx ? { ...c, photo_url: '' } : c); updateContact(idx, 'photo_url', ''); setTimeout(() => autoSave(null, updatedContacts), 0); setPhotoPopover(null) }}
                               style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: '100%', padding: '0.35rem 0.5rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: '#dc2626', borderRadius: 4 }}
                               onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
                               onMouseLeave={e => e.currentTarget.style.background = 'none'}>
@@ -5325,7 +5326,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                     <input type="email" value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)} onBlur={autoSave}
                       placeholder="Email" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
                     <div style={{ display: 'flex', gap: '0.25rem' }}>
-                      <select value={splitPhone(contact.phone).countryCode} aria-label="Country code" onChange={(e) => { updateContact(idx, 'phone', joinPhone(e.target.value, splitPhone(contact.phone).number)); setTimeout(autoSave, 0) }}
+                      <select value={splitPhone(contact.phone).countryCode} aria-label="Country code" onChange={(e) => { const val = joinPhone(e.target.value, splitPhone(contact.phone).number); const updatedContacts = formContacts.map((c, i) => i === idx ? { ...c, phone: val } : c); updateContact(idx, 'phone', val); setTimeout(() => autoSave(null, updatedContacts), 0) }}
                         style={{ width: '72px', flexShrink: 0, padding: '0.375rem 0.15rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }}>
                         {COUNTRY_CODES.map(cc => <option key={cc.code} value={cc.code}>{cc.code}</option>)}
                       </select>
