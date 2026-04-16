@@ -10707,13 +10707,13 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                       return <p key={pIdx} style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1a1a2e', lineHeight: 1.5, margin: '0 0 1.5rem 0' }}>{phrase}</p>
                                     }
                                     if (/^key metrics/i.test(phrase)) {
-                                      const sentences = phrase.replace(/^Key metrics:\s*/i, '').split(/\.\s+|\.$/).filter(s => s.trim() && /\d/.test(s))
+                                      const sentences = phrase.replace(/^Key metrics:\s*/i, '').split(/;\s*/).filter(s => s.trim() && /\d/.test(s))
                                       const metrics = sentences.map(s => {
-                                        const t = s.trim()
+                                        const t = s.trim().replace(/\.$/, '')
                                         const numMatch = t.match(/(\d[\d.,]*(?:[\-–]\d[\d.,]*)?%?\+?)/)
                                         if (!numMatch) return null
                                         const value = numMatch[0]
-                                        const label = t.replace(value, '').replace(/^\s*[:\-–—]\s*/, '').replace(/\s*\([^)]*\)\s*$/, '').trim()
+                                        const label = t.replace(value, '').replace(/^\s*[:\-–—]\s*/, '').trim()
                                         return { value, label: label.charAt(0).toUpperCase() + label.slice(1) }
                                       }).filter(Boolean)
                                       if (metrics.length >= 2) {
