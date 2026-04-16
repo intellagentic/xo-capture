@@ -49,7 +49,10 @@
 
 ## Verbosity Controls
 
-15. **Executive Summary: 3 paragraphs maximum.** Paragraph 1: what the client does and the headline insight. Paragraph 2: the operational opportunity. Paragraph 3: key metrics. No fourth paragraph.
+15. **Executive Summary: MUST be exactly 3 paragraphs separated by double newlines (\n\n).** This structure is non-negotiable — the frontend parser depends on it.
+   - **Paragraph 1:** Bold headline — single sentence stating the key insight. Then 2-3 sentences of context.
+   - **Paragraph 2:** The operational opportunity explanation.
+   - **Paragraph 3:** MUST start with the literal text "Key metrics:" followed by comma-separated metrics with numbers. Example: "Key metrics: ~100-150 parcels/day shipping volume, zero automated exception detection today, 300+ potential franchise deployments, and 2-3 hours daily CS time on manual portal checks." No fourth paragraph. Do NOT merge these into a single paragraph.
 
 16. **Client Profile section: 1 page maximum.** Company background, industry, scale, key personnel, technology landscape. No operational problems — those belong in the Problems section.
 

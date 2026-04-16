@@ -10724,6 +10724,31 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                     }
                                     return <p key={pIdx} style={{ fontSize: '0.95rem', lineHeight: 1.7, color: '#333', margin: '0 0 1.5rem 0' }}>{phrase}</p>
                                   })}
+                                  {/* Fallback: scan all text for metrics if no "Key metrics:" paragraph found */}
+                                  {!displayPhrases.some(p => /^key metrics/i.test(p)) && (() => {
+                                    const allText = displayPhrases.join(' ')
+                                    const metricPatterns = allText.match(/(?:~?\d[\d.,]*(?:[\-–]\d[\d.,]*)?%?\+?)\s+[a-zA-Z][a-zA-Z\s/]+(?=,|\.|;|\s+and\s|$)/g) || []
+                                    const fallbackMetrics = metricPatterns.slice(0, 4).map(m => {
+                                      const numMatch = m.match(/^(~?\d[\d.,]*(?:[\-–]\d[\d.,]*)?%?\+?)/)
+                                      if (!numMatch) return null
+                                      const value = numMatch[0]
+                                      const label = m.replace(value, '').replace(/^\s*/, '').trim()
+                                      return { value, label: label.charAt(0).toUpperCase() + label.slice(1) }
+                                    }).filter(Boolean)
+                                    if (fallbackMetrics.length >= 2) {
+                                      return (
+                                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                                          {fallbackMetrics.map((m, mi) => (
+                                            <div key={mi} style={{ flex: 1, minWidth: '180px', background: '#F1F5F9', borderRadius: 8, padding: '1rem', textAlign: 'center' }}>
+                                              <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#0F969C' }}>{m.value}</div>
+                                              <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.35rem' }}>{m.label}</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )
+                                    }
+                                    return null
+                                  })()}
                                 </div>:"Not analysed yet"}
                           </div>
                         </div>
