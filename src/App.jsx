@@ -9930,6 +9930,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
       if (res.ok) {
         const data = await res.json()
         setPocScope(data.poc_scope)
+        if (activeEngagement) setActiveEngagement(prev => ({ ...prev, scope_review_needed: false }))
         setShowScopeModal(false)
       }
     } catch (err) { console.error('Failed to save scope:', err) }
