@@ -67,7 +67,9 @@ else:
 
 # Map Anthropic model names to Bedrock model IDs
 BEDROCK_MODEL_MAP = {
+    'claude-opus-4-7': 'eu.anthropic.claude-opus-4-7',
     'claude-opus-4-6': 'eu.anthropic.claude-opus-4-6-v1',
+    'claude-sonnet-4-6': 'eu.anthropic.claude-sonnet-4-6-v1',
     'claude-sonnet-4-5-20250929': 'eu.anthropic.claude-sonnet-4-5-20250929-v1:0',
     'claude-haiku-4-5-20251001': 'eu.anthropic.claude-haiku-4-5-20251001-v1:0',
 }
@@ -1439,7 +1441,7 @@ Return ONLY valid JSON in this exact structure. All text fields can include newl
 Be specific. Use actual data from the documents. Think like a management consultant presenting to the CEO."""
 
     try:
-        bedrock_model_id = BEDROCK_MODEL_MAP.get(model, BEDROCK_MODEL_MAP['claude-sonnet-4-5-20250929'])
+        bedrock_model_id = BEDROCK_MODEL_MAP.get(model, BEDROCK_MODEL_MAP['claude-sonnet-4-6'])
         print(f"Invoking Bedrock model: {bedrock_model_id} (requested: {model})")
 
         converse_body = json.dumps({
