@@ -10506,22 +10506,17 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
             const shortNames = [...scopedProblems.map(p => p.title?.replace(/^Priority\s+\w+\([iv]+\)\s*:\s*/i, '').substring(0, 40)), ...scopedComps.map(n => n.proposed_name)].join(', ')
             const isShort = shortNames.length < 120
             return <div onClick={openScopeModal} style={{ cursor: 'pointer', fontSize: '0.75rem', color: '#6b7280' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 600, color: '#0F969C' }}>Scope:</span>
-                {isShort ? (
-                  <span>{shortNames}</span>
-                ) : (
-                  <>
-                    <span>{pocScope.problems?.length || 0} of {(displayResults.problems || []).length} problems, {pocScope.new_components?.length || 0} of {(displayResults.component_mapping?.new_components || []).length} new components</span>
-                    <button onClick={(e) => { e.stopPropagation(); setScopeExpanded(!scopeExpanded) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0, display: 'flex', alignItems: 'center' }}>
-                      {scopeExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    </button>
-                  </>
-                )}
+                <span>{scopedProblems.length} of {(displayResults.problems || []).length} problems, {scopedComps.length} of {(displayResults.component_mapping?.new_components || []).length} new components</span>
                 <span style={{ color: '#9ca3af' }}>·</span>
                 <span>Scoped by {(pocScope.scoped_by || '').split('@')[0]}</span>
                 {pocScope.scoped_at && <span style={{ color: '#9ca3af' }}>· {new Date(pocScope.scoped_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>}
+                {!isShort && <button onClick={(e) => { e.stopPropagation(); setScopeExpanded(!scopeExpanded) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0, display: 'flex', alignItems: 'center' }}>
+                  {scopeExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>}
               </div>
+              {isShort && <div style={{ marginTop: '0.2rem', paddingLeft: '3rem', fontSize: '0.7rem', color: '#6b7280' }}>{shortNames}</div>}
               {!isShort && scopeExpanded && (
                 <div style={{ marginTop: '0.35rem', paddingLeft: '3rem', fontSize: '0.7rem', color: '#6b7280' }}>
                   {scopedProblems.map((p, i) => <div key={i} style={{ marginBottom: '0.15rem' }}>- {p.title}</div>)}
@@ -10712,9 +10707,9 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                       return <p key={pIdx} style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1a1a2e', lineHeight: 1.5, margin: '0 0 1.5rem 0' }}>{phrase}</p>
                                     }
                                     if (/^key metrics/i.test(phrase)) {
-                                      const sentences = phrase.replace(/^Key metrics:\s*/i, '').split(/\./).filter(s => s.trim() && /\d/.test(s))
+                                      const sentences = phrase.replace(/^Key metrics:\s*/i, '').split(/;\s*/).filter(s => s.trim() && /\d/.test(s))
                                       const metrics = sentences.map(s => {
-                                        const t = s.trim()
+                                        const t = s.trim().replace(/\.$/, '')
                                         const numMatch = t.match(/(\d[\d.,]*(?:[\-–]\d[\d.,]*)?%?\+?)/)
                                         if (!numMatch) return null
                                         const value = numMatch[0]
