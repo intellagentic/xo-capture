@@ -93,6 +93,7 @@ def _run_migrations():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_engagements_status ON engagements(status)")
         cur.execute("ALTER TABLE enrichments ADD COLUMN IF NOT EXISTS engagement_id UUID")
         cur.execute("ALTER TABLE engagements ADD COLUMN IF NOT EXISTS poc_scope JSONB")
+        cur.execute("ALTER TABLE engagements ADD COLUMN IF NOT EXISTS scope_review_needed BOOLEAN DEFAULT FALSE")
         # Migrate existing clients.poc_scope to most recent engagement
         cur.execute("""
             UPDATE engagements e
@@ -1445,7 +1446,7 @@ def handle_update_scope(event, user):
         cur = conn.cursor()
         if engagement_id:
             cur.execute(
-                "UPDATE engagements SET poc_scope = %s WHERE id = %s RETURNING id",
+                "UPDATE engagements SET poc_scope = %s, scope_review_needed = FALSE WHERE id = %s RETURNING id",
                 (json.dumps(scope_data), engagement_id)
             )
         else:
@@ -2326,6 +2327,7 @@ def _format_engagement(row, client_key=None):
         'updated_at': row[9].isoformat() if row[9] else None,
         'hubspot_deal_id': row[10] or '',
         'poc_scope': row[11] if len(row) > 11 else None,
+        'scope_review_needed': bool(row[12]) if len(row) > 12 else False,
     }
 
 
@@ -2344,7 +2346,7 @@ def handle_list_engagements(event, user):
             cur.execute("""
                 SELECT e.id, e.client_id, e.name, e.focus_area, e.contacts_json,
                        e.status, e.approved_at, e.approved_by,
-                       e.created_at, e.updated_at, e.hubspot_deal_id, e.poc_scope
+                       e.created_at, e.updated_at, e.hubspot_deal_id, e.poc_scope, COALESCE(e.scope_review_needed, FALSE)
                 FROM engagements e
                 JOIN clients c ON c.id = e.client_id
                 WHERE e.id = %s
@@ -2373,7 +2375,7 @@ def handle_list_engagements(event, user):
         cur.execute("""
             SELECT e.id, e.client_id, e.name, e.focus_area, e.contacts_json,
                    e.status, e.approved_at, e.approved_by,
-                   e.created_at, e.updated_at, e.hubspot_deal_id, e.poc_scope
+                   e.created_at, e.updated_at, e.hubspot_deal_id, e.poc_scope, COALESCE(e.scope_review_needed, FALSE)
             FROM engagements e
             JOIN clients c ON c.id = e.client_id
             WHERE c.s3_folder = %s

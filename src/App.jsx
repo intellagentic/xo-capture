@@ -10495,15 +10495,16 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
           {pocScope ? (() => {
             const scopedProblems = (displayResults.problems || []).filter(p => (pocScope.problems || []).includes(slugifyProblem(p.title)))
             const scopedComps = (displayResults.component_mapping?.new_components || []).filter(n => (pocScope.new_components || []).includes(n.proposed_name))
-            const isStale = (pocScope.problems || []).length > 0 && scopedProblems.length === 0
-            if (isStale) {
-              return <div style={{ background: '#fef2f2', border: '1px solid #dc2626', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <AlertTriangle size={14} style={{ flexShrink: 0, color: '#dc2626' }} />
-                Scope is stale -- problem titles changed after re-enrichment.
-                <button onClick={openScopeModal} style={{ background: 'none', border: 'none', color: '#0F969C', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}>Re-scope</button>
-              </div>
-            }
-            return <div onClick={openScopeModal} style={{ cursor: 'pointer', fontSize: '0.75rem', color: '#6b7280' }}>
+            const needsReview = activeEngagement?.scope_review_needed
+            return <div>
+              {needsReview && (
+                <div style={{ background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <AlertTriangle size={14} style={{ flexShrink: 0, color: '#f59e0b' }} />
+                  Problems changed after re-enrichment. Review scope.
+                  <button onClick={openScopeModal} style={{ background: 'none', border: 'none', color: '#0F969C', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}>Review scope</button>
+                </div>
+              )}
+              <div onClick={openScopeModal} style={{ cursor: 'pointer', fontSize: '0.75rem', color: '#6b7280' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 600, color: '#0F969C' }}>Scope:</span>
                 <span>{scopedProblems.length} of {(displayResults.problems || []).length} problems, {scopedComps.length} of {(displayResults.component_mapping?.new_components || []).length} new components</span>
@@ -10514,6 +10515,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
               <div style={{ marginTop: '0.2rem', paddingLeft: '3rem', fontSize: '0.7rem', color: '#6b7280' }}>
                 {scopedProblems.map((p, i) => <span key={i}>{i > 0 ? ', ' : ''}{p.title?.replace(/^Priority\s+\w+\([iv]+\)\s*:\s*/i, '')}</span>)}
                 {scopedComps.map((n, i) => <span key={'c'+i} style={{ color: '#0F969C' }}>{(scopedProblems.length > 0 || i > 0) ? ', ' : ''}{n.proposed_name}</span>)}
+              </div>
               </div>
             </div>
           })() : (
