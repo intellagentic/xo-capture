@@ -1447,7 +1447,7 @@ def handle_preferences(event):
         # Update preferred_model if provided
         if 'preferred_model' in body:
             preferred_model = body['preferred_model']
-            allowed_models = ['claude-opus-4-6', 'claude-sonnet-4-5-20250929', 'claude-haiku-4-5-20251001']
+            allowed_models = ['claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-sonnet-4-5-20250929', 'claude-haiku-4-5-20251001']
             if preferred_model not in allowed_models:
                 cur.close()
                 conn.close()
