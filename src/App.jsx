@@ -10503,8 +10503,6 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 <button onClick={openScopeModal} style={{ background: 'none', border: 'none', color: '#0F969C', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}>Re-scope</button>
               </div>
             }
-            const shortNames = [...scopedProblems.map(p => p.title?.replace(/^Priority\s+\w+\([iv]+\)\s*:\s*/i, '')), ...scopedComps.map(n => n.proposed_name)].join(', ')
-            const isShort = shortNames.length < 120
             return <div onClick={openScopeModal} style={{ cursor: 'pointer', fontSize: '0.75rem', color: '#6b7280' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 600, color: '#0F969C' }}>Scope:</span>
@@ -10512,17 +10510,11 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 <span style={{ color: '#9ca3af' }}>·</span>
                 <span>Scoped by {(pocScope.scoped_by || '').split('@')[0]}</span>
                 {pocScope.scoped_at && <span style={{ color: '#9ca3af' }}>· {new Date(pocScope.scoped_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>}
-                {!isShort && <button onClick={(e) => { e.stopPropagation(); setScopeExpanded(!scopeExpanded) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0, display: 'flex', alignItems: 'center' }}>
-                  {scopeExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                </button>}
               </div>
-              {isShort && <div style={{ marginTop: '0.2rem', paddingLeft: '3rem', fontSize: '0.7rem', color: '#6b7280' }}>{shortNames}</div>}
-              {!isShort && scopeExpanded && (
-                <div style={{ marginTop: '0.35rem', paddingLeft: '3rem', fontSize: '0.7rem', color: '#6b7280' }}>
-                  {scopedProblems.map((p, i) => <div key={i} style={{ marginBottom: '0.15rem' }}>- {p.title}</div>)}
-                  {scopedComps.map((n, i) => <div key={'c'+i} style={{ marginBottom: '0.15rem', color: '#0F969C' }}>- {n.proposed_name}</div>)}
-                </div>
-              )}
+              <div style={{ marginTop: '0.2rem', paddingLeft: '3rem', fontSize: '0.7rem', color: '#6b7280' }}>
+                {scopedProblems.map((p, i) => <span key={i}>{i > 0 ? ', ' : ''}{p.title?.replace(/^Priority\s+\w+\([iv]+\)\s*:\s*/i, '')}</span>)}
+                {scopedComps.map((n, i) => <span key={'c'+i} style={{ color: '#0F969C' }}>{(scopedProblems.length > 0 || i > 0) ? ', ' : ''}{n.proposed_name}</span>)}
+              </div>
             </div>
           })() : (
             <div style={{ background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
