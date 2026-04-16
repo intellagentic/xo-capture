@@ -1,9 +1,9 @@
 # XO CAPTURE - PROJECT STATUS
 
-**Date:** April 15, 2026
+**Date:** April 16, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.21)
+**Status:** Deployed & Operational (v2.25)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -3785,9 +3785,45 @@ Repo Rename xo-quickstart -> xo-capture:
 - RDS instance name (xo-quickstart-db) and DB name (xo_quickstart) left unchanged -- infrastructure names, not repo refs
 - GitHub auto-redirects old URL to new
 
+PR #20 -- Fresh Presigned S3 URLs for Team Avatar Photos:
+- Team user photo_url stored as presigned URL which expired after 1 hour, showing gray circles
+- Added _resolve_photo_url() in auth Lambda to regenerate fresh presigned URLs at read time
+- Applied to login response and invite list endpoints
+
+PR #21 -- Model Picker Update:
+- Added Opus 4.7 (eu.anthropic.claude-opus-4-7-20250415) as default enrichment model
+- Updated Opus 4.6 and Sonnet 4.6 model IDs in BEDROCK_MODEL_MAP
+- Removed Sonnet 4.5 and Haiku 4.5 from picker
+
+PR #22 -- Exec Summary Skill Enforcement + Resilient Metric Card Parser:
+- Enforced 3-paragraph executive summary structure in output-format.md skill
+- Paragraph 3 must start with "Key metrics:" prefix
+- Added fallback scanner for metric cards when model doesn't produce "Key metrics:" prefix
+- Strip trailing parenthetical source citations before comma-split
+
+PR #23 -- Scope Preservation on Re-enrichment:
+- Re-enrichment no longer auto-clears poc_scope on engagements
+- Added scope_review_needed BOOLEAN flag — set TRUE after enrichment, cleared on manual scope save
+- Amber banner in UI when scope review needed
+- Replaced stale-scope slugify comparison with flag-based approach
+
+PR #24 -- Contact Photo Upload — Store S3 Key Not Presigned URL:
+- Contact photos in contacts_json stored presigned URLs that expired after 1 hour
+- Frontend now stores bare S3 key from upload response instead of view_url
+- Added _resolve_contact_photos() in clients Lambda to generate fresh presigned URLs on read
+- Applied to both handle_get_client and _format_engagement contact loading
+- contactPhotoCache in frontend for immediate display after upload
+
+PR #25 -- Fix Stale Closure in Contact Photo Save:
+- updateContact + setTimeout(autoSave, 0) caused autoSave to read stale formContacts from React closure
+- Added contactsOverride as second parameter to autoSave
+- All four handlers (upload, paste URL, remove, country code) now build updated contacts array and pass directly to autoSave
+- Fixes Contact 2+ photo not persisting after upload
+
 PENDING ITEMS:
 - Drop clients.poc_scope column in follow-up once no fallback hits observed for 30 days
 - CS Triage Dashboard + Customer Dashboard rendered as standalone [NEW] boxes in architecture_diagram when they are UI surfaces of ExceptionEngine / CustomerPortal respectively. Needs a ui_surface modeling concept in component READMEs.
+- Remove [PHOTO DEBUG] console.log statements after contact photo upload verified stable
 
 ---
 
