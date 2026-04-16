@@ -9656,7 +9656,7 @@ function assembleDeckData(results, client, engagementName) {
   const stats = [
     { num: String(problems.length), label: 'Issues Identified', sub: `${highSev} high severity` },
     { num: highSev > 0 ? 'HIGH' : medSev > 0 ? 'MEDIUM' : 'LOW', label: 'Risk Level', sub: `${highSev} critical, ${medSev} moderate` },
-    { num: String(workflows.length), label: 'XO Workflows', sub: 'Automated via Streamline' },
+    { num: String(Math.min(6, problems.length, workflows.length)), label: 'XO Workflows', sub: 'Automated via Streamline' },
     { num: '21 days', label: 'Proof of Concept', sub: 'Capture \u2192 Prototype \u2192 Deploy' },
   ]
 
