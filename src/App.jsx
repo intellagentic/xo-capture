@@ -4747,6 +4747,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
   const [existingAppsEdit, setExistingAppsEdit] = useState(false)
   const [photoPopover, setPhotoPopover] = useState(null) // contact index or null
   const [photoUrlInput, setPhotoUrlInput] = useState('')
+  const [contactPhotoCache, setContactPhotoCache] = useState({}) // s3_key -> presigned display URL
 
   // Sync form when companyData changes externally (e.g. client switch)
   useEffect(() => {
@@ -5226,7 +5227,8 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                   {/* Contact Photo */}
                   <div style={{ flexShrink: 0, position: 'relative' }}>
                     {(() => {
-                      const resolvedPhoto = contact.photo_url || (contact.email && teamUsers && teamUsers.find(t => t.email === contact.email)?.photo_url) || '';
+                      const rawPhoto = contact.photo_url || (contact.email && teamUsers && teamUsers.find(t => t.email === contact.email)?.photo_url) || '';
+                      const resolvedPhoto = rawPhoto && !rawPhoto.startsWith('http') ? (contactPhotoCache[rawPhoto] || '') : rawPhoto;
                       return <div
                       style={{ width: 48, height: 48, borderRadius: '50%', background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'pointer', border: '2px solid #d1d5db' }}
                       onClick={() => { setPhotoPopover(photoPopover === idx ? null : idx); setPhotoUrlInput('') }}
@@ -5263,10 +5265,13 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                                   body: JSON.stringify({ client_id: clientId, file_type: 'contact_photo', contact_index: idx, content_type: ct, file_extension: ext })
                                 })
                                 if (!res.ok) throw new Error('Failed to get upload URL')
-                                const { upload_url, view_url } = await res.json()
+                                const { upload_url, view_url, s3_key } = await res.json()
                                 const s3Res = await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': ct }, body: file })
                                 if (!s3Res.ok) throw new Error('Upload failed')
-                                if (view_url) { updateContact(idx, 'photo_url', view_url); setTimeout(autoSave, 0) }
+                                const key = s3_key || view_url
+                                updateContact(idx, 'photo_url', key)
+                                if (s3_key && view_url) setContactPhotoCache(prev => ({ ...prev, [s3_key]: view_url }))
+                                setTimeout(autoSave, 0)
                               } catch (err) { console.error('Photo upload failed:', err); alert('Photo upload failed') }
                             }
                             input.click()

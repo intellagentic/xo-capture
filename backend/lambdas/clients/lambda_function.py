@@ -12,6 +12,7 @@ import secrets
 import boto3
 import urllib.request
 import urllib.error
+import urllib.parse
 from datetime import datetime, timezone, timedelta
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 try:
@@ -53,6 +54,40 @@ BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data-mv')
 STREAMLINE_WEBHOOK_URL = os.environ.get('STREAMLINE_WEBHOOK_URL', '')
 STREAMLINE_INVITE_WEBHOOK_URL = os.environ.get('STREAMLINE_INVITE_WEBHOOK_URL', '')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://xo.intellagentic.io')
+
+
+def _resolve_contact_photos(contacts):
+    """Resolve S3 keys in contact photo_url to fresh presigned URLs."""
+    for c in contacts:
+        photo = c.get('photo_url', '')
+        if not photo:
+            continue
+        # If it's already a full URL (http/https), check if it's an expired presigned URL
+        if photo.startswith('http'):
+            if 'xo-client-data-mv.s3' in photo:
+                # Extract the S3 key from the presigned URL
+                parsed = urllib.parse.urlparse(photo)
+                s3_key = parsed.path.lstrip('/')
+                try:
+                    c['photo_url'] = s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={'Bucket': BUCKET_NAME, 'Key': s3_key},
+                        ExpiresIn=3600
+                    )
+                except Exception:
+                    c['photo_url'] = ''
+            # Otherwise it's an external URL — leave it
+        else:
+            # It's a bare S3 key — generate presigned URL
+            try:
+                c['photo_url'] = s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': BUCKET_NAME, 'Key': photo},
+                    ExpiresIn=3600
+                )
+            except Exception:
+                c['photo_url'] = ''
+    return contacts
 
 
 # ── Auto-migration: add streamline_webhook_url column if missing ──
@@ -1078,6 +1113,9 @@ def handle_get_client(event, user):
                 space_idx = old_name.find(' ')
                 c['firstName'] = old_name[:space_idx] if space_idx > 0 else old_name
                 c['lastName'] = old_name[space_idx + 1:] if space_idx > 0 else ''
+
+        # Resolve contact photo S3 keys to fresh presigned URLs
+        contacts = _resolve_contact_photos(contacts)
 
         # Parse addresses_json
         addresses_json_raw = row[18]
@@ -2313,6 +2351,7 @@ def _format_engagement(row, client_key=None):
                 contacts = []
         except:
             contacts = []
+    contacts = _resolve_contact_photos(contacts)
 
     return {
         'id': str(row[0]),
