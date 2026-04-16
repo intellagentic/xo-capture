@@ -46,6 +46,27 @@ SES_REGION = os.environ.get('SES_REGION', 'eu-west-2')
 TWO_FA_CODE_EXPIRY_MINUTES = 10
 
 ses_client = boto3.client('ses', region_name=SES_REGION)
+s3_client = boto3.client('s3', region_name='eu-west-2')
+BUCKET_NAME = os.environ.get('BUCKET_NAME', 'xo-client-data-mv')
+
+def _resolve_photo_url(photo_url):
+    """Convert stored photo_url to a fresh presigned URL if it's an S3 reference."""
+    if not photo_url:
+        return ''
+    # Extract S3 key from presigned URL or raw S3 URL
+    import urllib.parse
+    if 'xo-client-data-mv.s3' in photo_url:
+        parsed = urllib.parse.urlparse(photo_url)
+        s3_key = parsed.path.lstrip('/')
+        try:
+            return s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': BUCKET_NAME, 'Key': s3_key},
+                ExpiresIn=3600
+            )
+        except Exception:
+            return ''
+    return photo_url
 
 # Seed these emails as role='admin' on cold start
 ADMIN_SEED_EMAILS = [
@@ -474,7 +495,7 @@ def _success_response(user_id, email, name, preferred_model='claude-sonnet-4-5-2
         'two_factor_enabled': tfa_enabled,
         'account_role': account_role,
         'account_id': account_id,
-        'photo_url': photo_url or '',
+        'photo_url': _resolve_photo_url(photo_url),
     }
     if client_id:
         user_data['client_id'] = client_id
@@ -1924,7 +1945,7 @@ def handle_invite_list(event):
             'account_role': r[3], 'status': r[4],
             'invited_at': r[5].isoformat() if r[5] else None,
             'account_id': r[6], 'account_name': r[7] or '',
-            'photo_url': r[8] or '',
+            'photo_url': _resolve_photo_url(r[8]),
         } for r in rows]
 
         return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': json.dumps({'users': users})}
