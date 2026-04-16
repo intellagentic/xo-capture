@@ -3,7 +3,7 @@
 **Date:** April 15, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.18)
+**Status:** Deployed & Operational (v2.19)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -3753,6 +3753,12 @@ PR #7 -- UI Fixes Post-Merge (cc9fd88):
 - Scope indicator count line restored -- always shows "Scope: N of M problems, X of Y components" with titles below
 - Executive Summary metric card parser switched from period split to semicolon split -- avoids breaking on parenthetical text
 - Two-card render restored
+
+Tag Format Drift Fix (PR #11, ef6dc74):
+- Canonical [EXISTING]/[EXTEND]/[NEW] enforced across skill and rapid-prototype Lambda
+- Removed [FITS] and [EXTENDS] variants from rendered .md output
+- Skill tag-format rule expanded with explicit forbidden-variants list
+- Zero-drift verified on InXpress re-enrichment
 
 Classification Rule Fix (PR #9, 65821b5):
 - Spec-phase library components now tag as [EXTEND] not [NEW]
