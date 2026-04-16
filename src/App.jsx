@@ -9671,15 +9671,16 @@ function assembleDeckData(results, client, engagementName) {
   const workflowData = workflows.map((w, i) => ({ title: truncateDeck(w.title, 45), desc: truncateDeck(w.desc, 120), accent: accentCycle[i % 3] }))
 
   const comparisons = []
-  for (let i = 0; i < Math.min(6, Math.max(problems.length, workflows.length)); i++) {
-    const prob = problems[i] || problems[problems.length - 1] || {}
-    const wf = workflows[i] || workflows[workflows.length - 1] || {}
+  const comparisonCount = Math.min(6, Math.max(problems.length, workflows.length))
+  for (let i = 0; i < comparisonCount; i++) {
+    const prob = problems[i]
+    const wf = workflows[i]
+    if (!prob && !wf) break
     comparisons.push({
-      before: truncateDeck(cleanDeckText(prob.title || 'Manual process with no audit trail'), 120),
-      after: truncateDeck(wf.title ? `Streamline + XO automates ${wf.title.toLowerCase()}` : 'Protocol-driven automation with audit trail', 120),
+      before: truncateDeck(cleanDeckText(prob ? prob.title || 'Manual process with no audit trail' : ''), 120),
+      after: truncateDeck(wf && wf.title ? `Streamline + XO automates ${wf.title.toLowerCase()}` : 'Protocol-driven automation with audit trail', 120),
     })
   }
-  while (comparisons.length < 6) comparisons.push({ before: 'Manual review with key-person dependency', after: 'XO protocol-driven automation with audit trail' })
 
   const phases = []
   const weekTitles = ['Capture & Quick Wins', 'Prototype & Validate', 'Deploy & Decide']
