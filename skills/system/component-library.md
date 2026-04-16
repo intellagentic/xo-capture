@@ -28,11 +28,14 @@ Always state which of the three applies, name the component (if any), and explai
 
 ## Streamline convention
 
-Streamline is a **platform layer**, not a component. It provides workflow orchestration that components plug into. In the architecture diagram:
+Streamline is a **platform layer**, not a component. It appears **twice** in the architecture diagram:
 
-- Streamline appears as a **layer label** (e.g., "Streamline Workflow Layer"), not as a tagged component box.
-- Individual workflows inside the Streamline layer (e.g., "Exception Triage Workflow", "Invoice Reconciliation Workflow") are **configured, not built**. They do NOT carry `[NEW]` tags.
-- Only tag a Streamline box with `[EXISTING]` if the diagram explicitly names "Streamline" as a standalone integration point. Never tag it `[NEW]`.
+1. **Streamline Data Fabric** (top layer, below client systems) — connects to and normalises data from client systems via standard connectors. This is the integration/ingestion layer.
+2. **Streamline Workflow Layer** (bottom layer, below XO) — executes the automated actions that XO decides on: routes documents, sends notifications, triggers approvals.
+
+Both are **layer labels**, not tagged component boxes. Do NOT tag either Streamline layer with `[EXISTING]`, `[EXTEND]`, or `[NEW]`.
+
+- Individual workflows inside the Streamline Workflow Layer (e.g., "Exception Triage Workflow", "Invoice Reconciliation Workflow") are **configured, not built**. They do NOT carry `[NEW]` tags.
 - If a capability requires a new Streamline workflow, classify the **component that feeds the workflow** (e.g., ExceptionEngine `[EXTEND]`), not the workflow itself.
 
 ## Output expectation
@@ -128,14 +131,17 @@ If the partner describes a capability that doesn't map cleanly to any component 
 
 ## Ingestion path decision rule
 
-When classifying a data source, decide between Streamline and an XO component:
+XO has **two data input paths** shown in the architecture diagram:
 
-- **Streamline connector** — use when the source has a first-class Streamline integration: Salesforce, Redox, Postgres, MySQL, mainstream SaaS with documented connectors. Ingestion is a Streamline workflow configuration, NOT a new component. Do not tag as [NEW] or [EXTEND].
-- **XO component** — use when the source is an edge case: scraped portals, custom aggregators, non-standard APIs, carrier-specific or domain-specific dialects. Build or extend an XO component. Tag [NEW] or [EXTEND] per the existing status rule.
+- **Path A — Via Streamline Data Fabric:** Use when the client system has a first-class Streamline connector (Salesforce, Redox, Postgres, MySQL, mainstream SaaS). Streamline normalises the data and feeds it to XO. Ingestion is Streamline configuration, NOT a new component.
+- **Path B — Direct to client systems:** Use when Streamline lacks a connector (scraped portals, custom aggregators, non-standard APIs, carrier-specific dialects). XO connects directly and normalises the data itself via an XO component. Tag [NEW] or [EXTEND] per the existing status rule.
+
+Both paths must be visible as separate arrows in the architecture diagram.
 
 Division of responsibility:
-- Streamline owns transport, standard connectors, PII classification at ingress, and transient workflow execution.
-- XO components own persistent state, domain normalisation, and multi-day/historical logic.
-- Even when Streamline ingests, persistent data belongs in an XO component's store. Streamline holds data only during workflow execution.
+- Streamline Data Fabric owns transport, standard connectors, PII classification at ingress, and data normalisation for supported systems.
+- XO components own domain-specific normalisation (for direct-connect path), persistent state, decision logic, and multi-day/historical analysis.
+- Streamline Workflow Layer owns transient action execution: document routing, notifications, approval chains. Streamline holds data only during workflow execution.
+- Even when Streamline ingests, persistent data belongs in an XO component's store.
 
 For each data source in the client analysis, ask: "Does Streamline have a first-class connector for this?" If yes, ingestion is Streamline config. If no, it's an XO component.
