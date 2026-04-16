@@ -10699,14 +10699,14 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                       return <p key={pIdx} style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1a1a2e', lineHeight: 1.5, margin: '0 0 1.5rem 0' }}>{phrase}</p>
                                     }
                                     if (/^key metrics/i.test(phrase)) {
-                                      const rawMetrics = phrase.replace(/^Key metrics:\s*/i, '')
-                                      const sentences = (rawMetrics.includes(';') ? rawMetrics.split(/;\s*/) : rawMetrics.split(/,\s*/)).filter(s => s.trim() && /\d/.test(s))
+                                      const cleaned = phrase.replace(/^Key metrics:\s*/i, '').replace(/\s*\([^)]*\)\.?\s*$/, '')
+                                      const sentences = cleaned.split(/,\s*/).map(s => s.replace(/^and\s+/i, '').trim()).filter(s => s && /\d/.test(s))
                                       const metrics = sentences.map(s => {
-                                        const t = s.trim().replace(/\.$/, '')
+                                        const t = s.replace(/\.$/, '')
                                         const numMatch = t.match(/(\d[\d.,]*(?:[\-–]\d[\d.,]*)?%?\+?)/)
                                         if (!numMatch) return null
                                         const value = numMatch[0]
-                                        const label = t.replace(value, '').replace(/^\s*[:\-–—]\s*/, '').trim()
+                                        const label = t.replace(value, '').replace(/^\s*[:\-–—~]\s*/, '').trim()
                                         return { value, label: label.charAt(0).toUpperCase() + label.slice(1) }
                                       }).filter(Boolean)
                                       if (metrics.length >= 2) {
