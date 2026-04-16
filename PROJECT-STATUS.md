@@ -3,7 +3,7 @@
 **Date:** April 15, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.16)
+**Status:** Deployed & Operational (v2.17)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -3749,16 +3749,22 @@ POC Scope on Engagement:
 - Fixed missing e.poc_scope in list-engagements SELECT query
 - Enrich Lambda stale-scope check operates on engagement or client table as appropriate
 
-PENDING ITEMS:
-- Drop clients.poc_scope column in follow-up once no fallback hits observed for 30 days
-- ExceptionEngine classification non-determinism -- same component classifies as [NEW] in one run, [EXTENDS] in next. Tighten component-library skill so spec-phase is always [NEW].
-- CS Triage Dashboard + Customer Dashboard rendered as standalone [NEW] boxes in architecture_diagram when they are UI surfaces of ExceptionEngine / CustomerPortal respectively. Needs a ui_surface modeling concept in component READMEs.
-- Generator/skill drift: gen_component_library.py produces the base 108-line template, missing three hand-added sections: (1) status-based tag mapping (spec -> [NEW], in_build/shipped+extending -> [EXTEND], shipped-as-is -> [EXISTING]), (2) Streamline workflow convention (no [NEW] on Streamline sub-workflows), (3) Ingestion path decision rule (Streamline connectors vs XO components). Before next run, bake these into the header template in ~/dev/workspace-check/gen_component_library.py so regeneration doesn't silently wipe them.
+PR #7 -- UI Fixes Post-Merge (cc9fd88):
+- Scope indicator count line restored -- always shows "Scope: N of M problems, X of Y components" with titles below
+- Executive Summary metric card parser switched from period split to semicolon split -- avoids breaking on parenthetical text
+- Two-card render restored
+
 Repo Rename xo-quickstart -> xo-capture:
 - GitHub repo renamed via gh repo rename
 - Updated all path references in CLAUDE.md, skills/README.md, PROJECT-STATUS.md, deploy-xo-capture.sh
 - RDS instance name (xo-quickstart-db) and DB name (xo_quickstart) left unchanged -- infrastructure names, not repo refs
 - GitHub auto-redirects old URL to new
+
+PENDING ITEMS:
+- Drop clients.poc_scope column in follow-up once no fallback hits observed for 30 days
+- ExceptionEngine classification non-determinism -- same component classifies as [NEW] in one run, [EXTENDS] in next. Tighten component-library skill so spec-phase is always [NEW].
+- CS Triage Dashboard + Customer Dashboard rendered as standalone [NEW] boxes in architecture_diagram when they are UI surfaces of ExceptionEngine / CustomerPortal respectively. Needs a ui_surface modeling concept in component READMEs.
+- Generator/skill drift: gen_component_library.py produces the base 108-line template, missing three hand-added sections: (1) status-based tag mapping (spec -> [NEW], in_build/shipped+extending -> [EXTEND], shipped-as-is -> [EXISTING]), (2) Streamline workflow convention (no [NEW] on Streamline sub-workflows), (3) Ingestion path decision rule (Streamline connectors vs XO components). Before next run, bake these into the header template in ~/dev/workspace-check/gen_component_library.py so regeneration doesn't silently wipe them.
 
 ---
 
