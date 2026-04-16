@@ -1367,7 +1367,24 @@ Analyze this business like an MBA analyst presenting on Monday morning.{pain_poi
 
 Provide your analysis covering: Executive Summary, Problems Identified, Proposed Architecture, Component Mapping, Proposed Data Schema, 7/14/21 Day Action Plan, Bottom Line, Client Summary, and Potential Streamline Applications.
 
-ARCHITECTURE DIAGRAM TAGGING: In the architecture_diagram ASCII output, every named component box MUST carry a classification tag: [EXISTING], [EXTEND], or [NEW] based on the Component Library. Do NOT include a summary caption inside the architecture_diagram. The caption will be appended programmatically from component_mapping.summary_line.
+ARCHITECTURE DIAGRAM RULES:
+The architecture_diagram MUST follow this exact five-layer model (top to bottom):
+
+Layer 1 — CLIENT SYSTEMS: The client's existing systems (e.g. Epic, SAP, Salesforce). Tag each [EXISTING]. These are external — we don't build or modify them.
+
+Layer 2 — STREAMLINE DATA FABRIC: Streamline's integration/normalisation layer. Connects to client systems via standard connectors. Label as a layer, not a tagged box.
+
+Layer 3 — XO ORCHESTRATION LAYER: The intelligence/decision layer. Contains domain-specific components (e.g. RadiologyFlowEngine [NEW], CarrierGate [EXTEND]). Tag each component. XO has TWO data input paths shown with arrows:
+  - Path A: Reads normalised data from Streamline Data Fabric (when Streamline has a connector)
+  - Path B: Connects directly to client systems and normalises data itself (when Streamline lacks a connector)
+  Both paths must be visible as separate arrows in the diagram.
+
+Layer 4 — STREAMLINE WORKFLOW LAYER: Executes the automated actions that XO decides on. Routes documents, sends notifications, triggers approvals. Label as a layer, not a tagged box.
+
+Layer 5 — DASHBOARD / UI: User-facing surfaces. Tag each [NEW] or [EXTEND].
+
+Streamline appears TWICE: as data fabric (layer 2) and workflow execution (layer 4). This is the standard architecture for all clients.
+Every named component box MUST carry [EXISTING], [EXTEND], or [NEW]. Do NOT include a summary caption inside the architecture_diagram — it is appended programmatically from component_mapping.summary_line.
 {system_skills_section}
 OUTPUT FORMAT:
 Return ONLY valid JSON in this exact structure. All text fields can include newline characters (\\n) for formatting. Follow the SYSTEM INSTRUCTIONS above for formatting rules:
@@ -1382,7 +1399,7 @@ Return ONLY valid JSON in this exact structure. All text fields can include newl
       "recommendation": "Concrete action: do X, expect Y outcome, costs approximately Z..."
     }}
   ],
-  "architecture_diagram": "ASCII diagram showing proposed system architecture using +, -, |, v, > characters. Tag every named component box with [EXISTING], [EXTEND], or [NEW]. Do NOT include a summary caption inside this field.",
+  "architecture_diagram": "ASCII diagram using +, -, |, v, > characters. Five layers top-to-bottom: (1) Client Systems [EXISTING], (2) Streamline Data Fabric layer, (3) XO Orchestration Layer with domain components inside — show TWO input arrows: one from Streamline Data Fabric, one direct to client systems, (4) Streamline Workflow Layer, (5) Dashboard/UI. Tag every named component box [EXISTING], [EXTEND], or [NEW]. No summary caption.",
   "component_mapping": {{
     "fits": [
       {{"component": "name", "version": "v1", "capability": "what it covers", "config_notes": "specific config needed"}}
