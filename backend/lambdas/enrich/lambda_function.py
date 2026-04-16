@@ -1399,7 +1399,7 @@ Layer 3 — XO ORCHESTRATION LAYER: The intelligence/decision layer. Contains do
 
 Layer 4 — STREAMLINE WORKFLOW LAYER: Executes the automated actions that XO decides on. Routes documents, sends notifications, triggers approvals. Label as a layer, not a tagged box.
 
-Layer 5 — DASHBOARD / UI: User-facing surfaces. Tag each [NEW] or [EXTEND].
+Layer 5 — CONSOLE: User-facing operational consoles. Tag each [NEW] or [EXTEND]. Never use the word "dashboard" — always "console" (e.g. RadiologyFlowConsole, BottleneckAlertConsole).
 
 Streamline appears TWICE: as data fabric (layer 2) and workflow execution (layer 4). This is the standard architecture for all clients.
 Every named component box MUST carry [EXISTING], [EXTEND], or [NEW]. Do NOT include a summary caption inside the architecture_diagram — it is appended programmatically from component_mapping.summary_line.
@@ -1417,7 +1417,7 @@ Return ONLY valid JSON in this exact structure. All text fields can include newl
       "recommendation": "Concrete action: do X, expect Y outcome, costs approximately Z..."
     }}
   ],
-  "architecture_diagram": "ASCII diagram using +, -, |, v, > characters. Five layers top-to-bottom: (1) Client Systems [EXISTING], (2) Streamline Data Fabric layer, (3) XO Orchestration Layer with domain components inside — show TWO input arrows: one from Streamline Data Fabric, one direct to client systems, (4) Streamline Workflow Layer, (5) Dashboard/UI. Tag every named component box [EXISTING], [EXTEND], or [NEW]. No summary caption.",
+  "architecture_diagram": "ASCII diagram using +, -, |, v, > characters. Five layers top-to-bottom: (1) Client Systems [EXISTING], (2) Streamline Data Fabric layer, (3) XO Orchestration Layer with domain components inside — show TWO input arrows: one from Streamline Data Fabric, one direct to client systems, (4) Streamline Workflow Layer, (5) Console (never use 'dashboard' — always 'console'). Tag every named component box [EXISTING], [EXTEND], or [NEW]. No summary caption.",
   "component_mapping": {{
     "fits": [
       {{"component": "name", "version": "v1", "capability": "what it covers", "config_notes": "specific config needed"}}

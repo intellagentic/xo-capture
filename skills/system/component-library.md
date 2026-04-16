@@ -88,7 +88,7 @@ All inputs/outputs normalised; carrier-specific quirks handled in adapters.
 
 ### ExceptionEngine
 
-Daily shipment exception detection + CS triage dashboard. Sits on top of CarrierGate. Pulls all active shipments at start of day, classifies each (On Track / Delayed / Exception / Delivered), and produces a prioritised triage view for customer service.
+Daily shipment exception detection + CS triage console. Sits on top of CarrierGate. Pulls all active shipments at start of day, classifies each (On Track / Delayed / Exception / Delivered), and produces a prioritised triage view for customer service.
 
 **Why it exists**
 
@@ -105,8 +105,8 @@ Logistics operators discover exceptions by manually checking carrier portals one
 - Normalised `tracking_events` schema, carrier-agnostic
 - Classification rules engine: On Track / Delayed / Exception / Delivered / Customs Hold
 - Severity scoring: HIGH / MEDIUM / LOW
-- Exception dashboard with suggested resolution per case
-- Optional: customer-facing status dashboard
+- Exception console with suggested resolution per case
+- Optional: customer-facing status console
 - Audit log with confidence scores + human override tracking
 
 **Dependencies**
