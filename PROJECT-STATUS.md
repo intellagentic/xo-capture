@@ -3,7 +3,7 @@
 **Date:** April 15, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.20)
+**Status:** Deployed & Operational (v2.21)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -3753,6 +3753,12 @@ PR #7 -- UI Fixes Post-Merge (cc9fd88):
 - Scope indicator count line restored -- always shows "Scope: N of M problems, X of Y components" with titles below
 - Executive Summary metric card parser switched from period split to semicolon split -- avoids breaking on parenthetical text
 - Two-card render restored
+
+Accessibility Quick Wins (WCAG 2.2 AA):
+- select-name (4.1.2): aria-label added to all 16 select elements — 0 violations
+- color-contrast (1.4.3): --text-muted CSS variable #888888 -> #6b7280 (passes 4.5:1 on white); sidebar text opacity 0.5 -> 0.7; footer links #808080 -> #6b7280
+- Lighthouse login score: 92% (remaining: login gradient contrast — borderline, dark bg)
+- axe authed: select-name eliminated; color-contrast reduced from 13 to ~2 nodes (sidebar active item borderline)
 
 Generator/Skill Drift Closed (workspace-check PR #1, 6ea13a1):
 - gen_component_library.py now emits classification rules, tag format enforcement, Streamline convention, and ingestion path decision rule
