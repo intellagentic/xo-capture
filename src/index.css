@@ -17,7 +17,7 @@ html, body { overflow-x: hidden; width: 100%; }
   --border-color: #e5e5e5;
   --text-primary: #1a1a1a;
   --text-secondary: #666666;
-  --text-muted: #888888;
+  --text-muted: #6b7280;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.1);
   --shadow-modal: 0 4px 12px rgba(0, 0, 0, 0.15);
   --scrollbar-track: #f0f0f0;

@@ -1039,7 +1039,7 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isAccount, a
           style={{ width: 300, padding: '0.45rem 0.625rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', height: 36 }}
         />
         {isAdmin && (
-          <select value={filterPartner} onChange={e => setFilterPartner(e.target.value)}
+          <select value={filterPartner} onChange={e => setFilterPartner(e.target.value)} aria-label="Filter by partner"
             style={{ width: 150, padding: '0.45rem 0.5rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', height: 36 }}>
             <option value="">All Partners</option>
             <option value="direct">Direct (Intellagentic)</option>
@@ -1047,7 +1047,7 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isAccount, a
           </select>
         )}
         {industries.length > 0 && (
-          <select value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)}
+          <select value={filterIndustry} onChange={e => setFilterIndustry(e.target.value)} aria-label="Filter by industry"
             style={{ width: 150, padding: '0.45rem 0.5rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', height: 36 }}>
             <option value="">All Industries</option>
             {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
@@ -1372,7 +1372,7 @@ function InvitePage() {
                 </label>
                 {isPhone ? (
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <select value={phoneCode} onChange={e => setPhoneCode(e.target.value)}
+                    <select value={phoneCode} aria-label="Country code" onChange={e => setPhoneCode(e.target.value)}
                       style={{
                         width: '90px', flexShrink: 0, padding: '8px 4px', fontSize: '14px',
                         background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
@@ -1423,7 +1423,7 @@ function InvitePage() {
               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#888', marginBottom: '2px', letterSpacing: '1px' }}>
                 How did you hear about us?
               </label>
-              <select value={leadSource} onChange={e => setLeadSource(e.target.value)}
+              <select value={leadSource} aria-label="Lead source" onChange={e => setLeadSource(e.target.value)}
                 style={{
                   width: '100%', padding: '8px 10px', fontSize: '16px',
                   background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
@@ -2594,7 +2594,7 @@ export default function App() {
                 <div style={{ minWidth: 0 }}>
                 <span style={{ color: 'white', fontWeight: 600, fontSize: '0.8rem', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'Menu'}</span>
                 {isAdmin && <span style={{ display: 'inline-block', fontSize: '0.55rem', fontWeight: 700, color: '#fff', background: '#CC0000', padding: '0.05rem 0.35rem', borderRadius: 4, letterSpacing: '0.04em', marginTop: '0.1rem' }}>XO ADMIN</span>}
-                {user?.email && <span style={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '0.65rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{user.email}</span>}
+                {user?.email && <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.65rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{user.email}</span>}
                 </div>
               </div>
               <button
@@ -2853,8 +2853,8 @@ export default function App() {
       </div>{/* end right-side wrapper */}
 
       {/* Footer — outside content wrapper so overflowX:hidden doesn't affect it */}
-      <div style={{ position: 'fixed', bottom: 0, left: `${contentOffset}px`, right: 0, textAlign: 'center', padding: '0.5rem 1rem', fontSize: '11px', color: '#808080', zIndex: 200, transition: 'left 0.2s ease', background: 'var(--bg-body, #f0f0f0)', borderTop: '1px solid var(--border-color, #e5e5e5)' }}>
-        &copy; 2026 Intellagentic Limited. All rights reserved. &nbsp;|&nbsp; <a href="/terms" style={{ color: '#808080', textDecoration: 'none' }}>Terms</a> &middot; <a href="/privacy" style={{ color: '#808080', textDecoration: 'none' }}>Privacy</a> &middot; <a href="/security" style={{ color: '#808080', textDecoration: 'none' }}>Security</a>
+      <div style={{ position: 'fixed', bottom: 0, left: `${contentOffset}px`, right: 0, textAlign: 'center', padding: '0.5rem 1rem', fontSize: '11px', color: '#6b7280', zIndex: 200, transition: 'left 0.2s ease', background: 'var(--bg-body, #f0f0f0)', borderTop: '1px solid var(--border-color, #e5e5e5)' }}>
+        &copy; 2026 Intellagentic Limited. All rights reserved. &nbsp;|&nbsp; <a href="/terms" style={{ color: '#6b7280', textDecoration: 'none' }}>Terms</a> &middot; <a href="/privacy" style={{ color: '#6b7280', textDecoration: 'none' }}>Privacy</a> &middot; <a href="/security" style={{ color: '#6b7280', textDecoration: 'none' }}>Security</a>
       </div>
 
       {/* Company Information Modal */}
@@ -3027,7 +3027,7 @@ function AccountsScreen({ accounts, setAccounts }) {
           <input value={partnerSearch} onChange={e => setPartnerSearch(e.target.value)} placeholder="Search partners..."
             style={{ width: 300, padding: '0.45rem 0.625rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', height: 36 }} />
           {partnerIndustries.length > 0 && (
-            <select value={partnerIndustryFilter} onChange={e => setPartnerIndustryFilter(e.target.value)}
+            <select value={partnerIndustryFilter} aria-label="Filter by industry" onChange={e => setPartnerIndustryFilter(e.target.value)}
               style={{ width: 150, padding: '0.45rem 0.5rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', height: 36 }}>
               <option value="">All Industries</option>
               {partnerIndustries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
@@ -3216,7 +3216,7 @@ function AccountsScreen({ accounts, setAccounts }) {
                           <input type="email" value={contact.email || ''} onChange={e => updateFormContact(idx, 'email', e.target.value)}
                             placeholder="Email" style={contactFieldStyle} />
                           <div style={{ display: 'flex', gap: '0.25rem' }}>
-                            <select value={splitPhone(contact.phone).countryCode} onChange={e => updateFormContact(idx, 'phone', joinPhone(e.target.value, splitPhone(contact.phone).number))}
+                            <select value={splitPhone(contact.phone).countryCode} aria-label="Country code" onChange={e => updateFormContact(idx, 'phone', joinPhone(e.target.value, splitPhone(contact.phone).number))}
                               style={{ ...contactFieldStyle, width: '80px', flexShrink: 0, padding: '0.35rem 0.2rem' }}>
                               {COUNTRY_CODES.map(cc => <option key={cc.code} value={cc.code}>{cc.code}</option>)}
                             </select>
@@ -3469,11 +3469,11 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
               placeholder="Search name or email..."
               style={{ ...filterCtrlStyle, width: 300 }}
             />
-            <select value={teamRoleFilter} onChange={e => setTeamRoleFilter(e.target.value)} style={{ ...filterCtrlStyle, width: 150 }}>
+            <select value={teamRoleFilter} aria-label="Filter by role" onChange={e => setTeamRoleFilter(e.target.value)} style={{ ...filterCtrlStyle, width: 150 }}>
               <option value="">All Roles</option>
               {roleHierarchy.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}
             </select>
-            <select value={teamStatusFilter} onChange={e => setTeamStatusFilter(e.target.value)} style={{ ...filterCtrlStyle, width: 150 }}>
+            <select value={teamStatusFilter} aria-label="Filter by status" onChange={e => setTeamStatusFilter(e.target.value)} style={{ ...filterCtrlStyle, width: 150 }}>
               <option value="">All Status</option>
               <option value="active">Active</option>
               <option value="invited">Invited</option>
@@ -3609,7 +3609,7 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
                   {(u.id === user?.id || u.status === 'deactivated' || !['super_admin', 'account_admin'].includes(user?.account_role)) ? (
                     <span style={{ fontSize: '0.6rem', color: '#6b7280' }}>{roleLabels[u.account_role] || u.account_role || ''}</span>
                   ) : (
-                    <select
+                    <select aria-label="User role"
                       value={u.account_role || ''}
                       onChange={async (e) => {
                         const newRole = e.target.value
@@ -3671,7 +3671,7 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
               <input value={inviteName} onChange={e => setInviteName(e.target.value)} placeholder="Full name" style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none' }} />
               <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Email address" type="email" style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none' }} />
-              <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
+              <select value={inviteRole} aria-label="Role" onChange={e => setInviteRole(e.target.value)} style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
                 {isAdmin && <option value="super_admin">Super Admin</option>}
                 <option value="account_admin">Account Admin</option>
                 <option value="account_user">Account User</option>
@@ -3679,7 +3679,7 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
                 <option value="client_contact">Client Contact</option>
               </select>
               {isAdmin && accounts && accounts.length > 0 && (
-                <select value={inviteAccountId} onChange={e => setInviteAccountId(e.target.value ? parseInt(e.target.value) : '')} style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
+                <select value={inviteAccountId} aria-label="Account" onChange={e => setInviteAccountId(e.target.value ? parseInt(e.target.value) : '')} style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
                   <option value="">No account (platform user)</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name || a.company}</option>)}
                 </select>
@@ -4068,7 +4068,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                       <input type="email" value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)}
                         placeholder="Email" style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }} />
                       <div style={{ display: 'flex', gap: '0.25rem' }}>
-                        <select value={splitPhone(contact.phone).countryCode} onChange={(e) => updateContact(idx, 'phone', joinPhone(e.target.value, splitPhone(contact.phone).number))}
+                        <select value={splitPhone(contact.phone).countryCode} aria-label="Country code" onChange={(e) => updateContact(idx, 'phone', joinPhone(e.target.value, splitPhone(contact.phone).number))}
                           style={{ width: '80px', flexShrink: 0, padding: '0.5rem 0.2rem', border: '1px solid var(--border-color)', borderRadius: '6px', fontSize: '0.8rem', fontFamily: 'inherit' }}>
                           {COUNTRY_CODES.map(cc => <option key={cc.code} value={cc.code}>{cc.code}</option>)}
                         </select>
@@ -4217,7 +4217,7 @@ function CompanyInfoModal({ companyData, setCompanyData, onClose, onClientCreate
                 <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
                   Channel Partner
                 </label>
-                <select
+                <select aria-label="Channel partner"
                   value={localAccountId}
                   onChange={(e) => setLocalAccountId(e.target.value)}
                   style={{
@@ -5064,7 +5064,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.3rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                   Channel Partner
                 </label>
-                <select
+                <select aria-label="Channel partner"
                   value={formData.account_id || ''}
                   onChange={(e) => { const val = e.target.value ? parseInt(e.target.value) : null; setFormData(prev => ({ ...prev, account_id: val })); autoSave({ account_id: val }) }}
                   style={{
@@ -5320,7 +5320,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                     <input type="email" value={contact.email} onChange={(e) => updateContact(idx, 'email', e.target.value)} onBlur={autoSave}
                       placeholder="Email" style={{ width: '100%', padding: '0.375rem 0.5rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }} />
                     <div style={{ display: 'flex', gap: '0.25rem' }}>
-                      <select value={splitPhone(contact.phone).countryCode} onChange={(e) => { updateContact(idx, 'phone', joinPhone(e.target.value, splitPhone(contact.phone).number)); setTimeout(autoSave, 0) }}
+                      <select value={splitPhone(contact.phone).countryCode} aria-label="Country code" onChange={(e) => { updateContact(idx, 'phone', joinPhone(e.target.value, splitPhone(contact.phone).number)); setTimeout(autoSave, 0) }}
                         style={{ width: '72px', flexShrink: 0, padding: '0.375rem 0.15rem', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: '5px', fontSize: '0.75rem', color: '#111827', fontFamily: 'inherit', outline: 'none' }}>
                         {COUNTRY_CODES.map(cc => <option key={cc.code} value={cc.code}>{cc.code}</option>)}
                       </select>
@@ -5509,7 +5509,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'white', marginBottom: '0.1rem', letterSpacing: '-0.01em' }}>
                   DOMAIN EXPERTISE
                 </h3>
-                <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
                   The Filter
                 </p>
                 <p style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.4, marginBottom: '0.35rem' }}>
@@ -5525,7 +5525,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                   }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'white' }}>{companyData.name}</div>
                     {companyData.industry && (
-                      <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', marginTop: '0.15rem' }}>{companyData.industry}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.7)', marginTop: '0.15rem' }}>{companyData.industry}</div>
                     )}
                   </div>
                 ) : (
@@ -5564,7 +5564,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'white', marginBottom: '0.1rem', letterSpacing: '-0.01em' }}>
                   YOUR DATA
                 </h3>
-                <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
                   The Noise
                 </p>
                 <p style={{ fontSize: '0.8rem', color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.4, marginBottom: '0.5rem' }}>
@@ -5585,7 +5585,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                            Your data librar{sourceCount !== 1 ? 'ies' : 'y'} {sourceCount}
                         </span>
                       </div>
-                      <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.7)' }}>
                         {activeCount} active
                       </span>
                     </div>
@@ -5651,7 +5651,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 </h3>
                 <p style={{
                   fontSize: '0.75rem',
-                  color: allStepsComplete ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.55)',
+                  color: allStepsComplete ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.55)',
                   fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem'
                 }}>
                   The Output
@@ -5692,7 +5692,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                     </button>
                   </div>
                 ) : (
-                  <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', fontStyle: 'italic', textAlign: 'center' }}>
+                  <p style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.7)', fontStyle: 'italic', textAlign: 'center' }}>
                     Complete steps 1, 2 & 3 →
                   </p>
                 )}
@@ -5833,7 +5833,7 @@ function EngagementForm({ initial, saving, onSave, onDelete }) {
       </div>
       <div>
         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.3rem', color: 'var(--text-primary)' }}>Status</label>
-        <select value={status} onChange={e => setStatus(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+        <select value={status} aria-label="Engagement status" onChange={e => setStatus(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
           <option value="active">Active</option>
           <option value="won">Won</option>
           <option value="lost">Lost</option>
