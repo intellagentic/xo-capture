@@ -1386,18 +1386,18 @@ Analyze this business like an MBA analyst presenting on Monday morning.{pain_poi
 Provide your analysis covering: Executive Summary, Problems Identified, Proposed Architecture, Component Mapping, Proposed Data Schema, 7/14/21 Day Action Plan, Bottom Line, Client Summary, and Potential Streamline Applications.
 
 ARCHITECTURE DIAGRAM RULES:
-The architecture_diagram MUST follow this layer model (top to bottom):
+The architecture_diagram uses four named bands (NO layer numbers — no "LAYER 1:", "LAYER 2:", etc.). Band labels are in ALL CAPS. Order top to bottom:
 
-LAYER 1 — DATA SOURCES: Client existing systems AND Streamline Data Fabric together in one layer. Show client systems (e.g. Epic, SAP, Salesforce) tagged [EXISTING] at the top. Below them, show Streamline connectors that normalise and stream the data (label as connectors, not tagged boxes). XO also has a direct path (Path B) to client systems that lack a Streamline connector — show this as a separate arrow labelled "XO Direct" bypassing Streamline connectors.
+DATA SOURCES — Client existing systems tagged [EXISTING] (e.g. Epic, SAP, Salesforce). Below them show Streamline connectors that stream data (not tagged boxes). Also show "XO Direct" path for client systems without a Streamline connector.
 
-LAYER 2 — STREAMLINE WORKFLOW ORCHESTRATION: Streamline executes the automated actions — notifications, alerts, status sync, transport triggers, schedule proposals. This is ONLY Streamline execution, not XO intelligence. Label as a layer, not a tagged box.
+XO RUNTIME PREDICTIVE ANALYSIS — XO components that analyse data, predict, detect, and recommend (e.g. RadiologyFlowEngine [NEW], BottleneckDetector [NEW]). Tag each component [EXISTING], [EXTEND], or [NEW]. XO reads from Data Sources and drives actions through Streamline.
 
-LAYER 3 — XO RUNTIME PREDICTIVE ANALYSIS: The intelligence layer. XO components that analyse data, predict, detect, and recommend (e.g. RadiologyFlowEngine [NEW], BottleneckDetector [NEW], SchedulingMatrix [NEW]). Tag each component [EXISTING], [EXTEND], or [NEW]. XO reads data from Layer 1 and drives automated actions through Layer 2.
+STREAMLINE WORKFLOW ORCHESTRATION — Streamline executes the automated actions XO decides on: notifications, alerts, status sync, transport triggers, schedule proposals. Not tagged.
 
-CONSOLE (optional, only if the enrichment produces UI components): Not numbered as a "layer". Label exactly as "CONSOLE". Individual console views are tagged components inside. Never use the word "dashboard" — always "console".
+CONSOLE — XO Console with views and workflow buttons. Individual views are tagged components (e.g. DepartmentFlowView [NEW]). Never use the word "dashboard" — always "console".
 
-Data flow: Layer 1 feeds data to Layer 3 (XO analyses). Layer 3 drives actions through Layer 2 (Streamline executes). Console displays XO's analysis to operators.
-Every named component box MUST carry [EXISTING], [EXTEND], or [NEW]. Do NOT include a summary caption inside the architecture_diagram — it is appended programmatically from component_mapping.summary_line.
+Data flow: Data Sources feed XO. XO drives Streamline. Console displays XO's analysis and Streamline's workflow actions to operators.
+Every named component box MUST carry [EXISTING], [EXTEND], or [NEW]. Do NOT include a summary caption — it is appended programmatically from component_mapping.summary_line.
 {system_skills_section}
 OUTPUT FORMAT:
 Return ONLY valid JSON in this exact structure. All text fields can include newline characters (\\n) for formatting. Follow the SYSTEM INSTRUCTIONS above for formatting rules:
@@ -1412,7 +1412,7 @@ Return ONLY valid JSON in this exact structure. All text fields can include newl
       "recommendation": "Concrete action: do X, expect Y outcome, costs approximately Z..."
     }}
   ],
-  "architecture_diagram": "ASCII diagram using +, -, |, v, > characters. Three layers: (1) DATA SOURCES — client systems [EXISTING] + Streamline connectors + XO Direct path, (2) STREAMLINE WORKFLOW ORCHESTRATION — Streamline executes actions, (3) XO RUNTIME PREDICTIVE ANALYSIS — XO components that analyse/predict/detect. Optional CONSOLE section for UI views. Tag every component box [EXISTING], [EXTEND], or [NEW]. No summary caption.",
+  "architecture_diagram": "ASCII diagram using +, -, |, v, > characters. Four named bands (no layer numbers): DATA SOURCES, XO RUNTIME PREDICTIVE ANALYSIS, STREAMLINE WORKFLOW ORCHESTRATION, CONSOLE. Tag every component box [EXISTING], [EXTEND], or [NEW]. No summary caption.",
   "component_mapping": {{
     "fits": [
       {{"component": "name", "version": "v1", "capability": "what it covers", "config_notes": "specific config needed"}}
