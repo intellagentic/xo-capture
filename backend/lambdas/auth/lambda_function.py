@@ -464,6 +464,7 @@ def _success_response(user_id, email, name, preferred_model='claude-sonnet-4-5-2
                       status=200, role='client', account_id=None, client_id=None):
     # Look up account_role and account_id from DB for JWT and response
     account_role = None
+    _caller_account_id = account_id
     account_id = None
     tfa_enabled = False
     photo_url = ''
@@ -477,10 +478,14 @@ def _success_response(user_id, email, name, preferred_model='claude-sonnet-4-5-2
             account_role = tfa_row[1]
             account_id = tfa_row[2]
             photo_url = tfa_row[3] if len(tfa_row) > 3 else ''
+        print(f"[TOKEN] _success_response for {email}: account_role={account_role}, account_id={account_id}")
         cur.close()
         conn.close()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[TOKEN] _success_response DB lookup failed for {email}: {e}")
+        # Fallback to caller-provided account_id if DB lookup failed
+        if not account_id and _caller_account_id:
+            account_id = _caller_account_id
 
     token = _make_token(user_id, email, name, role=role, account_id=account_id, client_id=client_id,
                         account_role=account_role)
