@@ -2278,12 +2278,12 @@ export default function App() {
     }
   }
 
-  const saveButtons = async (newButtons) => {
+  const saveButtons = async (newButtons, extraDeletedIds) => {
     setConfigButtons(newButtons)
     try {
       const payload = clientId
-        ? { client_id: clientId, buttons: newButtons }
-        : { buttons: newButtons }
+        ? { client_id: clientId, buttons: newButtons, deleted_ids: extraDeletedIds || [] }
+        : { buttons: newButtons, deleted_ids: extraDeletedIds || [] }
       await fetch(`${API_BASE}/buttons/sync`, {
         method: 'PUT',
         headers: getAuthHeaders(),
@@ -2294,13 +2294,14 @@ export default function App() {
     }
   }
 
-  const saveSystemButtons = async (newButtons) => {
+  const saveSystemButtons = async (newButtons, extraDeletedIds) => {
     setSystemButtons(newButtons)
     try {
+      const allDeleted = [...(extraDeletedIds || [])]
       await fetch(`${API_BASE}/buttons/sync`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ scope: 'system', buttons: newButtons })
+        body: JSON.stringify({ scope: 'system', buttons: newButtons, deleted_ids: allDeleted })
       })
     } catch (err) {
       console.error('Failed to save system buttons:', err)
@@ -8698,7 +8699,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
 
   const deleteButton = (id) => {
     let newButtons = buttons.filter(b => b.id !== id)
-    setButtons(newButtons)
+    setButtons(newButtons, [id])
     if (editingId === id) setEditingId(null)
   }
 
@@ -8738,7 +8739,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
   }
   const deleteSysButton = (id) => {
     let newButtons = systemButtons.filter(b => b.id !== id)
-    setSystemButtons(newButtons)
+    setSystemButtons(newButtons, [id])
     if (sysEditingId === id) setSysEditingId(null)
   }
   const duplicateSysButton = (btn) => {

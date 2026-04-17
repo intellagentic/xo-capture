@@ -166,11 +166,38 @@ def handle_get(event, user):
         }
 
 
+def _upsert_button(cur, btn, i, owner_user_id=None, owner_client_id=None):
+    """Upsert a single button by ID. Update if exists, insert if new."""
+    show_on = json.dumps(btn.get('showOn', btn.get('show_on', ['welcome'])))
+    name = btn.get('label', btn.get('name', 'Button'))
+    icon = btn.get('icon', 'Zap')
+    color = btn.get('color', '#3b82f6')
+    url = btn.get('url', '')
+    sort_order = btn.get('sort_order', i)
+    hidden = btn.get('hidden', False)
+    btn_id = btn.get('id')
+
+    if btn_id:
+        # Try update first
+        cur.execute("""
+            UPDATE buttons SET name=%s, icon=%s, color=%s, url=%s, sort_order=%s, show_on=%s, hidden=%s
+            WHERE id=%s
+        """, (name, icon, color, url, sort_order, show_on, hidden, btn_id))
+        if cur.rowcount > 0:
+            return
+    # Insert new
+    cur.execute("""
+        INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order, show_on, hidden)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (owner_user_id, owner_client_id, name, icon, color, url, sort_order, show_on, hidden))
+
+
 def handle_sync(event, user):
-    """Full replace of buttons for a given scope."""
+    """Upsert buttons and delete only explicitly requested IDs."""
     try:
         body = json.loads(event.get('body', '{}'))
         buttons = body.get('buttons', [])
+        deleted_ids = body.get('deleted_ids', [])
         scope = body.get('scope', '')
         client_id = body.get('client_id', '')
 
@@ -178,70 +205,33 @@ def handle_sync(event, user):
         cur = conn.cursor()
 
         if scope == 'system':
-            # Admin only
             if not user.get('is_admin'):
                 return {
                     'statusCode': 403,
                     'headers': CORS_HEADERS,
                     'body': json.dumps({'error': 'Admin required for system buttons'})
                 }
-            # Delete existing system buttons (user_id IS NULL distinguishes from legacy user buttons)
-            cur.execute("DELETE FROM buttons WHERE client_id IS NULL AND user_id IS NULL")
-            # Insert new system buttons
+            # Delete only explicitly requested buttons
+            for did in deleted_ids:
+                cur.execute("DELETE FROM buttons WHERE id = %s AND client_id IS NULL AND user_id IS NULL", (did,))
+            # Upsert each button
             for i, btn in enumerate(buttons):
-                show_on = json.dumps(btn.get('showOn', btn.get('show_on', ['welcome'])))
-                cur.execute("""
-                    INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order, show_on, hidden)
-                    VALUES (NULL, NULL, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    btn.get('label', btn.get('name', 'Button')),
-                    btn.get('icon', 'Zap'),
-                    btn.get('color', '#3b82f6'),
-                    btn.get('url', ''),
-                    btn.get('sort_order', i),
-                    show_on,
-                    btn.get('hidden', False),
-                ))
-            print(f"Synced {len(buttons)} system buttons by {user['email']}")
+                _upsert_button(cur, btn, i, owner_user_id=None, owner_client_id=None)
+            print(f"Synced {len(buttons)} system buttons ({len(deleted_ids)} deleted) by {user['email']}")
 
         elif client_id:
-            # Client-specific buttons
-            cur.execute("DELETE FROM buttons WHERE client_id = %s", (client_id,))
+            for did in deleted_ids:
+                cur.execute("DELETE FROM buttons WHERE id = %s AND client_id = %s", (did, client_id))
             for i, btn in enumerate(buttons):
-                show_on = json.dumps(btn.get('showOn', btn.get('show_on', ['welcome'])))
-                cur.execute("""
-                    INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order, show_on)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    user['user_id'],
-                    client_id,
-                    btn.get('label', btn.get('name', 'Button')),
-                    btn.get('icon', 'Zap'),
-                    btn.get('color', '#3b82f6'),
-                    btn.get('url', ''),
-                    btn.get('sort_order', i),
-                    show_on,
-                ))
-            print(f"Synced {len(buttons)} client buttons for {client_id} by {user['email']}")
+                _upsert_button(cur, btn, i, owner_user_id=user['user_id'], owner_client_id=client_id)
+            print(f"Synced {len(buttons)} client buttons for {client_id} ({len(deleted_ids)} deleted) by {user['email']}")
 
         else:
-            # Legacy: user-level buttons (only delete user's own, not system buttons)
-            cur.execute("DELETE FROM buttons WHERE user_id = %s", (user['user_id'],))
+            for did in deleted_ids:
+                cur.execute("DELETE FROM buttons WHERE id = %s AND user_id = %s", (did, user['user_id']))
             for i, btn in enumerate(buttons):
-                show_on = json.dumps(btn.get('showOn', btn.get('show_on', ['welcome'])))
-                cur.execute("""
-                    INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order, show_on)
-                    VALUES (%s, NULL, %s, %s, %s, %s, %s, %s)
-                """, (
-                    user['user_id'],
-                    btn.get('label', btn.get('name', 'Button')),
-                    btn.get('icon', 'Zap'),
-                    btn.get('color', '#3b82f6'),
-                    btn.get('url', ''),
-                    btn.get('sort_order', i),
-                    show_on,
-                ))
-            print(f"Synced {len(buttons)} buttons for user {user['email']}")
+                _upsert_button(cur, btn, i, owner_user_id=user['user_id'], owner_client_id=None)
+            print(f"Synced {len(buttons)} buttons ({len(deleted_ids)} deleted) for user {user['email']}")
 
         conn.commit()
         cur.close()
