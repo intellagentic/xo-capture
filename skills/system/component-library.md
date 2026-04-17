@@ -28,15 +28,15 @@ Always state which of the three applies, name the component (if any), and explai
 
 ## Streamline convention
 
-Streamline is a **platform layer**, not a component. It appears **twice** in the architecture diagram:
+Streamline is a **platform layer**, not a component. It appears in two roles in the architecture diagram:
 
-1. **Streamline Data Fabric** (top layer, below client systems) — connects to and normalises data from client systems via standard connectors. This is the integration/ingestion layer.
-2. **Streamline Workflow Layer** (bottom layer, below XO) — executes the automated actions that XO decides on: routes documents, sends notifications, triggers approvals.
+1. **Streamline connectors** (inside Layer 1: Data Sources) — connect to and normalise data from client systems. Shown as connectors beneath client systems, not as tagged component boxes.
+2. **Streamline Workflow Orchestration** (Layer 2) — executes the automated actions that XO drives: notifications, alerts, status sync, transport triggers, schedule proposals.
 
-Both are **layer labels**, not tagged component boxes. Do NOT tag either Streamline layer with `[EXISTING]`, `[EXTEND]`, or `[NEW]`.
+Neither role is a tagged component box. Do NOT tag Streamline with `[EXISTING]`, `[EXTEND]`, or `[NEW]`.
 
-- Individual workflows inside the Streamline Workflow Layer (e.g., "Exception Triage Workflow", "Invoice Reconciliation Workflow") are **configured, not built**. They do NOT carry `[NEW]` tags.
-- If a capability requires a new Streamline workflow, classify the **component that feeds the workflow** (e.g., ExceptionEngine `[EXTEND]`), not the workflow itself.
+- Individual workflows inside Streamline (e.g., "Exception Triage Workflow", "Invoice Reconciliation Workflow") are **configured, not built**. They do NOT carry `[NEW]` tags.
+- If a capability requires a new Streamline workflow, classify the **XO component that drives the workflow** (e.g., ExceptionEngine `[EXTEND]`), not the workflow itself.
 
 ## Output expectation
 
@@ -131,17 +131,17 @@ If the partner describes a capability that doesn't map cleanly to any component 
 
 ## Ingestion path decision rule
 
-XO has **two data input paths** shown in the architecture diagram:
+XO has **two data input paths** shown in Layer 1 (Data Sources):
 
-- **Path A — Via Streamline Data Fabric:** Use when the client system has a first-class Streamline connector (Salesforce, Redox, Postgres, MySQL, mainstream SaaS). Streamline normalises the data and feeds it to XO. Ingestion is Streamline configuration, NOT a new component.
-- **Path B — Direct to client systems:** Use when Streamline lacks a connector (scraped portals, custom aggregators, non-standard APIs, carrier-specific dialects). XO connects directly and normalises the data itself via an XO component. Tag [NEW] or [EXTEND] per the existing status rule.
+- **Path A — Via Streamline connectors:** Use when the client system has a first-class Streamline connector (Salesforce, Redox, Postgres, MySQL, mainstream SaaS). Streamline normalises the data and feeds it to XO. Ingestion is Streamline configuration, NOT a new component.
+- **Path B — XO Direct:** Use when Streamline lacks a connector (scraped portals, custom aggregators, non-standard APIs, carrier-specific dialects). XO connects directly and normalises the data itself via an XO component. Tag [NEW] or [EXTEND] per the existing status rule. Show as a separate arrow labelled "XO Direct" in the diagram.
 
 Both paths must be visible as separate arrows in the architecture diagram.
 
 Division of responsibility:
-- Streamline Data Fabric owns transport, standard connectors, PII classification at ingress, and data normalisation for supported systems.
-- XO components own domain-specific normalisation (for direct-connect path), persistent state, decision logic, and multi-day/historical analysis.
-- Streamline Workflow Layer owns transient action execution: document routing, notifications, approval chains. Streamline holds data only during workflow execution.
+- Streamline connectors (Layer 1) own transport, standard connectors, PII classification at ingress, and data normalisation for supported systems.
+- XO components (Layer 3) own domain-specific normalisation (for direct-connect path), persistent state, predictive analysis, and multi-day/historical logic.
+- Streamline Workflow Orchestration (Layer 2) owns transient action execution: notifications, alerts, status sync, transport triggers. Streamline holds data only during workflow execution.
 - Even when Streamline ingests, persistent data belongs in an XO component's store.
 
 For each data source in the client analysis, ask: "Does Streamline have a first-class connector for this?" If yes, ingestion is Streamline config. If no, it's an XO component.
