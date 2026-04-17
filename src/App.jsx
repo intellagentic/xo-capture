@@ -11070,7 +11070,30 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                                           })
                                                         })
                                                         const data = await res.json()
-                                                        if (data.success) {
+                                                        if (data.build_id) {
+                                                          // Poll for completion
+                                                          const pollBuild = async () => {
+                                                            for (let i = 0; i < 30; i++) {
+                                                              await new Promise(r => setTimeout(r, 3000))
+                                                              try {
+                                                                const sr = await fetch(`${API_BASE}/build-workflow/${data.build_id}`, { headers: getAuthHeaders() })
+                                                                const sd = await sr.json()
+                                                                if (sd.status === 'complete') {
+                                                                  setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'done' }))
+                                                                  setBuildResults(prev => ({ ...prev, [appIdx]: { success: true, project_id: sd.project_id, needs_ui_config: sd.needs_ui_config || [] } }))
+                                                                  return
+                                                                } else if (sd.status === 'failed') {
+                                                                  setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'error' }))
+                                                                  alert('Build failed: ' + (sd.error || 'Unknown error'))
+                                                                  return
+                                                                }
+                                                              } catch (_) { /* poll again */ }
+                                                            }
+                                                            setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'error' }))
+                                                            alert('Build timed out — check Streamline for results')
+                                                          }
+                                                          pollBuild()
+                                                        } else if (data.success) {
                                                           setBuildingWorkflow(prev => ({ ...prev, [appIdx]: 'done' }))
                                                           setBuildResults(prev => ({ ...prev, [appIdx]: data }))
                                                         } else {
