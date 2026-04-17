@@ -8373,6 +8373,7 @@ const ROUTE_MAP = {
 function PageActionButtons({ page, systemButtons, configButtons, onNavigate }) {
   const allButtons = [...(systemButtons || []), ...(configButtons || [])]
   const filtered = allButtons.filter(btn => {
+    if (btn.hidden) return false
     const showOn = btn.showOn || btn.show_on || ['welcome']
     if (!Array.isArray(showOn) || !showOn.includes(page)) return false
     // These render inside their respective section headers, not in generic bar
@@ -8795,7 +8796,7 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                   padding: 16, background: C.surface, border: `2px solid ${isEditing ? '#3b82f6' : C.border}`,
                   borderRadius: 12, cursor: readOnly ? 'default' : 'grab', transition: 'all .2s',
                   animation: `slideIn .3s ${index * 0.05}s ease backwards`,
-                  opacity: readOnly ? 0.8 : 1
+                  opacity: btn.hidden ? 0.45 : readOnly ? 0.8 : 1
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: isEditing ? 16 : 0 }}>
@@ -8818,6 +8819,11 @@ function ConfigurationScreen({ theme, toggleTheme, buttons, setButtons, systemBu
                   </div>
                   {!readOnly && (
                     <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => onUpdate(btn.id, 'hidden', !btn.hidden)} title={btn.hidden ? 'Show button' : 'Hide button'} style={{
+                        width: 32, height: 32, borderRadius: 6, border: 'none',
+                        background: btn.hidden ? '#f59e0b20' : `${C.muted}20`, color: btn.hidden ? '#f59e0b' : C.muted,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s'
+                      }}>{btn.hidden ? <EyeOff size={14} /> : <Eye size={14} />}</button>
                       <button onClick={() => setEditId(isEditing ? null : btn.id)} style={{
                         width: 32, height: 32, borderRadius: 6, border: 'none',
                         background: isEditing ? '#3b82f6' : `${C.muted}20`, color: isEditing ? 'white' : C.muted,

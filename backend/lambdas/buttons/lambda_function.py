@@ -96,7 +96,7 @@ def handle_get(event, user):
         if scope == 'system':
             # System buttons only (user_id IS NULL + client_id IS NULL)
             cur.execute("""
-                SELECT id, name, icon, color, url, sort_order, client_id, show_on
+                SELECT id, name, icon, color, url, sort_order, client_id, show_on, COALESCE(hidden, FALSE)
                 FROM buttons
                 WHERE client_id IS NULL AND user_id IS NULL
                 ORDER BY sort_order ASC
@@ -104,7 +104,7 @@ def handle_get(event, user):
         elif scope == 'client' and client_id:
             # Client-specific buttons only
             cur.execute("""
-                SELECT id, name, icon, color, url, sort_order, client_id, show_on
+                SELECT id, name, icon, color, url, sort_order, client_id, show_on, COALESCE(hidden, FALSE)
                 FROM buttons
                 WHERE client_id = %s
                 ORDER BY sort_order ASC
@@ -112,16 +112,16 @@ def handle_get(event, user):
         elif client_id:
             # Combined: system buttons first, then client buttons (for Welcome screen)
             cur.execute("""
-                (SELECT id, name, icon, color, url, sort_order, client_id, show_on
+                (SELECT id, name, icon, color, url, sort_order, client_id, show_on, COALESCE(hidden, FALSE)
                  FROM buttons WHERE client_id IS NULL AND user_id IS NULL ORDER BY sort_order ASC)
                 UNION ALL
-                (SELECT id, name, icon, color, url, sort_order, client_id, show_on
+                (SELECT id, name, icon, color, url, sort_order, client_id, show_on, COALESCE(hidden, FALSE)
                  FROM buttons WHERE client_id = %s ORDER BY sort_order ASC)
             """, (client_id,))
         else:
             # Legacy: user's own buttons
             cur.execute("""
-                SELECT id, name, icon, color, url, sort_order, client_id, show_on
+                SELECT id, name, icon, color, url, sort_order, client_id, show_on, COALESCE(hidden, FALSE)
                 FROM buttons
                 WHERE user_id = %s
                 ORDER BY sort_order ASC
@@ -145,6 +145,7 @@ def handle_get(event, user):
                 'sort_order': row[5],
                 'scope': 'system' if row[6] is None else 'client',
                 'showOn': show_on,
+                'hidden': bool(row[8]) if len(row) > 8 else False,
             })
 
         cur.close()
@@ -190,8 +191,8 @@ def handle_sync(event, user):
             for i, btn in enumerate(buttons):
                 show_on = json.dumps(btn.get('showOn', btn.get('show_on', ['welcome'])))
                 cur.execute("""
-                    INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order, show_on)
-                    VALUES (NULL, NULL, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO buttons (user_id, client_id, name, icon, color, url, sort_order, show_on, hidden)
+                    VALUES (NULL, NULL, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     btn.get('label', btn.get('name', 'Button')),
                     btn.get('icon', 'Zap'),
@@ -199,6 +200,7 @@ def handle_sync(event, user):
                     btn.get('url', ''),
                     btn.get('sort_order', i),
                     show_on,
+                    btn.get('hidden', False),
                 ))
             print(f"Synced {len(buttons)} system buttons by {user['email']}")
 
