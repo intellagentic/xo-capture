@@ -1386,22 +1386,17 @@ Analyze this business like an MBA analyst presenting on Monday morning.{pain_poi
 Provide your analysis covering: Executive Summary, Problems Identified, Proposed Architecture, Component Mapping, Proposed Data Schema, 7/14/21 Day Action Plan, Bottom Line, Client Summary, and Potential Streamline Applications.
 
 ARCHITECTURE DIAGRAM RULES:
-The architecture_diagram MUST follow this exact five-layer model (top to bottom):
+The architecture_diagram MUST follow this layer model (top to bottom):
 
-Layer 1 — CLIENT SYSTEMS: The client's existing systems (e.g. Epic, SAP, Salesforce). Tag each [EXISTING]. These are external — we don't build or modify them.
+LAYER 1 — DATA SOURCES: Client existing systems AND Streamline Data Fabric together in one layer. Show client systems (e.g. Epic, SAP, Salesforce) tagged [EXISTING] at the top. Below them, show Streamline connectors that normalise and stream the data (label as connectors, not tagged boxes). XO also has a direct path (Path B) to client systems that lack a Streamline connector — show this as a separate arrow labelled "XO Direct" bypassing Streamline connectors.
 
-Layer 2 — STREAMLINE DATA FABRIC: Streamline's integration/normalisation layer. Connects to client systems via standard connectors. Label as a layer, not a tagged box.
+LAYER 2 — STREAMLINE WORKFLOW ORCHESTRATION: Streamline executes the automated actions — notifications, alerts, status sync, transport triggers, schedule proposals. This is ONLY Streamline execution, not XO intelligence. Label as a layer, not a tagged box.
 
-Layer 3 — XO ORCHESTRATION LAYER: The intelligence/decision layer. Contains domain-specific components (e.g. RadiologyFlowEngine [NEW], CarrierGate [EXTEND]). Tag each component. XO has TWO data input paths shown with arrows:
-  - Path A: Reads normalised data from Streamline Data Fabric (when Streamline has a connector)
-  - Path B: Connects directly to client systems and normalises data itself (when Streamline lacks a connector)
-  Both paths must be visible as separate arrows in the diagram.
+LAYER 3 — XO RUNTIME PREDICTIVE ANALYSIS: The intelligence layer. XO components that analyse data, predict, detect, and recommend (e.g. RadiologyFlowEngine [NEW], BottleneckDetector [NEW], SchedulingMatrix [NEW]). Tag each component [EXISTING], [EXTEND], or [NEW]. XO reads data from Layer 1 and drives automated actions through Layer 2.
 
-Layer 4 — STREAMLINE WORKFLOW LAYER: Executes the automated actions that XO decides on. Routes documents, sends notifications, triggers approvals. Label as a layer, not a tagged box.
+CONSOLE (optional, only if the enrichment produces UI components): Not numbered as a "layer". Label exactly as "CONSOLE". Individual console views are tagged components inside. Never use the word "dashboard" — always "console".
 
-Layer 5 — CONSOLE: One unified operational console. The layer label MUST be exactly "LAYER 5: CONSOLE" (singular, not "CONSOLES"). Individual console views are tagged components inside this layer. Never use the word "dashboard" — always "console".
-
-Streamline appears TWICE: as data fabric (layer 2) and workflow execution (layer 4). This is the standard architecture for all clients.
+Data flow: Layer 1 feeds data to Layer 3 (XO analyses). Layer 3 drives actions through Layer 2 (Streamline executes). Console displays XO's analysis to operators.
 Every named component box MUST carry [EXISTING], [EXTEND], or [NEW]. Do NOT include a summary caption inside the architecture_diagram — it is appended programmatically from component_mapping.summary_line.
 {system_skills_section}
 OUTPUT FORMAT:
@@ -1417,7 +1412,7 @@ Return ONLY valid JSON in this exact structure. All text fields can include newl
       "recommendation": "Concrete action: do X, expect Y outcome, costs approximately Z..."
     }}
   ],
-  "architecture_diagram": "ASCII diagram using +, -, |, v, > characters. Five layers top-to-bottom: (1) Client Systems [EXISTING], (2) Streamline Data Fabric layer, (3) XO Orchestration Layer with domain components inside — show TWO input arrows: one from Streamline Data Fabric, one direct to client systems, (4) Streamline Workflow Layer, (5) Console (never use 'dashboard' — always 'console'). Tag every named component box [EXISTING], [EXTEND], or [NEW]. No summary caption.",
+  "architecture_diagram": "ASCII diagram using +, -, |, v, > characters. Three layers: (1) DATA SOURCES — client systems [EXISTING] + Streamline connectors + XO Direct path, (2) STREAMLINE WORKFLOW ORCHESTRATION — Streamline executes actions, (3) XO RUNTIME PREDICTIVE ANALYSIS — XO components that analyse/predict/detect. Optional CONSOLE section for UI views. Tag every component box [EXISTING], [EXTEND], or [NEW]. No summary caption.",
   "component_mapping": {{
     "fits": [
       {{"component": "name", "version": "v1", "capability": "what it covers", "config_notes": "specific config needed"}}
