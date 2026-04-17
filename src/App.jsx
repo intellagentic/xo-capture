@@ -3347,6 +3347,7 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
   const [inviteSuccess, setInviteSuccess] = useState(null)
   const [inviteClients, setInviteClients] = useState([])
   const [inviteSelectedClients, setInviteSelectedClients] = useState(new Set())
+  const [inviteClientSearch, setInviteClientSearch] = useState('')
   const [inviteClientsLoaded, setInviteClientsLoaded] = useState(false)
 
   const fetchUsers = async () => {
@@ -3718,18 +3719,21 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
                   ) : inviteClients.length === 0 ? (
                     <div style={{ fontSize: '0.7rem', color: '#9ca3af' }}>No clients available</div>
                   ) : (
-                    <div style={{ maxHeight: 140, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      {inviteClients.map(c => (
-                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
-                          <input type="checkbox" checked={inviteSelectedClients.has(c.id)} onChange={() => setInviteSelectedClients(prev => {
-                            const next = new Set(prev)
-                            next.has(c.id) ? next.delete(c.id) : next.add(c.id)
-                            return next
-                          })} />
-                          {c.company_name}
-                        </label>
-                      ))}
-                    </div>
+                    <>
+                      <input value={inviteClientSearch} onChange={e => setInviteClientSearch(e.target.value)} placeholder="Search clients..." style={{ padding: '0.35rem 0.5rem', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: 6, fontSize: '0.75rem', fontFamily: 'inherit', outline: 'none', marginBottom: '0.35rem', width: '100%', boxSizing: 'border-box' }} />
+                      <div style={{ maxHeight: 140, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        {[...inviteClients].sort((a, b) => (a.company_name || '').localeCompare(b.company_name || '')).filter(c => !inviteClientSearch.trim() || (c.company_name || '').toLowerCase().includes(inviteClientSearch.toLowerCase())).map(c => (
+                          <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={inviteSelectedClients.has(c.id)} onChange={() => setInviteSelectedClients(prev => {
+                              const next = new Set(prev)
+                              next.has(c.id) ? next.delete(c.id) : next.add(c.id)
+                              return next
+                            })} />
+                            {c.company_name}
+                          </label>
+                        ))}
+                      </div>
+                    </>
                   )}
                   {inviteNeedsClients && inviteSelectedClients.size === 0 && inviteClientsLoaded && inviteRole === 'client_contact' && (
                     <div style={{ fontSize: '0.65rem', color: '#f59e0b', marginTop: '0.25rem' }}>This user won't see any clients until you assign them.</div>
