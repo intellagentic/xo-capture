@@ -3345,6 +3345,9 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
   const [inviteAccountId, setInviteAccountId] = useState(user?.account_id || '')
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState(null)
+  const [inviteClients, setInviteClients] = useState([])
+  const [inviteSelectedClients, setInviteSelectedClients] = useState(new Set())
+  const [inviteClientsLoaded, setInviteClientsLoaded] = useState(false)
 
   const fetchUsers = async () => {
     try {
@@ -3392,6 +3395,17 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
     setAssignSaving(false)
   }
 
+  const inviteNeedsClients = ['account_user', 'client_contact', 'contributor'].includes(inviteRole)
+
+  const fetchInviteClients = async () => {
+    if (inviteClientsLoaded) return
+    try {
+      const res = await fetch(`${API_BASE}/clients/list`, { headers: getAuthHeaders() })
+      if (res.ok) { const d = await res.json(); setInviteClients(d.clients || []) }
+    } catch (_) {}
+    setInviteClientsLoaded(true)
+  }
+
   const handleInvite = async () => {
     if (!inviteEmail.trim() || !inviteName.trim()) return
     setInviteSending(true)
@@ -3403,9 +3417,21 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to send invite')
+
+      // Assign selected clients if any
+      if (inviteNeedsClients && inviteSelectedClients.size > 0 && data.user_id) {
+        try {
+          await fetch(`${API_BASE}/auth/users/${data.user_id}/clients`, {
+            method: 'POST', headers: getAuthHeaders(),
+            body: JSON.stringify({ client_ids: Array.from(inviteSelectedClients) })
+          })
+        } catch (_) {}
+      }
+
       setInviteSuccess(`Invitation sent to ${inviteEmail}`)
       setInviteEmail('')
       setInviteName('')
+      setInviteSelectedClients(new Set())
       setShowInviteModal(false)
       fetchUsers()
       setTimeout(() => setInviteSuccess(null), 5000)
@@ -3671,7 +3697,7 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
               <input value={inviteName} onChange={e => setInviteName(e.target.value)} placeholder="Full name" style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none' }} />
               <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Email address" type="email" style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none' }} />
-              <select value={inviteRole} aria-label="Role" onChange={e => setInviteRole(e.target.value)} style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
+              <select value={inviteRole} aria-label="Role" onChange={e => { setInviteRole(e.target.value); if (['account_user', 'client_contact', 'contributor'].includes(e.target.value)) fetchInviteClients() }} style={{ padding: '0.5rem 0.625rem', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.85rem', cursor: 'pointer' }}>
                 {isAdmin && <option value="super_admin">Super Admin</option>}
                 <option value="account_admin">Account Admin</option>
                 <option value="account_user">Account User</option>
@@ -3683,6 +3709,32 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
                   <option value="">No account (platform user)</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name || a.company}</option>)}
                 </select>
+              )}
+              {inviteNeedsClients && (
+                <div style={{ border: '1px solid var(--border-color, #e5e7eb)', borderRadius: 8, padding: '0.5rem 0.625rem' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.375rem' }}>Assign Clients</div>
+                  {!inviteClientsLoaded ? (
+                    <button type="button" onClick={fetchInviteClients} style={{ fontSize: '0.75rem', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Load client list</button>
+                  ) : inviteClients.length === 0 ? (
+                    <div style={{ fontSize: '0.7rem', color: '#9ca3af' }}>No clients available</div>
+                  ) : (
+                    <div style={{ maxHeight: 140, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      {inviteClients.map(c => (
+                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={inviteSelectedClients.has(c.id)} onChange={() => setInviteSelectedClients(prev => {
+                            const next = new Set(prev)
+                            next.has(c.id) ? next.delete(c.id) : next.add(c.id)
+                            return next
+                          })} />
+                          {c.company_name}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {inviteNeedsClients && inviteSelectedClients.size === 0 && inviteClientsLoaded && inviteRole === 'client_contact' && (
+                    <div style={{ fontSize: '0.65rem', color: '#f59e0b', marginTop: '0.25rem' }}>This user won't see any clients until you assign them.</div>
+                  )}
+                </div>
               )}
               <button onClick={handleInvite} disabled={inviteSending || !inviteEmail.trim() || !inviteName.trim()}
                 style={{ padding: '0.625rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, fontSize: '0.85rem', fontWeight: 600, cursor: inviteSending ? 'wait' : 'pointer', opacity: inviteSending ? 0.7 : 1, marginTop: '0.25rem' }}>
