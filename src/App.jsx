@@ -8351,7 +8351,7 @@ function PageActionButtons({ page, systemButtons, configButtons, onNavigate }) {
     if (!Array.isArray(showOn) || !showOn.includes(page)) return false
     // These render inside their respective section headers, not in generic bar
     if (page === 'results' && (btn.label === 'Rapid Prototype' || btn.name === 'Rapid Prototype')) return false
-    if (page === 'results' && (btn.label === 'Download .docx' || btn.name === 'Download .docx')) return false
+    if (page === 'results' && (btn.label === 'Download Brief' || btn.label === 'Download .docx' || btn.name === 'Download Brief' || btn.name === 'Download .docx')) return false
     return true
   })
   if (filtered.length === 0) return null
@@ -10686,7 +10686,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 }}
                 disabled={briefDownloadLoading}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: briefDownloadLoading ? 'wait' : 'pointer', flexShrink: 0, opacity: briefDownloadLoading ? 0.7 : 1 }}>
-                  {briefDownloadLoading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .docx
+                  {briefDownloadLoading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download Brief
                 </button>
               )}
               {item.id === 'growthDeck' && (
@@ -10709,7 +10709,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 }}
                 disabled={deckDownloadLoading}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600, cursor: deckDownloadLoading ? 'wait' : 'pointer', flexShrink: 0, opacity: deckDownloadLoading ? 0.7 : 1 }}>
-                  {deckDownloadLoading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download .pptx
+                  {deckDownloadLoading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download Deck
                 </button>
               )}
               {isDraft && (item.id === 'deploymentBrief' || item.id === 'growthDeck') && (
