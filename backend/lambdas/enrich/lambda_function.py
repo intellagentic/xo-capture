@@ -1388,13 +1388,17 @@ Provide your analysis covering: Executive Summary, Problems Identified, Proposed
 ARCHITECTURE DIAGRAM RULES:
 The architecture_diagram uses four named bands (NO layer numbers — no "LAYER 1:", "LAYER 2:", etc.). Band labels are in ALL CAPS. Order top to bottom:
 
-DATA SOURCES — Client existing systems tagged [EXISTING] (e.g. Epic, SAP, Salesforce). Below them show Streamline connectors that stream data (not tagged boxes). Also show "XO Direct" path for client systems without a Streamline connector.
+DATA SOURCES — Client existing systems tagged [EXISTING] (e.g. Epic, SAP, Salesforce). Below them show ONE Streamline connector per integration platform (e.g. "Streamline Redox Connector" for ALL Epic systems — do NOT create separate connectors per Epic module). Streamline connectors are NOT tagged boxes. Do NOT show "XO Direct" as a connector — omit it from the diagram.
 
 XO RUNTIME PREDICTIVE ANALYSIS — XO components that analyse data, predict, detect, and recommend (e.g. RadiologyFlowEngine [NEW], BottleneckDetector [NEW]). Tag each component [EXISTING], [EXTEND], or [NEW]. XO reads from Data Sources and drives actions through Streamline.
 
 STREAMLINE WORKFLOW ORCHESTRATION — Streamline executes the automated actions XO decides on: notifications, alerts, status sync, transport triggers, schedule proposals. Not tagged.
 
-CONSOLE — XO Console with views and workflow buttons. Individual views are tagged components (e.g. DepartmentFlowView [NEW]). Never use the word "dashboard" — always "console".
+CONSOLE — ONE unified console box tagged [NEW]. Do NOT show separate view boxes (no DepartmentFlowView, BottleneckAlertView, etc. as individual boxes). Show ONE box with these capabilities listed inside:
+  - Unified operational view (patient flow, bay/scanner status, throughput)
+  - Streamline workflow action buttons (trigger workflows directly from console)
+  - XO Insights (predictive analysis results, recommendations, alerts)
+Never use the word "dashboard" — always "console".
 
 Data flow: Data Sources feed XO. XO drives Streamline. Console displays XO's analysis and Streamline's workflow actions to operators.
 Every named component box MUST carry [EXISTING], [EXTEND], or [NEW]. Do NOT include a summary caption — it is appended programmatically from component_mapping.summary_line.
