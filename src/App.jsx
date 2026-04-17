@@ -3630,7 +3630,7 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
                       ))}
                     </select>
                   )}
-                  {u.account_role && ['account_user', 'client_contact', 'contributor'].includes(u.account_role) && u.status === 'active' && (
+                  {u.account_role && ['account_user', 'client_contact', 'contributor'].includes(u.account_role) && ['active', 'invited'].includes(u.status) && (
                     <button onClick={() => openAssignModal(u)} style={{ fontSize: '0.65rem', color: '#2563eb', background: 'none', border: '1px solid #2563eb', borderRadius: 4, cursor: 'pointer', padding: '0.1rem 0.3rem' }}>Clients</button>
                   )}
                   {u.status === 'invited' && (
