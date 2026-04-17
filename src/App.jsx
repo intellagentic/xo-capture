@@ -2253,6 +2253,26 @@ export default function App() {
           setClientId(data.client_id)
         }
       }
+      // Fetch engagements for this client on page load
+      const cid = clientId || data?.client_id
+      if (cid) {
+        try {
+          const engRes = await fetch(`${API_BASE}/engagements?client_id=${cid}`, { headers: getAuthHeaders() })
+          if (engRes.ok) {
+            const engData = await engRes.json()
+            const fetchedEngagements = engData.engagements || []
+            setEngagements(fetchedEngagements)
+            // Restore saved engagement selection
+            const savedEngId = sessionStorage.getItem('xo-engagement-' + cid)
+            if (savedEngId) {
+              const match = fetchedEngagements.find(e => e.id === savedEngId)
+              if (match) setActiveEngagement(match)
+            } else if (fetchedEngagements.length === 1) {
+              setActiveEngagement(fetchedEngagements[0])
+            }
+          }
+        } catch (_) {}
+      }
     } catch (err) {
       console.error('Failed to fetch existing client:', err)
     }
@@ -2438,8 +2458,14 @@ export default function App() {
       if (engRes.ok) { const engData = await engRes.json(); fetchedEngagements = engData.engagements || [] }
     } catch (e) {}
     setEngagements(fetchedEngagements)
-    // Auto-select if exactly one engagement
-    setActiveEngagement(fetchedEngagements.length === 1 ? fetchedEngagements[0] : null)
+    // Restore saved engagement or auto-select if exactly one
+    const savedEngId = sessionStorage.getItem('xo-engagement-' + client.client_id)
+    if (savedEngId) {
+      const match = fetchedEngagements.find(e => e.id === savedEngId)
+      setActiveEngagement(match || (fetchedEngagements.length === 1 ? fetchedEngagements[0] : null))
+    } else {
+      setActiveEngagement(fetchedEngagements.length === 1 ? fetchedEngagements[0] : null)
+    }
     setCurrentScreen('upload')
   }
 
@@ -5020,7 +5046,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', padding: '0.35rem 0.5rem', background: 'rgba(220,38,38,0.1)', borderRadius: 6, border: '1px solid rgba(220,38,38,0.2)' }}>
                   <span style={{ fontSize: '0.7rem', color: '#dc2626', fontWeight: 600 }}>Active:</span>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-primary)', fontWeight: 600 }}>{activeEngagement.name}</span>
-                  <button onClick={() => setActiveEngagement(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '0.65rem' }}>Clear</button>
+                  <button onClick={() => { setActiveEngagement(null); sessionStorage.removeItem('xo-engagement-' + clientId) }} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '0.65rem' }}>Clear</button>
                 </div>
               )}
 
@@ -5034,7 +5060,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                     const isSelected = activeEngagement?.id === eng.id
                     return (
                     <div key={eng.id}
-                      onClick={() => setActiveEngagement(isSelected ? null : eng)}
+                      onClick={() => { setActiveEngagement(isSelected ? null : eng); if (isSelected) { sessionStorage.removeItem('xo-engagement-' + clientId) } else { sessionStorage.setItem('xo-engagement-' + clientId, eng.id) } }}
                       style={{
                         padding: '0.5rem 0.625rem', borderRadius: 8, cursor: 'pointer',
                         border: isSelected ? '2px solid #dc2626' : '1px solid #e5e7eb',
@@ -5053,10 +5079,10 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                             <span style={{ fontSize: '0.6rem', color: '#9ca3af', fontStyle: 'italic' }}>Click to select</span>
                           )}
                           <span style={{
-                            fontSize: '0.6rem', fontWeight: 600, padding: '0.1rem 0.35rem', borderRadius: 4,
-                            background: eng.status === 'won' ? '#dcfce7' : eng.status === 'lost' ? '#fee2e2' : eng.status === 'paused' ? '#fef3c7' : '#dbeafe',
-                            color: eng.status === 'won' ? '#16a34a' : eng.status === 'lost' ? '#dc2626' : eng.status === 'paused' ? '#d97706' : '#2563eb'
-                          }}>{(eng.status || 'active').toUpperCase()}</span>
+                            fontSize: '0.55rem', fontWeight: 500, padding: '0.1rem 0.35rem', borderRadius: 4,
+                            background: eng.status === 'won' ? '#dcfce7' : eng.status === 'lost' ? '#fee2e2' : eng.status === 'paused' ? '#fef3c7' : '#f3f4f6',
+                            color: eng.status === 'won' ? '#16a34a' : eng.status === 'lost' ? '#dc2626' : eng.status === 'paused' ? '#d97706' : '#9ca3af'
+                          }}>{{ active: 'Open', won: 'WON', lost: 'LOST', paused: 'PAUSED' }[eng.status] || 'Open'}</span>
                           <button onClick={(e) => { e.stopPropagation(); setEditEngagement(eng); setShowEngagementModal(true) }}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '0.1rem' }}>
                             <Edit2 size={12} />
@@ -5861,7 +5887,7 @@ function UploadScreen({ setClientId, clientId, companyData, setCompanyData, onCl
                 try {
                   await fetch(`${API_BASE}/engagements?engagement_id=${editEngagement.id}`, { method: 'DELETE', headers: getAuthHeaders() })
                   setEngagements(prev => prev.filter(e => e.id !== editEngagement.id))
-                  if (activeEngagement?.id === editEngagement.id) setActiveEngagement(null)
+                  if (activeEngagement?.id === editEngagement.id) { setActiveEngagement(null); sessionStorage.removeItem('xo-engagement-' + clientId) }
                   setShowEngagementModal(false)
                   setEditEngagement(null)
                 } catch (err) { alert('Failed to delete: ' + err.message) }
