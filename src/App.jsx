@@ -8380,6 +8380,9 @@ function PageActionButtons({ page, systemButtons, configButtons, onNavigate }) {
     // These render inside their respective section headers, not in generic bar
     if (page === 'results' && (btn.label === 'Rapid Prototype' || btn.name === 'Rapid Prototype')) return false
     if (page === 'results' && (btn.label === 'Download Brief' || btn.label === 'Download .docx' || btn.name === 'Download Brief' || btn.name === 'Download .docx')) return false
+    if (page === 'results' && (btn.label === 'Download Deck' || btn.name === 'Download Deck')) return false
+    if (page === 'results' && (btn.label === 'Build in Streamline' || btn.name === 'Build in Streamline')) return false
+    if (page === 'configuration' && (btn.label === 'Rapid Prototype' || btn.name === 'Rapid Prototype')) return false
     return true
   })
   if (filtered.length === 0) return null
