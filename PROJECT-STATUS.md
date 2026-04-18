@@ -1,9 +1,9 @@
 # XO CAPTURE - PROJECT STATUS
 
-**Date:** April 16, 2026
+**Date:** April 17, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.25)
+**Status:** Deployed & Operational (v2.45)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -3820,10 +3820,64 @@ PR #25 -- Fix Stale Closure in Contact Photo Save:
 - All four handlers (upload, paste URL, remove, country code) now build updated contacts array and pass directly to autoSave
 - Fixes Contact 2+ photo not persisting after upload
 
+PR #26-35 -- Growth Deck + Architecture Diagram Iterations:
+- Growth Deck slide 6: removed duplicate/filler rows, capped at min(problems, workflows)
+- Workflow count metric card matched to slide 6 row count
+- Architecture diagram template evolved from 5-layer to named bands model
+- Final model: DATA SOURCES → XO RUNTIME PREDICTIVE ANALYSIS → STREAMLINE WORKFLOW ORCHESTRATION → CONSOLE
+- Single Streamline Redox Connector (not per-module), no XO Direct in diagram, unified Console box
+
+PR #36 -- Build in Streamline Webhook Fix:
+- incoming_webhook step type mapped to webhook before Streamline API call
+- Frontend polls GET /build-workflow/{build_id} instead of expecting synchronous response
+
+PR #37 -- JWT account_role Fix:
+- Added [TOKEN] diagnostic log to _success_response DB lookup
+- Fallback to caller-provided account_id when DB re-query fails
+
+PR #38 -- Client Assignment for Invited Users:
+- Clients button now shows for both active and invited users on Team page
+
+PR #39 -- Invite Modal Client Assignment:
+- Client picker with checkboxes added to Invite User modal for scoped roles
+- After invite, calls POST /auth/users/{id}/clients with selected client IDs
+
+PR #40 -- Invite Client List Sort + Search:
+- Client list sorted alphabetically, search input filters by name
+
+PR #41 -- Engagement Selection Persistence:
+- Selection saved to sessionStorage keyed by clientId
+- Restored on page refresh and client re-selection
+- Engagement fetch added to fetchExistingClient for page-load restoration
+- Status badge renamed from "ACTIVE" to "Open" (gray, subtle)
+
+PR #42 -- Button Label Rename:
+- "Download .docx" → "Download Brief"
+- "Download .pptx" → "Download Deck"
+
+PR #43 -- Button Visibility Toggle:
+- Added hidden BOOLEAN column to buttons table
+- Eye/EyeOff toggle in Configure Buttons admin
+- Hidden buttons render dimmed in config, excluded from PageActionButtons
+
+PR #44 -- Button Sync Upsert:
+- PUT /buttons/sync changed from delete-and-replace to upsert by ID
+- Only deletes buttons listed in deleted_ids array
+- Prevents accidental wipe of all system buttons
+
+PR #45 -- Inline Button Visibility Filter:
+- Added shouldRenderButton(label, page) helper in ResultsScreen
+- Checks systemButtons config for hidden flag and showOn array
+- Applied to all 5 inline render sites: Rapid Prototype, Download Brief, Download Deck, Build in Streamline (per-workflow), Issue Report
+- Top-bar exclusions: Download Deck, Build in Streamline, Rapid Prototype suppressed from floating top bar on Results and Configuration pages
+- Legacy-safe: undefined showOn or no matching entry = render as before
+- No changes to button definitions, Configure Buttons registry, or Lambda code
+
 PENDING ITEMS:
 - Drop clients.poc_scope column in follow-up once no fallback hits observed for 30 days
 - CS Triage Dashboard + Customer Dashboard rendered as standalone [NEW] boxes in architecture_diagram when they are UI surfaces of ExceptionEngine / CustomerPortal respectively. Needs a ui_surface modeling concept in component READMEs.
 - Remove [PHOTO DEBUG] console.log statements after contact photo upload verified stable
+- CLAUDE.md deploy patterns: document that buttons Lambda deploys from package/ (same as results)
 
 ---
 
