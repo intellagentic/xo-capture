@@ -9930,6 +9930,16 @@ function assembleBrief(results, client) {
 }
 
 function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,preferredModel, activeEngagement, setActiveEngagement, onNavigate }) {
+  // Check if a button should render on a page, respecting hidden flag and showOn config.
+  // If no matching systemButtons entry exists (legacy/hardcoded), returns true (preserve existing behavior).
+  const shouldRenderButton = (label, page) => {
+    const btn = (systemButtons || []).find(b => b.label === label || b.name === label)
+    if (!btn) return true // no config entry = legacy, render as before
+    if (btn.hidden) return false
+    const showOn = btn.showOn || btn.show_on
+    if (!showOn || !Array.isArray(showOn)) return true // undefined showOn = legacy, render as before
+    return showOn.includes(page)
+  }
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -10471,7 +10481,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 {streamlineSending ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={14} />}
                 {streamlineSending ? 'Sending...' : 'Issue Report'}
               </button>*/}
-              {systemButtons.filter((d)=>{return d.label==="Issue Report"}).map((btn,idx)=>{
+              {systemButtons.filter((d)=>{return (d.label==="Issue Report") && !d.hidden && (() => { const s = d.showOn || d.show_on; return !s || !Array.isArray(s) || s.includes('results') })()}).map((btn,idx)=>{
                 const IconComp = ICON_MAP[btn.icon] || Zap
                 return <button
                     key={"btn"+idx}
@@ -10680,7 +10690,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                 </div>
 
               </div>
-              {item.id === 'technicalSection' && systemButtons && systemButtons.filter(b => b.label === 'Rapid Prototype' || b.name === 'Rapid Prototype').map((btn, bi) => {
+              {item.id === 'technicalSection' && shouldRenderButton('Rapid Prototype', 'results') && systemButtons && systemButtons.filter(b => (b.label === 'Rapid Prototype' || b.name === 'Rapid Prototype') && !b.hidden).map((btn, bi) => {
                 const BtnIcon = ICON_MAP[btn.icon] || Download
                 return (
                   <button key={bi} onClick={async (e) => {
@@ -10702,7 +10712,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   </button>
                 )
               })}
-              {item.id === 'deploymentBrief' && (
+              {item.id === 'deploymentBrief' && shouldRenderButton('Download Brief', 'results') && (
                 <button onClick={async (e) => {
                   e.stopPropagation()
                   setBriefDownloadLoading(true)
@@ -10725,7 +10735,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   {briefDownloadLoading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={13} />} Download Brief
                 </button>
               )}
-              {item.id === 'growthDeck' && (
+              {item.id === 'growthDeck' && shouldRenderButton('Download Deck', 'results') && (
                 <button onClick={async (e) => {
                   e.stopPropagation()
                   setDeckDownloadLoading(true)
@@ -11080,7 +11090,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: labelMatch[1] === 'Problem' ? '#ef4444' : labelMatch[1] === 'Workflow' ? '#3b82f6' : '#6b7280', minWidth: '90px', flexShrink: 0 }}>{labelMatch[1]}:</span>
                                               <span style={{ fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-primary)' }}>{labelMatch[2]}</span>
                                             </div>
-                                            {isOutcome && appData && (
+                                            {isOutcome && appData && shouldRenderButton('Build in Streamline', 'results') && (
                                               <div style={{ paddingLeft: '0.75rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
                                                 {bStatus === 'done' && bResult ? (
                                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
