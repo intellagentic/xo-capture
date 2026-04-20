@@ -10799,7 +10799,8 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                 <div>
                                   {displayPhrases.map((phrase, pIdx) => {
                                     if (pIdx === 0) {
-                                      const firstDot = phrase.indexOf('.')
+                                      const sentenceEnd = phrase.match(/(?<![A-Z])\.(?:\s+)(?=[A-Z][a-z])/)
+                                      const firstDot = sentenceEnd ? sentenceEnd.index : -1
                                       if (firstDot > 0 && firstDot < phrase.length - 1) {
                                         const headline = phrase.substring(0, firstDot + 1)
                                         const rest = phrase.substring(firstDot + 1).trim()
@@ -10812,10 +10813,10 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                     }
                                     if (/^key metrics/i.test(phrase)) {
                                       const cleaned = phrase.replace(/^Key metrics:\s*/i, '').replace(/\s*\([^)]*\)\.?\s*$/, '')
-                                      const sentences = cleaned.split(/,\s*/).map(s => s.replace(/^and\s+/i, '').trim()).filter(s => s && /\d/.test(s))
+                                      const sentences = cleaned.split(/,\s+/).map(s => s.replace(/^and\s+/i, '').trim()).filter(s => s && /\d/.test(s))
                                       const metrics = sentences.map(s => {
                                         const t = s.replace(/\.$/, '')
-                                        const numMatch = t.match(/(\d[\d.,]*(?:[\-–]\d[\d.,]*)?%?\+?)/)
+                                        const numMatch = t.match(/((?:~\s*)?[$£€¥]?\d[\d,]*(?:\.\d+)?(?:\s*[\-–]\s*(?:~\s*)?[$£€¥]?\d[\d,]*(?:\.\d+)?)?%?\+?(?:\s*(?:trillion|billion|million|thousand|T|B|M|K|k))?)/)
                                         if (!numMatch) return null
                                         const value = numMatch[0]
                                         const label = t.replace(value, '').replace(/^\s*[:\-–—~]\s*/, '').trim()
@@ -10839,9 +10840,9 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                   {/* Fallback: scan all text for metrics if no "Key metrics:" paragraph found */}
                                   {!displayPhrases.some(p => /^key metrics/i.test(p)) && (() => {
                                     const allText = displayPhrases.join(' ')
-                                    const metricPatterns = allText.match(/(?:~?\d[\d.,]*(?:[\-–]\d[\d.,]*)?%?\+?)\s+[a-zA-Z][a-zA-Z\s/]+(?=,|\.|;|\s+and\s|$)/g) || []
+                                    const metricPatterns = allText.match(/(?:(?:~\s*)?[$£€¥]?\d[\d,]*(?:\.\d+)?(?:\s*[\-–]\s*(?:~\s*)?[$£€¥]?\d[\d,]*(?:\.\d+)?)?%?\+?(?:\s*(?:trillion|billion|million|thousand|T|B|M|K|k))?)\s+[a-zA-Z][a-zA-Z\s/]+(?=,|\.|;|\s+and\s|$)/g) || []
                                     const fallbackMetrics = metricPatterns.slice(0, 4).map(m => {
-                                      const numMatch = m.match(/^(~?\d[\d.,]*(?:[\-–]\d[\d.,]*)?%?\+?)/)
+                                      const numMatch = m.match(/^((?:~\s*)?[$£€¥]?\d[\d,]*(?:\.\d+)?(?:\s*[\-–]\s*(?:~\s*)?[$£€¥]?\d[\d,]*(?:\.\d+)?)?%?\+?(?:\s*(?:trillion|billion|million|thousand|T|B|M|K|k))?)/)
                                       if (!numMatch) return null
                                       const value = numMatch[0]
                                       const label = m.replace(value, '').replace(/^\s*/, '').trim()
