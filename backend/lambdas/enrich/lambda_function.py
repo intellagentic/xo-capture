@@ -1404,7 +1404,7 @@ Data flow: Data Sources feed XO. XO drives Streamline. Console displays XO's ana
 Every named component box MUST carry [EXISTING], [EXTEND], or [NEW]. Do NOT include a summary caption — it is appended programmatically from component_mapping.summary_line.
 {system_skills_section}
 OUTPUT FORMAT:
-Return ONLY valid JSON in this exact structure. All text fields can include newline characters (\\n) for formatting. Follow the SYSTEM INSTRUCTIONS above for formatting rules:
+Return valid JSON. The structure below is the base schema — additional fields instructed by SYSTEM INSTRUCTIONS above are permitted. All text fields can include newline characters (\\n) for formatting. Follow the SYSTEM INSTRUCTIONS above for formatting rules:
 {{
   "status": "complete",
   "summary": "Executive summary text",
@@ -1460,6 +1460,15 @@ Return ONLY valid JSON in this exact structure. All text fields can include newl
   "bottom_line": "Bottom line text",
   "client_summary": "Client-facing summary text",
   "streamline_applications": "Streamline workflow applications text",
+  "xo_applications": [
+    {{
+      "title": "Application Title",
+      "problem": "Business problem this solves, in the client's language",
+      "capability": "XO capability or capabilities applied",
+      "integrations": "Existing client tools XO connects to",
+      "outcome": "What changes operationally, day-to-day"
+    }}
+  ],
   "sources": [
     {{"type": "client_data", "reference": "filename or data source"}}
   ]
