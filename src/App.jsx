@@ -11199,200 +11199,52 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                             </div>
                           </div>
                           {expandedSubBlocks.xo && (() => {
-                              // Parse opportunities from client_summary — extract **bold title:** lines
-                              const rawOpps = displayResults.client_summary || '';
-                              const titleRegex = /[•*\-]\s*\*\*([^:*]+)/g;
-                              const opportunities = [];
-                              let match;
-                              while ((match = titleRegex.exec(rawOpps)) !== null) {
-                                const t = match[1].trim();
-                                if (t && !t.toLowerCase().startsWith('based on') && !t.toLowerCase().startsWith("we'd welcome")) opportunities.push({ title: t });
+                              const apps = displayResults.xo_applications
+                              if (!apps || !Array.isArray(apps) || apps.length === 0) {
+                                return (
+                                  <div style={{ margin: '0.75rem', marginTop: '12px', padding: '1.25rem', background: 'var(--bg-card-alt)', borderRadius: 8, border: '1px solid var(--border-color, #e5e7eb)' }}>
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #9ca3af)', fontStyle: 'italic', margin: 0 }}>XO applications will appear here after enrichment with the latest model.</p>
+                                  </div>
+                                )
                               }
-
-                              // Extract metric keywords from opportunities to generate dashboard cards
-                              const metricKeywords = [
-                                { patterns: ['compliance', 'regulatory', 'audit', 'standard'], label: 'Compliance Score', value: '94%', sub: 'Current period', color: '#22c55e', icon: 'shield' },
-                                { patterns: ['project', 'active', 'pipeline', 'portfolio'], label: 'Active Projects', value: String(7 + Math.floor((displayResults.problems?.length || 3) * 1.5)), sub: 'In progress', color: '#3b82f6', icon: 'folder' },
-                                { patterns: ['quality', 'qa', 'review', 'inspection'], label: 'QA Status', value: String(Math.max(1, (displayResults.problems?.length || 2) - 1)), sub: 'Pending review', color: '#f59e0b', icon: 'check' },
-                                { patterns: ['deadline', 'timeline', 'schedule', 'date', 'time'], label: 'Next Deadline', value: 'Apr 15', sub: '11 days', color: '#ef4444', icon: 'clock' },
-                                { patterns: ['cost', 'budget', 'spend', 'financial', 'revenue', 'saving'], label: 'Cost Savings', value: '23%', sub: 'vs. baseline', color: '#22c55e', icon: 'trend' },
-                                { patterns: ['risk', 'threat', 'vulnerability', 'exposure'], label: 'Risk Score', value: 'Medium', sub: `${displayResults.problems?.length || 0} findings`, color: '#f59e0b', icon: 'alert' },
-                                { patterns: ['efficiency', 'performance', 'productivity', 'throughput'], label: 'Efficiency', value: '87%', sub: 'Avg. throughput', color: '#3b82f6', icon: 'trend' },
-                                { patterns: ['monitor', 'track', 'visibility', 'dashboard', 'report'], label: 'Monitored Items', value: String((displayResults.sources?.length || 3) * 4), sub: 'Data points', color: '#a855f7', icon: 'eye' },
-                                { patterns: ['client', 'customer', 'stakeholder', 'partner'], label: 'Stakeholders', value: String(3 + (opportunities.length || 0)), sub: 'Connected', color: '#3b82f6', icon: 'users' },
-                                { patterns: ['document', 'report', 'file', 'record', 'certificate'], label: 'Documents', value: String(displayResults.analyzed_files?.length || 0), sub: 'Processed', color: '#64748b', icon: 'file' },
-                              ];
-                              const oppText = (rawOpps + ' ' + opportunities.map(o => o.title).join(' ')).toLowerCase();
-                              const problemText = (displayResults.problems || []).map(p => (p.title + ' ' + p.recommendation).toLowerCase()).join(' ');
-                              const allText = oppText + ' ' + problemText;
-                              const matchedMetrics = metricKeywords.filter(m => m.patterns.some(p => allText.includes(p))).slice(0, 4);
-                              // If fewer than 4 matched, pad with defaults
-                              const defaultMetrics = metricKeywords.filter(m => !matchedMetrics.includes(m));
-                              while (matchedMetrics.length < 4 && defaultMetrics.length > 0) matchedMetrics.push(defaultMetrics.shift());
-
-                              // Build monitoring items from problems
-                              const monitorItems = (displayResults.problems || []).slice(0, 4).map(p => ({
-                                title: p.title,
-                                severity: p.severity,
-                                status: p.severity === 'high' ? 'Flagged' : p.severity === 'medium' ? 'Monitoring' : 'Tracking'
-                              }));
-
-                              const metricIcon = (type) => {
-                                switch(type) {
-                                  case 'shield': return <Lock size={14} style={{ color: 'inherit' }} />;
-                                  case 'folder': return <FolderOpen size={14} style={{ color: 'inherit' }} />;
-                                  case 'check': return <CheckCircle size={14} style={{ color: 'inherit' }} />;
-                                  case 'clock': return <Clock size={14} style={{ color: 'inherit' }} />;
-                                  case 'trend': return <TrendingUp size={14} style={{ color: 'inherit' }} />;
-                                  case 'alert': return <AlertTriangle size={14} style={{ color: 'inherit' }} />;
-                                  case 'eye': return <Eye size={14} style={{ color: 'inherit' }} />;
-                                  case 'users': return <Users size={14} style={{ color: 'inherit' }} />;
-                                  case 'file': return <FileText size={14} style={{ color: 'inherit' }} />;
-                                  default: return <Zap size={14} style={{ color: 'inherit' }} />;
-                                }
-                              };
-
-                              // Parse workflow titles from streamline_applications
-                              const rawApps = displayResults.streamline_applications || '';
-                              const wfTitles = [];
-                              const wfBlocks = rawApps.split("\n\n");
-                              for (const block of wfBlocks) {
-                                const titleMatch = block.trim().match(/^\*\*\d+\.\s*(.+?)\*\*/);
-                                if (titleMatch) wfTitles.push(titleMatch[1].trim());
-                              }
-
-                              // Build source list from sources + analyzed_files
-                              const sourceItems = [
-                                ...(displayResults.sources || []).map(s => ({ name: s.reference.length > 25 ? s.reference.substring(0, 25) + '...' : s.reference, type: s.type === 'client_data' ? 'Client Data' : s.type === 'web_enrichment' ? 'Web Enrichment' : 'AI Analysis', icon: s.type === 'client_data' ? 'file' : s.type === 'web_enrichment' ? 'globe' : 'sparkle' })),
-                                ...(displayResults.analyzed_files || []).filter((_, i) => i < 3).map(f => ({ name: f.length > 25 ? f.substring(0, 25) + '...' : f, type: 'Uploaded File', icon: 'file' }))
-                              ].slice(0, 6);
-
                               return (
-                              <div style={{ background: '#1a1a2e', color: '#e2e8f0', margin: '0.75rem', marginTop: '12px', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                {/* Console Header */}
-                                <div style={{ padding: '0.75rem 1.25rem', marginBottom: '16px', borderBottom: '1px solid #2d2d4a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#C0392B' }}>XO</span>
-                                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Console</span>
-                                    <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>— {currentClient?.company_name || 'Client'}</span>
-                                  </div>
-                                  <span style={{ fontSize: '0.55rem', background: '#3b82f620', color: '#3b82f6', padding: '0.15rem 0.5rem', borderRadius: 3, fontWeight: 600, letterSpacing: '0.05em' }}>PREVIEW</span>
+                                <div style={{ margin: '0.75rem', marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                  {apps.map((app, i) => (
+                                    <div key={i} style={{ background: 'var(--bg-card-alt)', borderRadius: 8, border: '1px solid var(--border-color, #e5e7eb)', overflow: 'hidden' }}>
+                                      <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-color, #e5e7eb)', display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#fff', background: '#C0392B', width: 22, height: 22, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
+                                        <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{app.title}</h4>
+                                      </div>
+                                      <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        {app.problem && (
+                                          <div>
+                                            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted, #9ca3af)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Problem</div>
+                                            <p style={{ fontSize: '0.85rem', lineHeight: 1.6, color: 'var(--text-primary)', margin: 0 }}>{app.problem}</p>
+                                          </div>
+                                        )}
+                                        {app.capability && (
+                                          <div>
+                                            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted, #9ca3af)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>XO Capability</div>
+                                            <p style={{ fontSize: '0.85rem', lineHeight: 1.6, color: 'var(--text-primary)', margin: 0 }}>{app.capability}</p>
+                                          </div>
+                                        )}
+                                        {app.integrations && (
+                                          <div>
+                                            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted, #9ca3af)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Integrations</div>
+                                            <p style={{ fontSize: '0.85rem', lineHeight: 1.6, color: 'var(--text-primary)', margin: 0 }}>{app.integrations}</p>
+                                          </div>
+                                        )}
+                                        {app.outcome && (
+                                          <div style={{ background: 'rgba(15, 150, 156, 0.08)', borderRadius: 6, padding: '0.75rem 1rem', borderLeft: '3px solid #0F969C' }}>
+                                            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#0F969C', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Outcome</div>
+                                            <p style={{ fontSize: '0.85rem', lineHeight: 1.6, color: 'var(--text-primary)', margin: 0 }}>{app.outcome}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
-                                {/* Sidebar + Main */}
-                                <div style={{ display: 'flex' }}>
-                                  {/* Left Sidebar */}
-                                  <div style={{ width: '200px', flexShrink: 0, background: '#0f0f23', borderRight: '1px solid #2d2d4a', padding: '0.75rem' }}>
-                                    <div style={{ fontSize: '0.55rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.625rem' }}>Layer 1: Data Sources</div>
-                                    {sourceItems.map((s, i) => (
-                                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.375rem', padding: '0.35rem 0.375rem', marginBottom: '0.2rem', borderRadius: 4, background: '#1a1a2e' }}>
-                                        {s.icon === 'globe' ? <Globe size={11} style={{ color: '#22c55e', marginTop: 2, flexShrink: 0 }} /> : s.icon === 'sparkle' ? <Sparkles size={11} style={{ color: '#a855f7', marginTop: 2, flexShrink: 0 }} /> : <FileText size={11} style={{ color: '#3b82f6', marginTop: 2, flexShrink: 0 }} />}
-                                        <div style={{ minWidth: 0 }}>
-                                          <div style={{ fontSize: '0.65rem', color: '#e2e8f0', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
-                                          <div style={{ fontSize: '0.55rem', color: '#64748b' }}>{s.type}</div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                    {/* Nav items */}
-                                    <div style={{ borderTop: '1px solid #2d2d4a', marginTop: '0.625rem', paddingTop: '0.625rem' }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.4rem 0.5rem', borderRadius: 4, background: '#2a2a4e', color: '#e2e8f0', fontSize: '0.65rem', fontWeight: 600 }}>
-                                        <Zap size={11} style={{ color: '#C0392B' }} /> XO Insights
-                                      </div>
-                                      {[{ icon: <Settings size={11} />, label: 'Configuration' }, { icon: <Bell size={11} />, label: 'Notifications' }].map((nav, i) => (
-                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.35rem 0.375rem', borderRadius: 4, color: '#64748b', fontSize: '0.65rem' }}>
-                                          {nav.icon} {nav.label}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-
-                                  {/* Main Content */}
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: '#2d2d4a' }}>
-                                      {matchedMetrics.map((m, i) => (
-                                        <div key={i} style={{ background: '#1a1a2e', padding: '0.75rem' }}>
-                                          <div style={{ marginBottom: '0.35rem' }}>
-                                            <span style={{ color: m.color, opacity: 0.7 }}>{metricIcon(m.icon)}</span>
-                                          </div>
-                                          <div style={{ fontSize: '1.35rem', fontWeight: 700, color: m.color, lineHeight: 1 }}>{m.value}</div>
-                                          <div style={{ fontSize: '0.65rem', color: '#e2e8f0', fontWeight: 600, marginTop: '0.2rem' }}>{m.label}</div>
-                                          <div style={{ fontSize: '0.55rem', color: '#64748b', marginTop: '0.1rem' }}>{m.sub}</div>
-                                        </div>
-                                      ))}
-                                    </div>
-
-                                    {/* Layer 2: Workflow Orchestration */}
-                                    {wfTitles.length > 0 && (
-                                      <div style={{ padding: '0.625rem 0.75rem', borderTop: '1px solid #2d2d4a' }}>
-                                        <div style={{ fontSize: '0.55rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.375rem' }}>Layer 2: Workflow Orchestration</div>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                          {wfTitles.map((wf, i) => (
-                                            <span key={i} style={{ fontSize: '0.65rem', fontWeight: 600, color: '#fff', background: '#3b82f6', padding: '6px 12px', borderRadius: 12 }}>{wf}</span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Layer 3 */}
-                                    <div className="xo-layer3" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1px', background: '#2d2d4a', borderTop: '1px solid #2d2d4a' }}>
-                                      {/* XO Insights — merged flagged + opportunities */}
-                                      <div style={{ background: '#1a1a2e', padding: '0.625rem 0.75rem' }}>
-                                        <div className="xo-layer3-header" style={{ fontSize: '0.55rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.375rem' }}>Layer 3: XO Predictive Insights</div>
-
-                                        {/* Flagged Items */}
-                                        <div className="xo-layer3-subheader" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                                          <AlertTriangle size={10} style={{ color: '#f59e0b' }} /> Flagged
-                                          <span style={{ fontSize: '0.55rem', background: '#ef444420', color: '#ef4444', padding: '0.1rem 0.3rem', borderRadius: 3, marginLeft: 'auto' }}>{monitorItems.length}</span>
-                                        </div>
-                                        {monitorItems.map((item, i) => (
-                                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0', borderBottom: '1px solid #2d2d4a' }}>
-                                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: item.severity === 'high' ? '#ef4444' : item.severity === 'medium' ? '#f59e0b' : '#3b82f6', flexShrink: 0 }} />
-                                            <span className="xo-layer3-text" style={{ fontSize: '0.65rem', color: '#e2e8f0', flex: 1, overflow: 'hidden', overflowWrap: 'break-word', whiteSpace: 'normal' }}>{item.title}</span>
-                                            <span style={{ fontSize: '0.5rem', color: item.status === 'Flagged' ? '#ef4444' : item.status === 'Monitoring' ? '#f59e0b' : '#3b82f6', fontWeight: 600, flexShrink: 0 }}>{item.status}</span>
-                                          </div>
-                                        ))}
-
-                                        {/* Divider */}
-                                        <div style={{ borderTop: '1px solid #3b82f640', margin: '0.5rem 0', paddingTop: '0.375rem' }}>
-                                          <div className="xo-layer3-subheader" style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.375rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                                            <Zap size={10} style={{ color: '#22c55e' }} /> Opportunities
-                                            <span style={{ fontSize: '0.55rem', background: '#22c55e20', color: '#22c55e', padding: '0.1rem 0.3rem', borderRadius: 3, marginLeft: 'auto' }}>{opportunities.length}</span>
-                                          </div>
-                                          {opportunities.slice(0, 5).map((opp, i) => (
-                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0', borderBottom: i < Math.min(opportunities.length, 5) - 1 ? '1px solid #2d2d4a' : 'none' }}>
-                                              <span style={{ fontSize: '0.55rem', color: '#22c55e', fontWeight: 700, flexShrink: 0, width: 14, textAlign: 'center' }}>{i + 1}</span>
-                                              <span className="xo-layer3-text" style={{ fontSize: '0.65rem', color: '#e2e8f0', flex: 1, overflow: 'hidden', overflowWrap: 'break-word', whiteSpace: 'normal' }}>{opp.title}</span>
-                                              <CheckCircle size={10} style={{ color: '#22c55e', flexShrink: 0 }} />
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-
-                                      {/* XO Insight Summary Card */}
-                                      <div style={{ background: '#0f0f23', padding: '0.75rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                        <div style={{ background: '#1a1a2e', borderRadius: 6, borderLeft: '3px solid #f59e0b', padding: '0.875rem' }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.625rem' }}>
-                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#fff' }}>Intellagentic</span>
-                                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#C0392B' }}>XO</span>
-                                          </div>
-                                          <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#fff', lineHeight: 1, marginBottom: '0.25rem' }}>{(monitorItems.length || 0) + (opportunities.length || 0)}</div>
-                                          <div style={{ fontSize: '0.75rem', color: '#e2e8f0', fontWeight: 600, marginBottom: '0.5rem' }}>Insights Detected</div>
-                                          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                                            <span style={{ fontSize: '0.6rem', color: '#ef4444', fontWeight: 600 }}>{monitorItems.length} Flagged</span>
-                                            <span style={{ fontSize: '0.6rem', color: '#64748b' }}>·</span>
-                                            <span style={{ fontSize: '0.6rem', color: '#22c55e', fontWeight: 600 }}>{opportunities.length} Opportunities</span>
-                                          </div>
-                                          {displayResults.bottom_line && (
-                                            <div style={{ fontSize: '0.65rem', color: '#94a3b8', lineHeight: 1.5, borderTop: '1px solid #2d2d4a', paddingTop: '0.5rem', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                              {displayResults.bottom_line}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                              );
+                              )
                             })()}
                         </div>:
                     (expandedResult.id==="rapidDeployment"?
