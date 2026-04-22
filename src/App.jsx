@@ -2189,6 +2189,9 @@ export default function App() {
       if (sysRes.ok) {
         const sysData = await sysRes.json()
         setSystemButtons(sysData.buttons || [])
+      } else {
+        console.error(`[fetchButtons] GET /buttons?scope=system → ${sysRes.status}`)
+        if (sysRes.status === 401) { handleLogout(); return }
       }
       // Fetch client buttons if in workspace
       if (clientId) {
@@ -2198,6 +2201,9 @@ export default function App() {
           if (cliData.buttons && cliData.buttons.length > 0) {
             setConfigButtons(cliData.buttons)
           }
+        } else {
+          console.error(`[fetchButtons] GET /buttons?scope=client → ${cliRes.status}`)
+          if (cliRes.status === 401) { handleLogout(); return }
         }
       } else {
         // Legacy: fetch user buttons
@@ -2207,6 +2213,9 @@ export default function App() {
           if (data.buttons && data.buttons.length > 0) {
             setConfigButtons(data.buttons)
           }
+        } else {
+          console.error(`[fetchButtons] GET /buttons → ${response.status}`)
+          if (response.status === 401) { handleLogout(); return }
         }
       }
     } catch (err) {
