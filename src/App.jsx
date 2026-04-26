@@ -7204,7 +7204,9 @@ function EnrichScreen({ clientId, onComplete, preferredModel, activeEngagement, 
           setTimeout(() => onComplete(), 1500)
         }
 
-        if (data.status === 'error') {
+        // 'failed' is the new halt status (Stage 1 retry exhaustion etc.);
+        // 'error' is the legacy status. Treat both as error-state for UI.
+        if (data.status === 'error' || data.status === 'failed') {
           clearInterval(pollInterval)
           setJobStatus('error')
           setError(data.error || data.message || 'Enrichment failed')
@@ -11485,7 +11487,7 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                                         key={index}
                                         style={{
                                           display: 'flex',
-                                          alignItems: 'center',
+                                          alignItems: 'flex-start',
                                           gap: '0.75rem',
                                           padding: '0.75rem',
                                           background: 'var(--bg-card-alt)',
@@ -11500,11 +11502,25 @@ function ResultsScreen({ setShowModal, clientId, isAdmin,systemButtons,theme,pre
                   borderRadius: '4px',
                   background: source.type === 'client_data' ? 'rgba(220, 38, 38, 0.1)' : source.type === 'web_enrichment' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(107, 114, 128, 0.1)',
                   color: source.type === 'client_data' ? '#dc2626' : source.type === 'web_enrichment' ? '#3b82f6' : '#6b7280',
-                  textTransform: 'uppercase'
+                  textTransform: 'uppercase',
+                  flexShrink: 0
                 }}>
                   {source.type.replace('_', ' ')}
                 </span>
-                                      <span style={{ color: 'var(--text-primary)' }}>{source.reference}</span>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <span style={{ color: 'var(--text-primary)' }}>{source.reference}</span>
+                                        {source.consolidated_with?.length > 0 && (
+                                          <div style={{
+                                            marginTop: '0.35rem',
+                                            fontSize: '0.7rem',
+                                            color: 'var(--text-muted)',
+                                            fontStyle: 'italic'
+                                          }}>
+                                            Consolidated with {source.consolidated_with.length} other file{source.consolidated_with.length > 1 ? 's' : ''}
+                                            {source.unique_angle ? ` — unique angle: ${source.unique_angle}` : ''}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                 ))}
                               </div>
