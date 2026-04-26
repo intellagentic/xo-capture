@@ -296,3 +296,7 @@ CREATE TABLE IF NOT EXISTS document_analyses (
 
 CREATE INDEX IF NOT EXISTS idx_document_analyses_upload_id
     ON document_analyses(upload_id);
+
+-- Error reporting for failed enrichment runs (Stage 1 throttle/exhaust, etc.).
+-- Status='failed' rows now also carry a human-readable explanation here.
+ALTER TABLE enrichments ADD COLUMN IF NOT EXISTS error_message TEXT;

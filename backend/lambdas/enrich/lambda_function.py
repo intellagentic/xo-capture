@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
 from preprocess_per_document import (
     STAGE1_PROMPT_VERSION,
+    Stage1FailedError,
     run_stage1_parallel,
     build_stage2_input,
 )
@@ -489,13 +490,25 @@ def _run_enrichment_pipeline(event):
         # `model_to_use` set in Phase 1 (which honours request body →
         # users.preferred_model → fallback) and threaded through the async
         # payload as `model`. No hardcoded model identifier here.
-        stage1_summaries = run_stage1_parallel(
-            extracted_text,
-            upload_meta,
-            conn,
-            model_id=BEDROCK_MODEL_MAP[model],
-            bedrock_invoker=_bedrock_invoke_for_stage1,
-        )
+        try:
+            stage1_summaries = run_stage1_parallel(
+                extracted_text,
+                upload_meta,
+                conn,
+                model_id=BEDROCK_MODEL_MAP[model],
+                bedrock_invoker=_bedrock_invoke_for_stage1,
+            )
+        except Stage1FailedError as s1err:
+            # Halt — do NOT proceed to Stage 2 with a partial input set.
+            # Mark the enrichment failed and surface the error. Successful
+            # per-file Stage 1 outputs are already cached in document_analyses
+            # so a subsequent retry skips the work that did complete.
+            error_text = str(s1err)
+            print(f"Halting enrichment {enrichment_id}: {error_text}")
+            _mark_enrichment_failed(conn, enrichment_id, 'stage1_failed', error_text)
+            conn.close()
+            return {'status': 'failed', 'stage': 'stage1', 'message': error_text,
+                    'failures': s1err.failures}
 
         # Stage: researching (placeholder for future web research)
         update_enrichment_stage(conn, enrichment_id, 'researching')
@@ -785,6 +798,27 @@ def update_enrichment_stage(conn, enrichment_id, stage, status=None):
         print(f"Stage updated: {stage}")
     except Exception as e:
         print(f"Error updating stage to {stage}: {e}")
+
+
+def _mark_enrichment_failed(conn, enrichment_id, stage, error_message):
+    """Mark an enrichment row as failed with a stage tag and error message.
+
+    Used when Stage 1 cannot complete and the pipeline must halt without
+    writing a degraded analysis JSON. error_message is truncated to keep
+    the column from carrying multi-megabyte stack traces."""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE enrichments
+            SET status = 'failed', stage = %s, completed_at = NOW(),
+                error_message = %s
+            WHERE id = %s
+        """, (stage, (error_message or '')[:4000], enrichment_id))
+        conn.commit()
+        cur.close()
+        print(f"Enrichment {enrichment_id} marked failed at stage={stage}")
+    except Exception as e:
+        print(f"Error marking enrichment {enrichment_id} failed: {e}")
 
 
 def find_audio_files(client_id):

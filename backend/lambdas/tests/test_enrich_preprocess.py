@@ -70,7 +70,7 @@ def test_stage1_extracts_structured_output():
     assert 'Fire Strategy.pdf' in out
     s1 = out['Fire Strategy.pdf']
     assert s1['filename'] == 'Fire Strategy.pdf'
-    assert s1['extraction_failed'] is False
+    assert s1.get('retries', 0) == 0
     assert 'Tringham House Bournemouth, BH7 7DT' in s1['distinctive_facts']
     assert 'Bennington Green' in s1['named_entities']['organisations']
     assert s1['model'] == 'haiku-test'
@@ -324,11 +324,141 @@ def test_md_extract_text_handles_invalid_utf8(enrich_module):
 
 
 # ──────────────────────────────────────────────
-# Bonus: Stage 2 input formatter handles extraction failure gracefully
+# 429 retry behaviour
 # ──────────────────────────────────────────────
 
-def test_build_stage2_input_includes_failure_note():
-    failed = pp._fallback_stage1('broken.pdf', 'parse error')
-    s2 = pp.build_stage2_input({'broken.pdf': failed})
-    assert 'broken.pdf' in s2
-    assert 'Stage 1 extraction failed' in s2
+def _throttle_error():
+    return Exception("Bedrock API error 429: {\"message\":\"Too many requests, please wait before trying again.\"}")
+
+
+def test_stage1_retries_on_throttle_then_succeeds():
+    """One 429, then a valid response on retry. _call_stage1 must NOT raise,
+    must return the parsed Stage 1 output, and must record retries=1."""
+    invoker = MagicMock(side_effect=[
+        _throttle_error(),
+        _stage1_response(distinctive_facts=['canonical fact']),
+    ])
+    sleep_calls = []
+
+    out = pp._bedrock_invoke_with_retry(
+        'haiku-test',
+        '{"messages":[]}',
+        invoker,
+        sleep=sleep_calls.append,  # avoid real sleep in tests
+    )
+    response, attempts = out
+    assert attempts == 2
+    assert invoker.call_count == 2
+    assert len(sleep_calls) == 1  # one backoff between attempt 1 and attempt 2
+    assert sleep_calls[0] >= 1.0  # at least 2^0 = 1s + jitter
+
+    # Now end-to-end through _call_stage1 to verify retries propagates to output
+    invoker2 = MagicMock(side_effect=[
+        _throttle_error(),
+        _stage1_response(distinctive_facts=['canonical fact']),
+    ])
+    import preprocess_per_document as ppm
+    original_sleep = ppm.time.sleep
+    ppm.time.sleep = lambda *_: None
+    try:
+        result = ppm._call_stage1('doc.pdf', 'text body', 'haiku-test', invoker2)
+    finally:
+        ppm.time.sleep = original_sleep
+    assert result['retries'] == 1
+    assert result['distinctive_facts'] == ['canonical fact']
+
+
+def test_stage1_raises_after_retries_exhausted():
+    """Throttle on every attempt. _bedrock_invoke_with_retry must give up
+    after MAX_STAGE1_RETRIES + 1 calls and re-raise the last error."""
+    invoker = MagicMock(side_effect=[_throttle_error()] * 10)
+    import preprocess_per_document as ppm
+
+    with pytest.raises(Exception) as exc_info:
+        ppm._bedrock_invoke_with_retry(
+            'haiku-test',
+            '{"messages":[]}',
+            invoker,
+            sleep=lambda *_: None,
+        )
+    assert '429' in str(exc_info.value)
+    # Total attempts = 1 initial + MAX_STAGE1_RETRIES retries
+    assert invoker.call_count == ppm.MAX_STAGE1_RETRIES + 1
+
+
+def test_stage1_non_throttle_error_is_not_retried():
+    """A non-429 error (e.g. AccessDenied) should bypass the retry loop and
+    surface immediately so deeper bugs aren't masked."""
+    invoker = MagicMock(side_effect=[Exception("AccessDeniedException: not allowed")])
+    import preprocess_per_document as ppm
+
+    with pytest.raises(Exception):
+        ppm._bedrock_invoke_with_retry(
+            'haiku-test',
+            '{"messages":[]}',
+            invoker,
+            sleep=lambda *_: None,
+        )
+    assert invoker.call_count == 1
+
+
+# ──────────────────────────────────────────────
+# Stage 1 halt: failures propagate, no fallback served
+# ──────────────────────────────────────────────
+
+def test_run_stage1_parallel_raises_when_any_file_fails_after_retries():
+    """When a file's Stage 1 call exhausts retries, run_stage1_parallel must
+    raise Stage1FailedError. No fallback dict is served. Successful files
+    are still cached so a re-run benefits."""
+    files = {
+        'good.pdf': 'good content',
+        'throttled.pdf': 'throttled content',
+    }
+    meta = {
+        'good.pdf':       {'upload_id': 'u-good', 'etag': 'e-good'},
+        'throttled.pdf': {'upload_id': 'u-throt', 'etag': 'e-throt'},
+    }
+
+    def invoker(model_id, body_str):
+        if 'DOCUMENT FILENAME: good.pdf' in body_str:
+            return _stage1_response(distinctive_facts=['good fact'])
+        # throttled.pdf — always 429
+        raise Exception('Bedrock API error 429: rate limit')
+
+    conn, cur = _make_conn()
+    cur.fetchone.return_value = None  # cache miss for both
+
+    # Patch sleep to keep the test fast
+    import preprocess_per_document as ppm
+    original_sleep = ppm.time.sleep
+    ppm.time.sleep = lambda *_: None
+    try:
+        with pytest.raises(ppm.Stage1FailedError) as exc_info:
+            ppm.run_stage1_parallel(
+                files, meta, conn,
+                model_id='haiku-test', bedrock_invoker=invoker,
+                max_workers=2,
+            )
+    finally:
+        ppm.time.sleep = original_sleep
+
+    failures = exc_info.value.failures
+    assert len(failures) == 1
+    assert failures[0]['filename'] == 'throttled.pdf'
+    assert '429' in failures[0]['last_error']
+
+    # The succeeding file's row IS cached (partial-progress preservation)
+    insert_calls = [c for c in cur.execute.call_args_list
+                    if 'INSERT INTO document_analyses' in c[0][0]]
+    inserted_keys = [c[0][1][0] for c in insert_calls]
+    assert 'u-good' in inserted_keys
+    assert 'u-throt' not in inserted_keys
+
+
+def test_max_workers_default_is_3():
+    """Pin DEFAULT_MAX_WORKERS to 3 — it's the throttle-safety knob and
+    bumping it without explicit Bedrock-quota review reintroduces the
+    Gate A 429 cascade. Lock the value."""
+    import preprocess_per_document as ppm
+    assert ppm.DEFAULT_MAX_WORKERS == 3
+    assert ppm.MAX_STAGE1_RETRIES == 3

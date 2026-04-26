@@ -15,8 +15,31 @@ Stage 2 is NEVER cached — synthesis depends on the full corpus + skills +
 client context, all of which can change between runs.
 """
 import json
+import random
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+# 429 retry tuning. Bedrock per-account TPM/RPM ceilings are tight on Opus
+# models — three parallel workers sustained, plus exponential backoff with
+# jitter on throttle responses, keeps us under the limit without leaving
+# performance on the table.
+MAX_STAGE1_RETRIES = 3
+DEFAULT_MAX_WORKERS = 3
+
+
+class Stage1FailedError(Exception):
+    """Raised by run_stage1_parallel when one or more files cannot be
+    extracted after retries. The pipeline halts on this — Stage 2 must NOT
+    run on a partially-degraded input set."""
+
+    def __init__(self, failures):
+        self.failures = failures  # list of {filename, last_error, attempts}
+        names = ", ".join(repr(f['filename']) for f in failures)
+        super().__init__(
+            f"Stage 1 failed for {len(failures)} file(s) after retries: {names}"
+        )
 
 
 # Bumped manually whenever STAGE1_PROMPT below changes substantively.
@@ -181,35 +204,56 @@ def _parse_stage1_response(response_text):
     return json.loads(body)
 
 
-def _fallback_stage1(filename, reason):
-    """Stub Stage 1 output when extraction failed entirely.
+def _is_throttling_error(e):
+    """Detect 429 / ThrottlingException across both Bedrock auth paths.
 
-    Stage 2 still sees the file by filename — it just has no distinctive
-    content to draw on. The cache row is NOT written so the next run
-    retries cleanly.
-    """
-    return {
-        'filename': filename,
-        'extraction_failed': True,
-        'failure_reason': reason,
-        'distinctive_facts': [],
-        'named_entities': {
-            'people': [], 'organisations': [], 'places': [], 'products': [], 'regulations': [],
-        },
-        'decisions': [],
-        'action_items': [],
-        'quotes': [],
-        'overlap_signals': [],
-        'summary_2_lines': f"Stage 1 extraction failed for {filename}: {reason}",
-    }
+    Bearer-token path raises Exception("Bedrock API error 429: ...") from
+    _invoke_bedrock_bearer. boto3 IAM path raises botocore.exceptions
+    .ClientError with response['Error']['Code'] == 'ThrottlingException'."""
+    msg = str(e)
+    if '429' in msg or 'Too many requests' in msg or 'ThrottlingException' in msg:
+        return True
+    code = None
+    response = getattr(e, 'response', None)
+    if isinstance(response, dict):
+        code = (response.get('Error') or {}).get('Code')
+    return code in ('ThrottlingException', 'TooManyRequestsException')
+
+
+def _bedrock_invoke_with_retry(model_id, body, bedrock_invoker, *,
+                               max_retries=MAX_STAGE1_RETRIES,
+                               sleep=time.sleep):
+    """Hand-rolled exponential backoff + jitter around the Bedrock invoker.
+
+    Bearer-token path uses urllib (no botocore retry) and IAM uses boto3
+    converse (botocore retry doesn't catch all Bedrock 429 shapes), so
+    retry is implemented uniformly here. Returns (response, attempts) where
+    attempts is the total call count (1 = first-try success)."""
+    attempts = 0
+    last_error = None
+    while True:
+        attempts += 1
+        try:
+            return bedrock_invoker(model_id, body), attempts
+        except Exception as e:  # noqa: BLE001 — caller filters
+            last_error = e
+            if attempts > max_retries or not _is_throttling_error(e):
+                raise
+            # Exponential backoff: 1s, 2s, 4s plus 0–1s jitter
+            delay = (2 ** (attempts - 1)) + random.uniform(0, 1)
+            print(
+                f"Stage 1 throttled (attempt {attempts}/{max_retries + 1}), "
+                f"sleeping {delay:.2f}s before retry: {e}"
+            )
+            sleep(delay)
 
 
 def _call_stage1(filename, text, model_id, bedrock_invoker):
     """Invoke Bedrock for one file, parse, and decorate with metadata.
 
-    `bedrock_invoker(model_id, body_json_str) -> response_dict` is supplied
-    by the caller so we mirror whichever auth path the parent Lambda uses
-    (bearer-token urllib or boto3 IAM converse) without re-implementing it.
+    Raises on JSON parse failure or after retries are exhausted — the
+    caller (run_stage1_parallel) collects raises and aborts the pipeline
+    rather than serving a degraded analysis JSON.
     """
     prompt, truncated = _build_stage1_prompt(filename, text)
     body = json.dumps({
@@ -217,13 +261,10 @@ def _call_stage1(filename, text, model_id, bedrock_invoker):
         "inferenceConfig": {"maxTokens": 4000, "temperature": 0.2},
     })
 
-    response = bedrock_invoker(model_id, body)
+    response, attempts = _bedrock_invoke_with_retry(model_id, body, bedrock_invoker)
     response_text = response['output']['message']['content'][0]['text']
 
-    try:
-        parsed = _parse_stage1_response(response_text)
-    except json.JSONDecodeError as e:
-        return _fallback_stage1(filename, f"JSON parse failed: {e}")
+    parsed = _parse_stage1_response(response_text)
 
     # Decorate with bookkeeping fields
     parsed.setdefault('distinctive_facts', [])
@@ -239,7 +280,7 @@ def _call_stage1(filename, text, model_id, bedrock_invoker):
     parsed['chars_used'] = min(len(text), MAX_STAGE1_INPUT_CHARS)
     parsed['stage1_input_truncated'] = truncated
     parsed['model'] = model_id
-    parsed['extraction_failed'] = False
+    parsed['retries'] = attempts - 1  # 0 on first-try success
     return parsed
 
 
@@ -254,7 +295,7 @@ def run_stage1_parallel(
     *,
     model_id,
     bedrock_invoker,
-    max_workers=8,
+    max_workers=DEFAULT_MAX_WORKERS,
 ):
     """For each file in extracted_text, return a Stage 1 structured summary.
 
@@ -270,12 +311,19 @@ def run_stage1_parallel(
                       same model the rest of the enrichment uses — this
                       module does not pin a specific model.
       bedrock_invoker: callable matching _invoke_bedrock_bearer's signature.
-      max_workers:    cap on ThreadPoolExecutor concurrency.
+      max_workers:    cap on ThreadPoolExecutor concurrency. Default 3 —
+                      keeps Bedrock per-account TPM/RPM headroom on Opus.
 
     Returns:
-      dict {filename: stage1_output_dict}.
+      dict {filename: stage1_output_dict} on full success.
+
+    Raises:
+      Stage1FailedError when any file cannot be extracted after retries.
+      The pipeline halts on this — Stage 2 must NOT run on a partially
+      degraded input set.
     """
     results = {}
+    failures = []
     misses = []
 
     cur = conn.cursor()
@@ -309,7 +357,8 @@ def run_stage1_parallel(
         cur.close()
 
     if misses:
-        with ThreadPoolExecutor(max_workers=max(1, min(max_workers, len(misses)))) as ex:
+        worker_count = max(1, min(max_workers, len(misses)))
+        with ThreadPoolExecutor(max_workers=worker_count) as ex:
             future_to_meta = {
                 ex.submit(_call_stage1, filename, text, model_id, bedrock_invoker):
                     (filename, upload_id, etag)
@@ -318,19 +367,27 @@ def run_stage1_parallel(
             for fut in as_completed(future_to_meta):
                 filename, upload_id, etag = future_to_meta[fut]
                 try:
-                    stage1_output = fut.result()
-                except Exception as e:
-                    print(f"Stage 1 failed for {filename!r}: {type(e).__name__}: {e}")
-                    stage1_output = _fallback_stage1(filename, f"{type(e).__name__}: {e}")
-                results[filename] = stage1_output
+                    results[filename] = fut.result()
+                except Exception as e:  # noqa: BLE001 — collected for halt
+                    print(
+                        f"Stage 1 failed for {filename!r}: {type(e).__name__}: {e}"
+                    )
+                    failures.append({
+                        'filename': filename,
+                        'last_error': f"{type(e).__name__}: {e}",
+                    })
 
+        # Persist cache rows for the files that did succeed. The DB writes
+        # happen even on partial failure so a subsequent retry of the run
+        # benefits from the partial work — re-running unchanged files is
+        # the whole point of the cache.
         cur = conn.cursor()
         try:
             for filename, _text, upload_id, etag in misses:
                 if not (upload_id and etag):
                     continue
                 output = results.get(filename)
-                if not output or output.get('extraction_failed'):
+                if not output:
                     continue
                 write_cached_stage1(cur, upload_id, etag, STAGE1_PROMPT_VERSION, output)
             conn.commit()
@@ -340,9 +397,13 @@ def run_stage1_parallel(
     cached_count = len(extracted_text) - len(misses)
     print(
         f"Stage 1 dispatch summary: {cached_count}/{len(extracted_text)} cached, "
-        f"{len(misses)} ran fresh, parallel_workers="
-        f"{max(1, min(max_workers, max(1, len(misses))))}"
+        f"{len(misses) - len(failures)}/{len(misses)} ran fresh, "
+        f"{len(failures)} failed, parallel_workers={max(1, min(max_workers, max(1, len(misses))))}"
     )
+
+    if failures:
+        raise Stage1FailedError(failures)
+
     return results
 
 
@@ -397,11 +458,6 @@ def build_stage2_input(stage1_summaries):
             block.append("OVERLAPS WITH: " + "; ".join(overlaps))
         else:
             block.append("OVERLAPS WITH: none flagged")
-        if s1.get('extraction_failed'):
-            block.append(
-                "NOTE: Stage 1 extraction failed for this file — "
-                "no structured signal available. Cite by filename only."
-            )
         blocks.append("\n".join(block))
 
     return "\n\n".join(blocks)
