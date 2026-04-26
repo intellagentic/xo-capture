@@ -1,0 +1,107 @@
+
+================================================================================
+FC Dynamics  enrichment_id=12e46d43-2ab5-4c4e-a7a1-1c161a027d41
+================================================================================
+  status=complete  stage=complete  completed_at=2026-04-25 15:31:08.023232+00:00
+  results_s3_key=client_1772616693_8b881fe7/engagements/b15f41d7-d712-4d32-8b0d-f3ae686869fa/results/analysis.json
+
+  analyzed_files (8):
+    '1-2 BARRIER ROAD, CHATHAM, KENT FIRE STRATEGY -DRAFT COPY .pdf'
+    '250704 Issue Detail of Fire Stopping-1-2 Barrier Road, Chatham.pdf'
+    'FC Dynamics - regulation research.docx'
+    'Fire Strategy.pdf'
+    'Intellagentic Mail - Re_ 🗓 FC Dynamics and XO on March 20, 2026 _ Read Meeting Report.pdf'
+    'Intro Call Edem and Alan Transcript.txt'
+    'Sittingbourne Library Stage 4 Fire Strategy Report REV D ISD.pdf'
+    'no. 2 Intellagentic Mail - Re_ 🗓 FC Dynamics and XO on March 20, 2026 _ Read Meeting Report.pdf'
+
+  sources (9):
+    {'type': 'client_data', 'reference': '1-2 BARRIER ROAD, CHATHAM, KENT FIRE STRATEGY -DRAFT COPY .pdf — Stage 4 fire strategy draft for mental health crisis facility, 32 pages'}
+    {'type': 'client_data', 'reference': '250704 Issue Detail of Fire Stopping-1-2 Barrier Road, Chatham.pdf — 18 fire stopping inspection items from Autodesk Construction Cloud, 36 pages'}
+    {'type': 'client_data', 'reference': 'FC Dynamics - regulation research.docx — Compiled links to UK fire safety regulations, approved documents, and British Standards'}
+    {'type': 'client_data', 'reference': 'Fire Strategy.pdf — Tringham House fire strategy for University Hospitals Dorset, 93 pages, authored via Bennington Green Ltd'}
+    {'type': 'client_data', 'reference': 'Sittingbourne Library Stage 4 Fire Strategy Report REV D ISD.pdf — Stage 4 fire strategy for public library, 65 pages, 4 revisions'}
+    {'type': 'client_data', 'reference': "Intellagentic Mail - Re_ FC Dynamics and XO on March 20, 2026 — Edem's prioritised regulation list (120+ standards in 12 modules) and suggested software library structure"}
+    {'type': 'client_data', 'reference': 'no. 2 Intellagentic Mail - Re_ FC Dynamics and XO on March 20, 2026 — Comprehensive UK Fire Engineering Standards Library with calculation module specifications'}
+    {'type': 'client_data', 'reference': "Intro Call Edem and Alan Transcript.txt — Initial discovery call transcript covering FC Dynamics' operations, social housing opportunities, and workflow challenges"}
+    {'type': 'client_data', 'reference': "Client Configuration — FC Dynamics pain points: 'checking and cross referencing reports prior to issue to client for compliance' and future plans to 'increase number of clients and projects by implementing automation'"}
+
+  per-file coverage:
+    af=✓ narr=✗  '1-2 BARRIER ROAD, CHATHAM, KENT FIRE STRATEGY -DRAFT COPY .pdf'
+    af=✓ narr=✗  '250704 Issue Detail of Fire Stopping-1-2 Barrier Road, Chatham.pdf'
+    af=✓ narr=✓  'FC Dynamics - regulation research.docx'
+    af=✓ narr=✓  'Fire Strategy.pdf'
+    af=✓ narr=✗  'Intellagentic Mail - Re_ 🗓 FC Dynamics and XO on March 20, 2026 _ Read Meeting Report.pdf'
+    af=✓ narr=✗  'Intro Call Edem and Alan Transcript.txt'
+    af=✓ narr=✗  'Sittingbourne Library Stage 4 Fire Strategy Report REV D ISD.pdf'
+    af=✓ narr=✗  'no. 2 Intellagentic Mail - Re_ 🗓 FC Dynamics and XO on March 20, 2026 _ Read Meeting Report.pdf'
+
+  SUMMARY for FC Dynamics:
+    expected count:               8
+    analyzed_files count:         8
+    missing from analyzed_files:  0
+    missing from narrative text:  6
+        '1-2 BARRIER ROAD, CHATHAM, KENT FIRE STRATEGY -DRAFT COPY .pdf'
+        '250704 Issue Detail of Fire Stopping-1-2 Barrier Road, Chatham.pdf'
+        'Intellagentic Mail - Re_ 🗓 FC Dynamics and XO on March 20, 2026 _ Read Meeting Report.pdf'
+        'Intro Call Edem and Alan Transcript.txt'
+        'Sittingbourne Library Stage 4 Fire Strategy Report REV D ISD.pdf'
+        'no. 2 Intellagentic Mail - Re_ 🗓 FC Dynamics and XO on March 20, 2026 _ Read Meeting Report.pdf'
+    must-include 'Fire Strategy.pdf': in analyzed_files = True, in narrative = True
+    analysis status field: 'complete'
+
+================================================================================
+MFP Trading  enrichment_id=6c81490f-491a-4708-ab8c-3ebd4e93f45c
+================================================================================
+  status=complete  stage=complete  completed_at=2026-04-21 17:08:55.671338+00:00
+  results_s3_key=client_1776011770_6aff114c/results/analysis.json
+
+  analyzed_files (10):
+    'FW_ Starting Out - Focusing your Attention - alan.moore@intellagentic.io.pdf'
+    'File Note_ Enriched  MFP Trading XO Discovery & Deep-Dive Call feb 24 2026.docx'
+    'IntellagenticXO · MFP Trading — XO Deployment Deep Dive.pdf'
+    'MFP Notes for AP Chat Bot.docx'
+    'MFP Trading FX Credit Policy 2026.docx'
+    'SlackChatforChatBot.docx'
+    'forexventures_briefing.docx'
+    'initial_call_1776012184056.txt'
+    'mfp_briefing (1).docx'
+    'mfp_briefing.docx'
+
+  sources (8):
+    {'type': 'client_data', 'reference': "MFP Notes for AP Chat Bot.docx — Lisa Murphy's documented resolution procedures for timeouts, DSUs, voice broker workflows, and reconciliation"}
+    {'type': 'client_data', 'reference': 'MFP Trading FX Credit Policy 2026.docx — Full credit alert handling procedures, limit management rules, PB escalation protocols'}
+    {'type': 'client_data', 'reference': 'SlackChatforChatBot.docx — April 8 2026 real-time Slack transcript of BGC/Wells Fargo VBAN incident (62+ messages, 4 staff, 1+ hour)'}
+    {'type': 'client_data', 'reference': "FW_ Starting Out - Focusing your Attention email — Lisa Murphy's June 2022 training email defining core competencies and common support issues"}
+    {'type': 'client_data', 'reference': 'File Note_ Enriched MFP Trading XO Discovery & Deep-Dive Call Feb 24 2026.docx — Discovery call with Francois Nembrini confirming $4.5B peak volume, staff structure, training timelines, and expansion plans'}
+    {'type': 'client_data', 'reference': 'IntellagenticXO · MFP Trading — XO Deployment Deep Dive.pdf — April 21 2026 intelligence brief confirming 5 exception types as official scope, Minerva platform existence, and engagement timeline'}
+    {'type': 'client_data', 'reference': 'mfp_briefing (1).docx and mfp_briefing.docx — Strategic deployment briefs documenting the operational crisis, Asian night shift risk, and XO deployment rationale'}
+    {'type': 'client_data', 'reference': 'forexventures_briefing.docx — Anonymised version of MFP briefing (Forex Ventures / Michael Nembrini) providing additional operational detail on break types and staff structure'}
+
+  per-file coverage:
+    af=✓ narr=✗  'FW_ Starting Out - Focusing your Attention - alan.moore@intellagentic.io.pdf'
+    af=✓ narr=✗  'File Note_ Enriched  MFP Trading XO Discovery & Deep-Dive Call feb 24 2026.docx'
+    af=✓ narr=✗  'IntellagenticXO · MFP Trading — XO Deployment Deep Dive.pdf'
+    af=✓ narr=✓  'MFP Notes for AP Chat Bot.docx'
+    af=✓ narr=✗  'MFP Trading FX Credit Policy 2026.docx'
+    af=✓ narr=✓  'SlackChatforChatBot.docx'
+    af=✓ narr=✗  'forexventures_briefing.docx'
+    af=✓ narr=✗  'initial_call_1776012184056.txt'
+    af=✓ narr=✗  'mfp_briefing (1).docx'
+    af=✓ narr=✗  'mfp_briefing.docx'
+
+  SUMMARY for MFP Trading:
+    expected count:               10
+    analyzed_files count:         10
+    missing from analyzed_files:  0
+    missing from narrative text:  8
+        'FW_ Starting Out - Focusing your Attention - alan.moore@intellagentic.io.pdf'
+        'File Note_ Enriched  MFP Trading XO Discovery & Deep-Dive Call feb 24 2026.docx'
+        'IntellagenticXO · MFP Trading — XO Deployment Deep Dive.pdf'
+        'MFP Trading FX Credit Policy 2026.docx'
+        'forexventures_briefing.docx'
+        'initial_call_1776012184056.txt'
+        'mfp_briefing (1).docx'
+        'mfp_briefing.docx'
+    must-include 'IntellagenticXO · MFP Trading — XO Deployment Deep Dive.pdf': in analyzed_files = True, in narrative = False
+    analysis status field: 'complete'
