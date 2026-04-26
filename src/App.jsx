@@ -7119,6 +7119,7 @@ function EnrichScreen({ clientId, onComplete, preferredModel, activeEngagement, 
   const [stages, setStages] = useState([
     { id: 'extracting', label: 'Extracting Text', status: 'pending', icon: FileText },
     { id: 'transcribing', label: 'Transcribing Audio', status: 'pending', icon: Music },
+    { id: 'preprocessing', label: 'Analyzing Each Document', status: 'pending', icon: Sparkles },
     { id: 'researching', label: 'Web Research', status: 'pending', icon: Sparkles },
     { id: 'analyzing', label: 'AI Analysis', status: 'pending', icon: Sparkles },
     { id: 'complete', label: 'Complete', status: 'pending', icon: CheckCircle }
