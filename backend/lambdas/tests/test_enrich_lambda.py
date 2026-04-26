@@ -16,6 +16,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'enrich'))
 from test_helpers import make_event, assert_status, parse_body, ADMIN_USER, REGULAR_USER
 
 
+def _set_paginator(mock_s3, contents, *, pages=None):
+    """Wire mock_s3.get_paginator('list_objects_v2').paginate(...) to yield
+    the given Contents. If `pages` is supplied (a list of lists), spread
+    Contents across multiple pages — useful for pagination regression tests.
+    """
+    if pages is None:
+        pages = [contents]
+    mock_s3.get_paginator.return_value.paginate.return_value = [
+        {'Contents': p} for p in pages
+    ]
+
+
 @pytest.fixture
 def mock_deps():
     mock_cur = MagicMock()
@@ -25,6 +37,11 @@ def mock_deps():
     mock_cur.fetchall.return_value = []
 
     mock_s3 = MagicMock()
+    # Default the paginator to a single empty page so tests that don't
+    # care about S3 listing don't blow up. Tests that DO care override
+    # mock_s3.get_paginator.return_value.paginate.return_value with their
+    # own page list (use the _set_paginator helper below).
+    mock_s3.get_paginator.return_value.paginate.return_value = [{'Contents': []}]
     mock_lambda = MagicMock()
 
     patches = {
@@ -98,6 +115,45 @@ class TestEnrichPhase1:
         event = make_event(method='POST', path='/enrich', body={'client_id': 'bad_client'})
         response = enrich_module.lambda_handler(event, None)
         assert_status(response, 404)
+
+    def test_active_upload_query_uses_strict_active_predicate(self, enrich_module, mock_deps):
+        """GitHub #50 — the enrich active-uploads SELECT must filter on
+        `status = 'active'` only, matching the source_count predicate at
+        clients/lambda_function.py:872. The legacy `OR status IS NULL`
+        clause is gone now that the column is NOT NULL with default
+        'active'. If the predicate ever drifts back, source_count and
+        enrich retrieval will diverge again — which is the bug class
+        the issue documents."""
+        started, _, mock_cur, _, mock_lambda = mock_deps
+        started['require_auth'].return_value = (REGULAR_USER, None)
+        mock_cur.fetchone.side_effect = [
+            ('claude-opus-4-6',),  # preferred_model
+            ('Acme', None, None, None, None, None, None, None,
+             'db-client-uuid', REGULAR_USER['user_id']),  # clients SELECT
+            ('enrich-uuid',),  # INSERT enrichments
+        ]
+        mock_cur.fetchall.return_value = []
+        event = make_event(method='POST', path='/enrich',
+                           body={'client_id': 'client_test_zzz'})
+        response = enrich_module.lambda_handler(event, None)
+        assert_status(response, 200)
+
+        # Find the active-uploads SELECT in the recorded execute calls and
+        # assert its predicate. If the OR-NULL clause sneaks back in, this
+        # assertion fails loudly.
+        active_uploads_calls = [
+            c for c in mock_cur.execute.call_args_list
+            if 'FROM uploads' in c[0][0] and 'client_id = %s' in c[0][0]
+        ]
+        assert active_uploads_calls, "Did not see the active-uploads SELECT"
+        sql = active_uploads_calls[0][0][0]
+        assert "status = 'active'" in sql, (
+            f"Active-uploads SELECT must filter status='active' only:\n{sql}"
+        )
+        assert "status IS NULL" not in sql, (
+            f"Active-uploads SELECT must NOT include the legacy "
+            f"`OR status IS NULL` clause (GitHub #50):\n{sql}"
+        )
 
     def test_no_request_model_no_user_row_resolves_to_opus_4_6(self, enrich_module, mock_deps):
         """Lock against silent-downgrade regression. When the request body
@@ -187,24 +243,20 @@ class TestRepairTruncatedJson:
 class TestFindAudioFiles:
     def test_no_audio_files(self, enrich_module, mock_deps):
         _, _, _, mock_s3, _ = mock_deps
-        mock_s3.list_objects_v2.return_value = {
-            'Contents': [
-                {'Key': 'c123/uploads/data.csv'},
-                {'Key': 'c123/uploads/report.pdf'},
-            ]
-        }
+        _set_paginator(mock_s3, [
+            {'Key': 'c123/uploads/data.csv'},
+            {'Key': 'c123/uploads/report.pdf'},
+        ])
         result = enrich_module.find_audio_files('c123')
         assert result == []
 
     def test_finds_audio_files(self, enrich_module, mock_deps):
         _, _, _, mock_s3, _ = mock_deps
-        mock_s3.list_objects_v2.return_value = {
-            'Contents': [
-                {'Key': 'c123/uploads/meeting.mp3'},
-                {'Key': 'c123/uploads/call.wav'},
-                {'Key': 'c123/uploads/data.csv'},
-            ]
-        }
+        _set_paginator(mock_s3, [
+            {'Key': 'c123/uploads/meeting.mp3'},
+            {'Key': 'c123/uploads/call.wav'},
+            {'Key': 'c123/uploads/data.csv'},
+        ])
         result = enrich_module.find_audio_files('c123')
         assert len(result) == 2
         assert 'c123/uploads/meeting.mp3' in result
@@ -246,12 +298,10 @@ class TestExtractAllFiles:
 
     def test_skips_inactive_files(self, enrich_module, mock_deps):
         _, _, _, mock_s3, _ = mock_deps
-        mock_s3.list_objects_v2.return_value = {
-            'Contents': [
-                {'Key': 'c123/uploads/active.txt'},
-                {'Key': 'c123/uploads/inactive.txt'},
-            ]
-        }
+        _set_paginator(mock_s3, [
+            {'Key': 'c123/uploads/active.txt'},
+            {'Key': 'c123/uploads/inactive.txt'},
+        ])
         mock_body = MagicMock()
         mock_body.read.return_value = b"content"
         mock_s3.get_object.return_value = {'Body': mock_body}
@@ -262,12 +312,10 @@ class TestExtractAllFiles:
 
     def test_skips_audio_files(self, enrich_module, mock_deps):
         _, _, _, mock_s3, _ = mock_deps
-        mock_s3.list_objects_v2.return_value = {
-            'Contents': [
-                {'Key': 'c123/uploads/meeting.mp3'},
-                {'Key': 'c123/uploads/notes.txt'},
-            ]
-        }
+        _set_paginator(mock_s3, [
+            {'Key': 'c123/uploads/meeting.mp3'},
+            {'Key': 'c123/uploads/notes.txt'},
+        ])
         mock_body = MagicMock()
         mock_body.read.return_value = b"text content"
         mock_s3.get_object.return_value = {'Body': mock_body}
