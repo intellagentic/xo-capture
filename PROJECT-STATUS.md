@@ -3,7 +3,7 @@
 **Date:** April 26, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.46)
+**Status:** Deployed & Operational (v2.47)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -3966,6 +3966,58 @@ Known issues filed separately (not addressed in this branch):
 
 Audit branch retained:
 - audits/2026-04-26-enrich-investigation on origin — durable record of the four-step diagnostic, source-text dumps for FC + MFP, and the round-1 verdict that motivated this change.
+
+---
+
+**April 26, 2026 — v2.47:**
+
+PR #52 — close out the two latent issues filed during the v2.46 audit. Squash-merged to main as f2a5cf9. Closes GitHub #49, closes GitHub #50.
+
+GitHub #49 — list_objects_v2 missing pagination (P2):
+Three call sites in backend/lambdas/enrich/lambda_function.py invoked list_objects_v2 once and consumed the first page only — any client with > 1000 objects under their S3 prefix would silently lose everything past the first page (Lambda completes without error, fewer documents in the analysis than the client uploaded). No client today is anywhere near 1000 keys; the failure was latent. Replaced with the paginator pattern at all three sites:
+- extract_all_files     (uploads listing)
+- find_audio_files      (audio files for Transcribe)
+- read_skills_from_s3   (skills directory listing)
+
+Three new moto-backed unit tests confirm > 1000 keys are retrieved at each site (1500 uploads + 5 audio + 1100 skills synthetic fixtures). Existing tests adapted from the single-call mock shape to a paginator-shape mock via _set_paginator helper.
+
+GitHub #50 — source_count predicate divergence (P3):
+Two predicates over the same uploads table disagreed:
+- clients/lambda_function.py:872 source_count: status='active' only
+- enrich/lambda_function.py:230 active uploads: status='active' OR status IS NULL
+
+Read-only production probe (2026-04-26) confirmed zero NULL-status rows across all 91 uploads (77 active + 14 deleted). The divergence was theoretical only, never realised. No upstream code path leaks NULLs (30-day window: zero NULL inserts). Schema migration (idempotent — UPDATE 0 rows on prod):
+  UPDATE uploads SET status='active' WHERE status IS NULL;
+  ALTER TABLE uploads ALTER COLUMN status SET DEFAULT 'active';
+  ALTER TABLE uploads ALTER COLUMN status SET NOT NULL;
+Code: dropped `OR status IS NULL` from the enrich predicate (line 230) — now status='active' only, byte-identical to source_count. New lock test test_active_upload_query_uses_strict_active_predicate asserts the SQL string can't drift back without tripping CI.
+
+Source-count parity verification (post-deploy):
+Re-enriched FC Dynamics + MFP Trading with new code, then compared three numbers per client:
+  A) source_count predicate via clients/lambda_function.py:872
+  B) new enrich active-uploads SELECT
+  C) len(analysis['analyzed_files']) from the latest complete enrichment
+
+  client          A   B   C   parity
+  FC Dynamics     8   8   8   PASS
+  MFP Trading    10  10  10   PASS
+
+A=B=C across the board. The divergence class is closed.
+
+Production state at deploy completion:
+- Lambda xo-enrich CodeSha256 tE++g2fNKHb6Ebrmfw/2GvB4FGehW1E5Aepz8TOrKMA= (deployed 2026-04-26T23:15:22Z).
+- Lambda v3 retained as immutable AWS rollback target (CodeSha256 D88ttp/zJyCG2uGAMMs9cTwm1YiPOAwOBtSbKqOJpoo=).
+- Schema applied to production RDS: uploads.status NOT NULL DEFAULT 'active'.
+- Pre-PR-52 uploads-table state archived at audits/2026-04-26-pre-pr52-uploads-state.txt.
+
+Tests: 34/34 passing on main (was 30 → +3 pagination + 1 predicate lock).
+
+Files changed (squash commit f2a5cf9):
+- backend/schema.sql                              (+13)
+- backend/lambdas/enrich/lambda_function.py       (+24 / -23)
+- backend/lambdas/tests/test_enrich_lambda.py     (+59 / -11)
+- backend/lambdas/tests/test_enrich_preprocess.py (+145)
+Total: +302 / -97
 
 ---
 
