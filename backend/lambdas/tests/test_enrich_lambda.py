@@ -99,6 +99,44 @@ class TestEnrichPhase1:
         response = enrich_module.lambda_handler(event, None)
         assert_status(response, 404)
 
+    def test_no_request_model_no_user_row_resolves_to_opus_4_6(self, enrich_module, mock_deps):
+        """Lock against silent-downgrade regression. When the request body
+        carries no `model` and the users-table query returns no row, the
+        async payload's `model` field MUST be 'claude-opus-4-6'. If this
+        ever resolves to Sonnet/Haiku again, the Opus-everywhere production
+        intent has been quietly broken."""
+        started, _, mock_cur, _, mock_lambda = mock_deps
+        started['require_auth'].return_value = (REGULAR_USER, None)
+
+        # First fetchone: preferred_model query — returns None (no user row)
+        # Second fetchone: clients SELECT — returns the 10-column row shape
+        # Third fetchone: INSERT enrichments RETURNING id
+        mock_cur.fetchone.side_effect = [
+            None,
+            ('Acme Co', None, None, None, None, None, None, None,
+             'db-client-uuid', REGULAR_USER['user_id']),
+            ('enrich-uuid',),
+        ]
+        # No active uploads — keeps Phase 1 short
+        mock_cur.fetchall.return_value = []
+
+        event = make_event(method='POST', path='/enrich',
+                           body={'client_id': 'client_test_xyz'})
+        response = enrich_module.lambda_handler(event, None)
+        assert_status(response, 200)
+
+        # Capture the async self-invoke payload
+        assert mock_lambda.invoke.called, "Phase 1 must self-invoke async"
+        kwargs = mock_lambda.invoke.call_args.kwargs
+        payload = json.loads(kwargs['Payload'])
+        assert payload['model'] == 'claude-opus-4-6', (
+            f"Silent downgrade — expected Opus 4.6, got {payload['model']!r}. "
+            f"Check the five fallback sites in lambda_function.py: "
+            f"COALESCE in preferred_model SELECT, the 'else' fallback when "
+            f"user_row is None, the async-event default, the analyze_with_claude "
+            f"kwarg default, and the BEDROCK_MODEL_MAP.get fallback."
+        )
+
 
 class TestExtractText:
     def test_extract_plain_text(self, enrich_module):

@@ -1,9 +1,9 @@
 # XO CAPTURE - PROJECT STATUS
 
-**Date:** April 17, 2026
+**Date:** April 26, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.45)
+**Status:** Deployed & Operational (v2.46)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -3878,6 +3878,94 @@ PENDING ITEMS:
 - CS Triage Dashboard + Customer Dashboard rendered as standalone [NEW] boxes in architecture_diagram when they are UI surfaces of ExceptionEngine / CustomerPortal respectively. Needs a ui_surface modeling concept in component READMEs.
 - Remove [PHOTO DEBUG] console.log statements after contact photo upload verified stable
 - CLAUDE.md deploy patterns: document that buttons Lambda deploys from package/ (same as results)
+
+---
+
+**April 26, 2026 — v2.46:**
+
+TWO-STAGE PER-DOCUMENT /enrich (the citation-depth fix)
+
+Driver — round-1 audit finding:
+- audits/2026-04-26-enrich-investigation branch ran a four-step diagnostic (CloudWatch / DB↔S3 diff / analysis-name coverage / signature-citation depth) on FC Dynamics + MFP Trading.
+- Steps A-C cleared retrieval. Step D failed: 6 of 18 input files across the two clients had ZERO unique content cited in the substantive analysis fields.
+- Mechanism: text[:5000] per-file truncation discarded 87% of the FC Dynamics Intro Call transcript and 63% of Fire Strategy.pdf; Stage 2 then synthesised across a flat concat that mashed all files together, encouraging consolidation of near-duplicates and silent dropping of transcripts and follow-up emails.
+
+Architecture (replaces text[:5000] concat at lambda_function.py:1300):
+- Stage 1: per-document Claude call with FULL text (Opus 4.6, max 100k chars/doc), parallel via ThreadPoolExecutor (max_workers=3). Output is a structured per-file summary (distinctive_facts, named_entities, decisions, action_items, quotes, overlap_signals, summary_2_lines).
+- Stage 2: existing analyze_with_claude prompt rewritten to consume Stage 1's structured output instead of raw concatenated text. sources[] schema now requires one entry per filename with a verbatim distinctive_fact, plus consolidated_with + unique_angle for legitimate overlaps. Server-side enforcement: sources[] coverage gap → auto-fill missing filenames with a marker (never silent drop).
+- maxTokens raised 16000 → 32000 (Opus output is richer; 16k was a real truncation risk).
+- Both stages use the same model — value flows from request body → users.preferred_model → backend fallback (now Opus 4.6, see below). No hardcoded model identifier in any new code.
+
+Per-document caching (new document_analyses table):
+- Schema: UUID id, upload_id (FK uploads), etag (S3 ETag), prompt_version (lambda constant), stage1_output JSONB, UNIQUE(upload_id, etag, prompt_version), CASCADE on uploads delete.
+- INSERT ... ON CONFLICT DO NOTHING for race-safety. Cache invalidates on file change (new ETag), prompt edit (STAGE1_PROMPT_VERSION bump), or upload deletion.
+- Stage 2 is NEVER cached — synthesis depends on full corpus + skills + client config, all of which can change.
+- Cache verified end-to-end on FC Dynamics: gate-A cold ran 3 fresh + 5 cache-hit; gate-B warm hit 8/8.
+
+Stage 1 hardening (after gate-A 429 incident):
+- Initial deploy with max_workers=8 hit Bedrock 429s on 3 of 8 parallel Opus calls within 1s — Opus per-account TPM/RPM tighter than modelled. Rolled back, hardened, re-deployed.
+- DEFAULT_MAX_WORKERS=3 (was 8). Hand-rolled exponential backoff with jitter in _bedrock_invoke_with_retry. 1s, 2s, 4s base + 0-1s jitter, max 3 retries. Uniform across bearer-token urllib and boto3 IAM converse paths. Non-throttle errors bypass the loop. Both DEFAULT_MAX_WORKERS=3 and MAX_STAGE1_RETRIES=3 locked by a unit test.
+- _fallback_stage1 deleted. When a file's Stage 1 cannot complete after retries, Stage1FailedError propagates. Pipeline halts: enrichments.status='failed', stage='stage1_failed', error_message=<truncated>. NO degraded analysis JSON is written. Successful per-file outputs from a partial run ARE still cached so a retry skips work that did complete.
+
+Silent-fallback audit (six sites flipped to Opus 4.6):
+- Production check: 25 of 35 users on Opus 4.6, 10 explicitly on Sonnet 4.5 (their choice, untouched), 0 NULL — but six fallback paths in code defaulted to Sonnet:
+  - lambda_function.py:192 COALESCE(preferred_model, 'claude-sonnet-4-5-20250929')
+  - lambda_function.py:196 Python `else 'claude-sonnet-4-5-20250929'`
+  - lambda_function.py:337 event.get('model', 'claude-sonnet-4-5-20250929')
+  - lambda_function.py:1430 analyze_with_claude(model='claude-sonnet-4-5-20250929')
+  - lambda_function.py:1645 BEDROCK_MODEL_MAP.get(model, BEDROCK_MODEL_MAP['claude-sonnet-4-6'])
+  - App.jsx:1941 useState(initialAuth.user?.preferred_model || 'claude-sonnet-4-6')
+- All flipped to claude-opus-4-6. Locked by test_no_request_model_no_user_row_resolves_to_opus_4_6.
+
+UI updates:
+- New 'preprocessing' enrichment stage label "Analyzing Each Document" added to ResultsScreen.stages (App.jsx:7123) between Transcribing and Web Research.
+- /results Lambda now recognises status='failed' alongside legacy 'error'; surfaces enrichments.error_message to the frontend so operators see what halted Stage 1.
+- Frontend polling treats 'failed' identically to 'error' — existing red-card UI renders error_message text as-is.
+- Sources card on results view shows consolidated_with info: small italic note "Consolidated with N other files — unique angle: <text>" beneath each source entry.
+
+Schema changes (idempotent):
+- CREATE TABLE document_analyses (...).
+- ALTER TABLE enrichments ADD COLUMN error_message TEXT.
+
+.md upload support:
+- frontend file picker accept= adds .md.
+- extract_text gains md branch (UTF-8 with errors='replace').
+- Upload Lambda has no allowlist so no change there. End-to-end verified by Gate D: synthetic .md with sentinel marker GATE-D-MD-SENTINEL-zphq9217 → Stage 1 extracted verbatim → Stage 2 cited in sources[].distinctive_fact.
+
+Verification (post-deploy):
+- Gate A FC cold: PASS, 3/3 fresh + 5 cache-hit, 0 failed, 4m 15s.
+- Gate B FC warm: PASS, 8/8 cached, 0 fresh, 3m 19s.
+- Gate C1 MFP cold: PASS, 10/10 fresh, 5 separate 429 events absorbed by retry-with-backoff, 0 leaked, 6m 21s.
+- Gate C2 MFP warm: PASS, 10/10 cached, 0 fresh, 5m 12s.
+- Gate D .md end-to-end: PASS, sentinel cited verbatim, fixture cleaned up.
+- Citation-depth verification (audits/diag_step_d_score_signatures_v2.py): 8/8 FC + 10/10 MFP covered, 0 failing. Hard contrast vs round-1: 6 of 18 uncited pre-fix, 0 of 18 uncited post-fix.
+
+Production state at deploy completion:
+- Lambda xo-enrich at v3 (CodeSha256 D88ttp/zJyCG2uGAMMs9cTwm1YiPOAwOBtSbKqOJpoo=). v1 + v2 retained as immutable AWS rollback targets.
+- Schema applied to production RDS (xo-quickstart-db).
+- Frontend deployed (CloudFront E7PWZX8BT02CE invalidated /*).
+
+Files changed (commits 857e446 + 70610a9 + f55acb8 + frontend redeploy):
+- backend/schema.sql (+22)
+- backend/lambdas/enrich/lambda_function.py (+220 / -19)
+- backend/lambdas/enrich/preprocess_per_document.py (NEW, +413)
+- backend/lambdas/enrich/deploy-enrich.sh (+1: include preprocess_per_document.py in package)
+- backend/lambdas/results/lambda_function.py (+13 / -7: failed-status branch + error_message surfacing)
+- src/App.jsx (+25 / -7: .md accept, opus default, preprocessing stage, consolidated_with badge)
+- backend/lambdas/tests/test_enrich_lambda.py (+37: lock test for Opus fallback)
+- backend/lambdas/tests/test_enrich_preprocess.py (NEW, +334: 12 unit tests)
+
+Cost expectation:
+- First enrichment, all-fresh, Opus 4.6 both stages, 8-10 file client: ~$0.70-$0.80.
+- Cached re-run (Stage 1 cache hits, Stage 2 fresh): ~$0.30 regardless of file count.
+- ~$910/year baseline at 53 active clients × ~7 enrichments/year.
+
+Known issues filed separately (not addressed in this branch):
+- GitHub #49 — list_objects_v2 missing pagination, P2 (silent 1000-key cap on enrich/lambda_function.py extract_all_files / find_audio_files / read_skills_from_s3).
+- GitHub #50 — source_count column predicate disagrees with enrich retrieval predicate, P3 (clients/lambda_function.py:872 vs enrich/lambda_function.py:230, NULL-status case).
+
+Audit branch retained:
+- audits/2026-04-26-enrich-investigation on origin — durable record of the four-step diagnostic, source-text dumps for FC + MFP, and the round-1 verdict that motivated this change.
 
 ---
 

@@ -1,0 +1,1438 @@
+diff --git a/audits/diag_step_d_score_signatures_v2.py b/audits/diag_step_d_score_signatures_v2.py
+new file mode 100644
+index 0000000..1765f42
+--- /dev/null
++++ b/audits/diag_step_d_score_signatures_v2.py
+@@ -0,0 +1,226 @@
++"""Step D v2 — citation-depth verification with new sources[] schema.
++
++Each input file is COVERED if EITHER:
++  (a) >= 1 of its 3 unique signatures appears in the analysis blob, OR
++  (b) sources[] has an entry whose `filename` matches AND `consolidated_with`
++      is non-empty AND `unique_angle` is non-empty (legitimate consolidation,
++      explicitly explained).
++
++PASS: every input file is COVERED. Used post-deploy to prove the Stage 1 +
++Stage 2 changes restored citation depth on FC Dynamics + MFP Trading.
++
++Run after re-enriching the two clients with the new pipeline. Reads the
++latest `complete` enrichment for each client by default; pass an explicit
++enrichment_id via env DIAG_ENRICHMENT_FC / DIAG_ENRICHMENT_MFP to override.
++"""
++import os
++import sys
++import json
++import psycopg2
++import boto3
++from collections import Counter
++
++sys.path.insert(0, '/Users/ken_macair_2025/xo-capture/backend/lambdas/enrich')
++if 'AES_MASTER_KEY' not in os.environ:
++    raise SystemExit("AES_MASTER_KEY must be set in env")
++
++from crypto_helper import unwrap_client_key, decrypt_s3_body  # noqa: E402
++
++DB_URL = os.environ['DATABASE_URL']
++BUCKET = 'xo-client-data-mv'
++
++session = boto3.Session(profile_name='intellagentic', region_name='eu-west-2')
++s3 = session.client('s3', region_name='us-west-1')
++
++
++# Reuse the same signature picks as v1 — they're tied to source-text content,
++# not the analysis JSON shape.
++FC_DYNAMICS = {
++    'name': 'FC Dynamics',
++    'db_id': '51f49469-6328-4afe-a492-7c2f36274907',
++    'env_override': 'DIAG_ENRICHMENT_FC',
++    'files': [
++        ('1-2 BARRIER ROAD, CHATHAM, KENT FIRE STRATEGY -DRAFT COPY .pdf',
++         ['Edem Brampah', '1-2 BARRIER ROAD, CHATHAM', '18.03.2025']),
++        ('250704 Issue Detail of Fire Stopping-1-2 Barrier Road, Chatham.pdf',
++         ['Total items 18', 'Autodesk', 'Fire Stopping Inspection']),
++        ('FC Dynamics - regulation research.docx',
++         ['BS 5839-1', 'Approved Document B', 'BSI']),
++        ('Fire Strategy.pdf',
++         ['Tringham House', 'University Hospitals Dorset', 'Bennington Green']),
++        ('Intellagentic Mail - Re_ FC Dynamics and XO on March 20, 2026 _ Read Meeting Report.pdf',
++         ['Approved Document M', 'BS 9999', 'Edem Brampah']),
++        ('Intro Call Edem and Alan Transcript.txt',
++         ['Southern Housing', 'Crewe', "AWAB's law"]),
++        ('no. 2 Intellagentic Mail - Re_ FC Dynamics and XO on March 20, 2026 _ Read Meeting Report.pdf',
++         ['120 key UK standards', 'Tier-1 consultancies', 'FDS, CFAST']),
++        ('Sittingbourne Library Stage 4 Fire Strategy Report REV D ISD.pdf',
++         ['Sittingbourne', 'FB SURVEYING', 'Central Ave']),
++    ],
++}
++
++MFP_TRADING = {
++    'name': 'MFP Trading',
++    'db_id': '58420e26-fd85-4da7-a638-e8729b55725f',
++    'env_override': 'DIAG_ENRICHMENT_MFP',
++    'files': [
++        ('FW_ Starting Out - Focusing your Attention - alan.moore@intellagentic.io.pdf',
++         ['Lisa Murphy', 'June 13, 2022', 'Trader Tools']),
++        ('File Note_ Enriched  MFP Trading XO Discovery & Deep-Dive Call feb 24 2026.docx',
++         ['Thomas Dudbridge', 'Data Checker', 'Zach Pine']),
++        ('IntellagenticXO · MFP Trading — XO Deployment Deep Dive.pdf',
++         ['Minerva', '5 exception types', 'CreditAlertEngine']),
++        ('MFP Notes for AP Chat Bot.docx',
++         ['Dealing Pad', 'DSU', 'fxpb1@natwest']),
++        ('MFP Trading FX Credit Policy 2026.docx',
++         ['Credit Console', 'TTWL', 'ANOP']),
++        ('SlackChatforChatBot.docx',
++         ['Wells Fargo', 'VBAN', 'Soc Gen Paris']),
++        ('forexventures_briefing.docx',
++         ['Forex Ventures', 'Michael Nembrini', '$5.7 billion']),
++        ('initial_call_1776012184056.txt',
++         ['Thomas Dudbridge', 'Lenders Bank Berlin', 'Fujitsu quantum']),
++        ('mfp_briefing (1).docx',
++         ['Becket House', 'Old Jewry', 'Mabrouka Abuhmida']),
++        ('mfp_briefing.docx',
++         ['Becket House', 'Old Jewry', 'Mabrouka Abuhmida']),
++    ],
++}
++
++
++def latest_enrichment(cur, db_id):
++    cur.execute("""
++        SELECT e.id, e.results_s3_key, c.encryption_key
++        FROM enrichments e JOIN clients c ON c.id = e.client_id
++        WHERE e.client_id = %s AND e.status = 'complete'
++        ORDER BY e.completed_at DESC NULLS LAST
++        LIMIT 1
++    """, (db_id,))
++    return cur.fetchone()
++
++
++def by_id(cur, enrichment_id):
++    cur.execute("""
++        SELECT e.id, e.results_s3_key, c.encryption_key
++        FROM enrichments e JOIN clients c ON c.id = e.client_id
++        WHERE e.id = %s
++    """, (enrichment_id,))
++    return cur.fetchone()
++
++
++def build_blob(analysis):
++    parts = [
++        analysis.get('summary', '') or '',
++        analysis.get('bottom_line', '') or '',
++        analysis.get('client_summary', '') or '',
++        analysis.get('streamline_applications', '') or '',
++        analysis.get('architecture_diagram', '') or '',
++    ]
++    for p in analysis.get('problems', []) or []:
++        for k in ('title', 'evidence', 'recommendation'):
++            parts.append(p.get(k, '') or '')
++    for ph in analysis.get('plan', []) or []:
++        parts.extend(ph.get('actions', []) or [])
++        parts.append(ph.get('phase', '') or '')
++    for s_ in analysis.get('sources', []) or []:
++        # New schema: distinctive_fact + filename + unique_angle
++        parts.append(s_.get('distinctive_fact', '') or '')
++        parts.append(s_.get('filename', '') or '')
++        parts.append(s_.get('unique_angle', '') or '')
++        # Legacy schema: reference
++        parts.append(s_.get('reference', '') or '')
++    cm = analysis.get('component_mapping', {}) or {}
++    for k_ in ('fits', 'extends', 'new_components'):
++        for c in cm.get(k_, []) or []:
++            parts.extend(str(v) for v in c.values())
++    parts.append(cm.get('summary_line', '') or '')
++    for app in analysis.get('xo_applications', []) or []:
++        for k in ('title', 'problem', 'capability', 'integrations', 'outcome'):
++            parts.append(app.get(k, '') or '')
++    for table in (analysis.get('schema', {}) or {}).get('tables', []) or []:
++        parts.append(table.get('name', '') or '')
++        parts.append(table.get('purpose', '') or '')
++        for col in table.get('columns', []) or []:
++            parts.append(col.get('description', '') or '')
++    return '\n'.join(parts)
++
++
++def covered_via_consolidation(analysis, filename):
++    """Pass condition (b): sources[] entry with consolidated_with + unique_angle."""
++    for s_ in analysis.get('sources', []) or []:
++        if not isinstance(s_, dict):
++            continue
++        if (s_.get('filename') or '') == filename:
++            cw = s_.get('consolidated_with') or []
++            ua = (s_.get('unique_angle') or '').strip()
++            if cw and ua:
++                return True
++    return False
++
++
++def has_filename_in_sources(analysis, filename):
++    for s_ in analysis.get('sources', []) or []:
++        if (s_.get('filename') or '') == filename:
++            return True
++    return False
++
++
++def run_client(client):
++    print(f"\n{'='*100}\n{client['name']}\n{'='*100}")
++    conn = psycopg2.connect(DB_URL)
++    cur = conn.cursor()
++
++    override = os.environ.get(client['env_override'])
++    row = by_id(cur, override) if override else latest_enrichment(cur, client['db_id'])
++    if not row:
++        print("  NO complete enrichment found")
++        cur.close(); conn.close()
++        return False
++
++    enrich_id, results_key, enc_key_b64 = row
++    print(f"  enrichment_id={enrich_id}\n  results_s3_key={results_key}")
++    cur.close(); conn.close()
++
++    ck = unwrap_client_key(enc_key_b64) if enc_key_b64 else None
++    raw = s3.get_object(Bucket=BUCKET, Key=results_key)['Body'].read()
++    decrypted = decrypt_s3_body(ck, raw)
++    if isinstance(decrypted, bytes):
++        decrypted = decrypted.decode('utf-8', errors='replace')
++    analysis = json.loads(decrypted)
++    blob = build_blob(analysis)
++    blob_lower = blob.lower()
++
++    print(f"\n  {'filename':70} {'sigs':>5}  {'in sources[]':>13}  verdict")
++    print(f"  {'-'*70} {'-'*5}  {'-'*13}  {'-'*30}")
++
++    rows = []
++    for filename, sigs in client['files']:
++        hits = [s for s in sigs if s.lower() in blob_lower]
++        cited = len(hits)
++        in_sources = has_filename_in_sources(analysis, filename)
++        consolidated = covered_via_consolidation(analysis, filename)
++
++        if cited >= 1:
++            verdict = f'COVERED (signatures: {cited}/3)'
++        elif consolidated:
++            verdict = 'COVERED (consolidated_with + unique_angle)'
++        else:
++            verdict = 'FAIL — not covered'
++
++        print(f"  {filename[:70]:70} {cited:>2}/3  {'yes' if in_sources else 'NO':>13}  {verdict}")
++        rows.append((filename, cited, in_sources, consolidated, verdict, hits))
++
++    cov = Counter('FAIL' if r[4].startswith('FAIL') else 'PASS' for r in rows)
++    print(f"\n  Covered: {cov['PASS']}/{len(rows)}    Failing: {cov['FAIL']}")
++    return cov['FAIL'] == 0
++
++
++if __name__ == '__main__':
++    fc_pass = run_client(FC_DYNAMICS)
++    mfp_pass = run_client(MFP_TRADING)
++    print(f"\n{'='*100}")
++    if fc_pass and mfp_pass:
++        print("OVERALL: PASS — every input file covered for both clients")
++        sys.exit(0)
++    print("OVERALL: FAIL — see per-client breakdown above")
++    sys.exit(1)
+diff --git a/backend/lambdas/enrich/lambda_function.py b/backend/lambdas/enrich/lambda_function.py
+index b83f871..0f4f401 100644
+--- a/backend/lambdas/enrich/lambda_function.py
++++ b/backend/lambdas/enrich/lambda_function.py
+@@ -21,6 +21,11 @@ import io
+ import csv
+ from datetime import datetime, timezone
+ from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
++from preprocess_per_document import (
++    STAGE1_PROMPT_VERSION,
++    run_stage1_parallel,
++    build_stage2_input,
++)
+ try:
+     from crypto_helper import (
+         decrypt, decrypt_json, unwrap_client_key,
+@@ -180,13 +185,15 @@ def _handle_enrich_request(event, user):
+         conn = get_db_connection()
+         cur = conn.cursor()
+ 
+-        # Also read user's preferred_model as fallback
++        # Also read user's preferred_model as fallback. Default is Opus 4.6 —
++        # the tier-1 model — to avoid silent downgrades when preferred_model is
++        # NULL or the user row is missing.
+         cur.execute(
+-            "SELECT COALESCE(preferred_model, 'claude-sonnet-4-5-20250929') FROM users WHERE id = %s",
++            "SELECT COALESCE(preferred_model, 'claude-opus-4-6') FROM users WHERE id = %s",
+             (user['user_id'],)
+         )
+         user_row = cur.fetchone()
+-        db_model = user_row[0] if user_row else 'claude-sonnet-4-5-20250929'
++        db_model = user_row[0] if user_row else 'claude-opus-4-6'
+ 
+         # Priority: request body > user preference > default
+         allowed_models = ['claude-opus-4-6', 'claude-sonnet-4-5-20250929', 'claude-haiku-4-5-20251001']
+@@ -225,12 +232,16 @@ def _handle_enrich_request(event, user):
+ 
+         db_client_id = str(row[8])
+ 
+-        # Query active upload S3 keys (only process active sources)
++        # Query active upload S3 keys + ids (only process active sources).
++        # The upload_id is needed by Stage 1 caching downstream.
+         cur.execute(
+-            "SELECT s3_key FROM uploads WHERE client_id = %s AND (status IS NULL OR status = 'active')",
++            "SELECT s3_key, id FROM uploads WHERE client_id = %s AND (status IS NULL OR status = 'active')",
+             (db_client_id,)
+         )
+-        active_keys = [r[0] for r in cur.fetchall()]
++        active_rows = cur.fetchall()
++        active_keys = [r[0] for r in active_rows]
++        # {s3_key: upload_id (string)} — JSON-serialisable for the async payload
++        active_uploads = {r[0]: str(r[1]) for r in active_rows}
+         print(f"Active upload keys for enrichment: {len(active_keys)}")
+ 
+         # Create enrichment tracking record with stage
+@@ -270,6 +281,7 @@ def _handle_enrich_request(event, user):
+             'user_id': user['user_id'],
+             'model': model_to_use,
+             'active_keys': active_keys,
++            'active_uploads': active_uploads,
+             'engagement_id': engagement_id,
+             'engagement_focus_area': engagement_focus_area,
+             'engagement_contacts': engagement_contacts,
+@@ -322,8 +334,9 @@ def _run_enrichment_pipeline(event):
+     db_client_id = event['db_client_id']
+     enrichment_id = event['enrichment_id']
+     user_id = event['user_id']
+-    model = event.get('model', 'claude-sonnet-4-5-20250929')
++    model = event.get('model', 'claude-opus-4-6')
+     active_keys = event.get('active_keys', None)
++    active_uploads = event.get('active_uploads', None) or {}
+     engagement_id = event.get('engagement_id')
+     engagement_focus_area = event.get('engagement_focus_area')
+     engagement_contacts_raw = event.get('engagement_contacts')
+@@ -466,6 +479,24 @@ def _run_enrichment_pipeline(event):
+                 "_profile_only": "No client documents uploaded — analysis based on organization profile and contact information only."
+             }
+ 
++        # Stage: stage1_per_doc (Stage 1 per-document structured extraction).
++        # Each file gets its own Claude call (Haiku, parallel), cached on
++        # (upload_id, etag, prompt_version). Stage 2 consumes the structured
++        # output instead of raw concatenated text.
++        update_enrichment_stage(conn, enrichment_id, 'preprocessing')
++        upload_meta = _build_upload_meta(client_id, active_uploads)
++        # Stage 1 and Stage 2 both use the same resolved model — the value
++        # `model_to_use` set in Phase 1 (which honours request body →
++        # users.preferred_model → fallback) and threaded through the async
++        # payload as `model`. No hardcoded model identifier here.
++        stage1_summaries = run_stage1_parallel(
++            extracted_text,
++            upload_meta,
++            conn,
++            model_id=BEDROCK_MODEL_MAP[model],
++            bedrock_invoker=_bedrock_invoke_for_stage1,
++        )
++
+         # Stage: researching (placeholder for future web research)
+         update_enrichment_stage(conn, enrichment_id, 'researching')
+         print("Research stage: placeholder (no web research yet)")
+@@ -477,9 +508,14 @@ def _run_enrichment_pipeline(event):
+             company_name, website, contact_name, contact_title,
+             contact_linkedin, industry, description, pain_point, extracted_text, skills,
+             model=model, client_config=client_config, system_skills=system_skills,
+-            contacts=contacts, focus_area=engagement_focus_area
++            contacts=contacts, focus_area=engagement_focus_area,
++            stage1_summaries=stage1_summaries, client_id=client_id,
+         )
+ 
++        # Back-compat + integrity: ensure sources[] covers every input filename
++        # and that the legacy reference field is populated.
++        analysis = _normalise_sources(analysis, stage1_summaries)
++
+         # Write results to S3 (optionally encrypted with client key)
+         if engagement_id:
+             results_key = f"{client_id}/engagements/{engagement_id}/results/analysis.json"
+@@ -1075,8 +1111,8 @@ def extract_text(filename, file_content):
+     try:
+         if ext == 'csv':
+             return extract_csv(file_content)
+-        elif ext == 'txt':
+-            return file_content.decode('utf-8')
++        elif ext in ('txt', 'md'):
++            return file_content.decode('utf-8', errors='replace')
+         elif ext in ['xlsx', 'xls']:
+             return extract_excel(file_content)
+         elif ext == 'pdf':
+@@ -1287,19 +1323,131 @@ def _send_streamline_webhook(company_name, contacts, model, analysis, source_fil
+         print(f"Streamline webhook failed (non-fatal): {str(e)}")
+ 
+ 
++def _build_upload_meta(client_id, active_uploads):
++    """Build {filename: {upload_id, etag}} by listing the client's uploads
++    folder and matching S3 keys against the active_uploads map from Phase 1.
++
++    Reuses the existing list_objects_v2 path (single S3 call, paginated).
++    """
++    upload_meta = {}
++    paginator = s3_client.get_paginator('list_objects_v2')
++    for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=f"{client_id}/uploads/"):
++        for obj in page.get('Contents', []):
++            s3_key = obj['Key']
++            upload_id = active_uploads.get(s3_key)
++            if not upload_id:
++                continue
++            filename = s3_key.split('/')[-1]
++            if not filename:
++                continue
++            etag = (obj.get('ETag') or '').strip('"')
++            if not etag:
++                continue
++            upload_meta[filename] = {'upload_id': upload_id, 'etag': etag}
++    return upload_meta
++
++
++def _bedrock_invoke_for_stage1(model_id, body_str):
++    """Bedrock Converse invocation matching whichever auth path the parent
++    Lambda is configured for (bearer-token urllib or boto3 IAM converse)."""
++    if AWS_BEARER_TOKEN_BEDROCK:
++        return _invoke_bedrock_bearer(model_id, body_str)
++    body = json.loads(body_str)
++    response = bedrock_client.converse(
++        modelId=model_id,
++        messages=body['messages'],
++        inferenceConfig=body.get('inferenceConfig', {}),
++    )
++    return response
++
++
++def _normalise_sources(analysis, stage1_summaries):
++    """Enforce the source-coverage contract and populate the back-compat
++    `reference` field that legacy consumers (Streamline, frontend) expect.
++
++    Contract: sources[] must contain exactly one entry per filename in
++    stage1_summaries. Missing filenames are auto-filled with a marker
++    indicating Claude omitted them; nothing is silently dropped. The
++    legacy `reference` string is composed server-side as
++    f"{filename} — {distinctive_fact}" for unchanged consumers.
++    """
++    if not isinstance(analysis, dict):
++        return analysis
++
++    sources = analysis.get('sources') or []
++    if not isinstance(sources, list):
++        sources = []
++
++    # Index existing entries by filename; tolerate lowercase / whitespace drift.
++    by_name = {}
++    for s in sources:
++        if not isinstance(s, dict):
++            continue
++        fname = (s.get('filename') or '').strip()
++        if fname:
++            by_name[fname] = s
++
++    expected = [
++        f for f in stage1_summaries.keys()
++        if f != '_profile_only'
++    ]
++    missing = [f for f in expected if f not in by_name]
++    if missing:
++        print(f"sources[] coverage gap — auto-filling {len(missing)} omitted filename(s): {missing}")
++        for f in missing:
++            s1 = stage1_summaries.get(f) or {}
++            facts = s1.get('distinctive_facts') or []
++            entry = {
++                'filename': f,
++                'type': 'client_data',
++                'distinctive_fact': facts[0] if facts else '',
++                'consolidated_with': [],
++                'unique_angle': '',
++                'note': 'Auto-filled — Claude omitted this filename from sources[]',
++            }
++            sources.append(entry)
++            by_name[f] = entry
++
++    # Back-compat: populate legacy `reference` field for any entry missing it.
++    for s in sources:
++        if not isinstance(s, dict):
++            continue
++        if 'reference' not in s:
++            fname = (s.get('filename') or '').strip()
++            fact = (s.get('distinctive_fact') or '').strip()
++            s['reference'] = f"{fname} — {fact}" if fname and fact else (fname or '')
++        if 'type' not in s:
++            s['type'] = 'client_data'
++        s.setdefault('consolidated_with', [])
++        s.setdefault('unique_angle', '')
++
++    analysis['sources'] = sources
++    return analysis
++
++
+ def analyze_with_claude(company_name, website, contact_name, contact_title,
+                         contact_linkedin, industry, description, pain_point, extracted_text, skills=None,
+-                        model='claude-sonnet-4-5-20250929', client_config=None, system_skills=None,
+-                        contacts=None, focus_area=None):
++                        model='claude-opus-4-6', client_config=None, system_skills=None,
++                        contacts=None, focus_area=None, stage1_summaries=None, client_id=None):
+     """
+     Call Claude API with XO Capture Analysis prompt.
+     Returns structured analysis JSON.
++
++    Inputs are formatted from `stage1_summaries` (per-document structured
++    output produced by Stage 1). For backward-compat — if no Stage 1 output
++    is supplied, falls back to the legacy text[:5000] concat over
++    extracted_text. New code paths always supply stage1_summaries.
+     """
+ 
+-    files_summary = "\n\n".join([
+-        f"=== {filename} ===\n{text[:5000]}"
+-        for filename, text in extracted_text.items()
+-    ])
++    if stage1_summaries:
++        files_summary = build_stage2_input(stage1_summaries)
++    else:
++        # Legacy fallback path — kept for safety during deploy and for
++        # tests that exercise analyze_with_claude in isolation.
++        files_summary = "\n\n".join([
++            f"=== {filename} ===\n{text[:5000]}"
++            for filename, text in extracted_text.items()
++        ])
+ 
+     enrichment_info = []
+ 
+@@ -1377,7 +1525,9 @@ COMPANY INFORMATION:
+ Company Name: {company_name}
+ {enrichment_section}
+ {config_section}
+-CLIENT DATA (Uploaded Documents):
++CLIENT DATA (Per-document structured summaries from Stage 1):
++Each block below corresponds to ONE uploaded file and was produced by a per-document extraction pass. Treat each block as the canonical view of that file. Use the DISTINCTIVE FACTS, NAMED ENTITIES, DECISIONS, ACTION ITEMS, and KEY QUOTES verbatim where possible — they are the highest-signal content from each document.
++
+ {files_summary}
+ {skills_section}
+ TASK:
+@@ -1403,6 +1553,15 @@ Never use the word "dashboard" — always "console".
+ Data flow: Data Sources feed XO. XO drives Streamline. Console displays XO's analysis and Streamline's workflow actions to operators.
+ Every named component box MUST carry [EXISTING], [EXTEND], or [NEW]. Do NOT include a summary caption — it is appended programmatically from component_mapping.summary_line.
+ {system_skills_section}
++SOURCE COVERAGE REQUIREMENT (NON-NEGOTIABLE):
++Each DOCUMENT BLOCK above represents ONE uploaded file (the filename appears in its `===` header). Your sources[] array MUST contain exactly one entry per filename — never aggregate multiple filenames into one entry, never silently drop a filename.
++
++For each entry:
++  - Set "filename" to the exact filename from the block's `===` header.
++  - Set "distinctive_fact" to a verbatim or near-verbatim fact pulled from THAT file's DISTINCTIVE FACTS section. Do not invent. Do not paraphrase to genericness.
++  - If a file genuinely overlaps with another (its OVERLAPS WITH section flags this), populate "consolidated_with" with the other filenames AND give an explicit "unique_angle" — what THIS file adds that the others don't (e.g. "anonymised version with Forex Ventures naming", "earlier version pre-correction"). Empty unique_angle is NOT allowed when consolidated_with is non-empty.
++  - Otherwise leave consolidated_with as [] and unique_angle as "".
++
+ OUTPUT FORMAT:
+ Return valid JSON. The structure below is the base schema — additional fields instructed by SYSTEM INSTRUCTIONS above are permitted. All text fields can include newline characters (\\n) for formatting. Follow the SYSTEM INSTRUCTIONS above for formatting rules:
+ {{
+@@ -1470,14 +1629,20 @@ Return valid JSON. The structure below is the base schema — additional fields
+     }}
+   ],
+   "sources": [
+-    {{"type": "client_data", "reference": "filename or data source"}}
++    {{
++      "filename": "<exact filename from a DOCUMENT BLOCK header>",
++      "type": "client_data",
++      "distinctive_fact": "<one verbatim or near-verbatim fact pulled from this file's DISTINCTIVE FACTS>",
++      "consolidated_with": [],
++      "unique_angle": ""
++    }}
+   ]
+ }}
+ 
+ Be specific. Use actual data from the documents. Think like a management consultant presenting to the CEO."""
+ 
+     try:
+-        bedrock_model_id = BEDROCK_MODEL_MAP.get(model, BEDROCK_MODEL_MAP['claude-sonnet-4-6'])
++        bedrock_model_id = BEDROCK_MODEL_MAP.get(model, BEDROCK_MODEL_MAP['claude-opus-4-6'])
+         print(f"Invoking Bedrock model: {bedrock_model_id} (requested: {model})")
+ 
+         converse_body = json.dumps({
+@@ -1485,7 +1650,7 @@ Be specific. Use actual data from the documents. Think like a management consult
+                 {"role": "user", "content": [{"text": prompt}]}
+             ],
+             "inferenceConfig": {
+-                "maxTokens": 16000,
++                "maxTokens": 32000,
+                 "temperature": 0.7
+             }
+         })
+@@ -1500,7 +1665,7 @@ Be specific. Use actual data from the documents. Think like a management consult
+                 messages=[
+                     {"role": "user", "content": [{"text": prompt}]}
+                 ],
+-                inferenceConfig={"maxTokens": 16000, "temperature": 0.7}
++                inferenceConfig={"maxTokens": 32000, "temperature": 0.7}
+             )
+             response_body = bedrock_response
+ 
+@@ -1522,7 +1687,7 @@ Be specific. Use actual data from the documents. Think like a management consult
+             analysis = json.loads(response_text)
+         except json.JSONDecodeError as je:
+             print(f"JSON parse failed at char {je.pos}, attempting repair...")
+-            analysis = _repair_truncated_json(response_text)
++            analysis = _repair_truncated_json(response_text, client_id=client_id)
+ 
+         analysis['analyzed_at'] = datetime.now(timezone.utc).isoformat()
+         analysis['analyzed_files'] = list(extracted_text.keys())
+@@ -1544,11 +1709,12 @@ Be specific. Use actual data from the documents. Think like a management consult
+         }
+ 
+ 
+-def _repair_truncated_json(text):
++def _repair_truncated_json(text, client_id=None):
+     """
+     Attempt to repair truncated JSON from Claude (e.g. when max_tokens was hit).
+     Closes unclosed strings, arrays, and objects to produce valid JSON.
+     """
++    print(f"Stage 2 output truncation detected, repair invoked: client_id={client_id}")
+     # Strip trailing whitespace/incomplete tokens
+     text = text.rstrip()
+ 
+diff --git a/backend/lambdas/enrich/preprocess_per_document.py b/backend/lambdas/enrich/preprocess_per_document.py
+new file mode 100644
+index 0000000..8542f8d
+--- /dev/null
++++ b/backend/lambdas/enrich/preprocess_per_document.py
+@@ -0,0 +1,407 @@
++"""
++XO Capture — Stage 1 per-document preprocessing.
++
++For every uploaded file the enrich Lambda processes, we run a small Claude
++call that extracts a structured per-document summary (distinctive_facts,
++named_entities, decisions, action_items, quotes). Stage 2 (synthesis)
++consumes those summaries instead of raw concatenated text.
++
++Stage 1 results are cached in the `document_analyses` table keyed by
++(upload_id, etag, prompt_version). Re-enriching an unchanged corpus
++reuses every row; changing a file (new ETag) or bumping
++STAGE1_PROMPT_VERSION naturally invalidates entries.
++
++Stage 2 is NEVER cached — synthesis depends on the full corpus + skills +
++client context, all of which can change between runs.
++"""
++import json
++import re
++from concurrent.futures import ThreadPoolExecutor, as_completed
++
++
++# Bumped manually whenever STAGE1_PROMPT below changes substantively.
++# Old cache rows with a different prompt_version are ignored (and
++# eventually orphaned). Never decrement.
++STAGE1_PROMPT_VERSION = "v1"
++
++
++STAGE1_PROMPT = """You are extracting structured intelligence from a single
++business document. Your output will be one of several per-document summaries
++fed into a downstream synthesis stage.
++
++DOCUMENT FILENAME: {filename}
++DOCUMENT KIND HINT: {kind_hint}
++
++DOCUMENT CONTENT:
++{full_text}
++
++Extract the following. Be specific and verbatim where possible — distinctive
++facts must be tied to THIS document, not paraphrased generalities.
++
++Return valid JSON only (no markdown, no commentary). Schema:
++
++{{
++  "distinctive_facts": [
++    "5-10 specific facts that this document — and probably only this document — establishes. Numbers, dates, named entities, decisions, claims with evidence."
++  ],
++  "named_entities": {{
++    "people":        ["..."],
++    "organisations": ["..."],
++    "places":        ["..."],
++    "products":      ["..."],
++    "regulations":   ["standards, statutes, frameworks"]
++  }},
++  "decisions":    ["Decisions made or directions agreed in this document"],
++  "action_items": ["Who does what, by when, per this document"],
++  "quotes": [
++    "3-6 verbatim short quotes that capture intent, scale, or distinctive detail"
++  ],
++  "overlap_signals": [
++    "Phrases or sections that suggest this document overlaps heavily with another. Empty list if none obvious."
++  ],
++  "summary_2_lines": "Two-line summary of what THIS document uniquely contributes."
++}}
++"""
++
++
++CONVERSATIONAL_MARKERS = re.compile(
++    r"\b(yeah|bear with me|umm|kinda|gonna|you know|i mean|like\s|right\?)\b",
++    re.IGNORECASE,
++)
++SPEAKER_TURN = re.compile(r"^\s*(\d+:\d+\s*-\s*\w+|Speaker\s+\d+:|[A-Z][a-z]+\s+[A-Z][a-z]+:)", re.MULTILINE)
++EMAIL_HEADERS = re.compile(r"^From:.*\n.*^To:.*\n.*^Subject:", re.MULTILINE | re.DOTALL)
++
++
++def kind_hint(filename, text):
++    """Cheap heuristic for the Stage 1 prompt's KIND HINT line.
++
++    Not load-bearing — Stage 1 still extracts the same fields if the hint
++    is wrong. We just nudge the model toward the right framing.
++    """
++    name = filename.lower()
++    head = (text or "")[:1500]
++
++    if name.endswith(('.csv', '.xlsx', '.xls')):
++        return 'data'
++    if name.endswith(('.py', '.js', '.jsx', '.ts', '.tsx', '.sh', '.sql')):
++        return 'code'
++    if (
++        re.search(r"(^|/)(mail|fw_|re_|fwd?_)", name)
++        or 'mail' in name and ('re:' in head.lower() or 'fwd:' in head.lower())
++        or EMAIL_HEADERS.search(head[:600])
++    ):
++        return 'email'
++
++    speaker_turns = len(SPEAKER_TURN.findall(text or ""))
++    convo_hits = len(CONVERSATIONAL_MARKERS.findall(text or ""))
++    chars = max(1, len(text or ""))
++    if speaker_turns >= max(3, chars // 2000) or convo_hits / chars >= 0.005:
++        return 'transcript'
++
++    return 'brief'
++
++
++# ──────────────────────────────────────────────
++# Cache helpers
++# ──────────────────────────────────────────────
++
++def get_cached_stage1(cur, upload_id, etag, prompt_version):
++    """Return cached stage1_output dict, or None if no row matches."""
++    cur.execute(
++        "SELECT stage1_output FROM document_analyses "
++        "WHERE upload_id = %s AND etag = %s AND prompt_version = %s",
++        (upload_id, etag, prompt_version),
++    )
++    row = cur.fetchone()
++    if not row:
++        return None
++    val = row[0]
++    # psycopg2 returns jsonb as already-parsed dict on most setups; defensive
++    # decode if it ever comes back as text.
++    if isinstance(val, str):
++        try:
++            return json.loads(val)
++        except json.JSONDecodeError:
++            return None
++    return val
++
++
++def write_cached_stage1(cur, upload_id, etag, prompt_version, stage1_output):
++    """INSERT ... ON CONFLICT DO NOTHING. Race-safe with concurrent runs."""
++    cur.execute(
++        "INSERT INTO document_analyses (upload_id, etag, prompt_version, stage1_output) "
++        "VALUES (%s, %s, %s, %s::jsonb) "
++        "ON CONFLICT (upload_id, etag, prompt_version) DO NOTHING",
++        (upload_id, etag, prompt_version, json.dumps(stage1_output)),
++    )
++
++
++# ──────────────────────────────────────────────
++# Stage 1 single-file call
++# ──────────────────────────────────────────────
++
++# Keep a buffer below Anthropic's input window. Files larger than this get
++# their head sent. Stage 2 still receives the structured summary — no
++# full-text drop on Stage 1 unless the file is genuinely enormous.
++MAX_STAGE1_INPUT_CHARS = 100_000
++
++
++def _build_stage1_prompt(filename, text):
++    truncated = False
++    if len(text) > MAX_STAGE1_INPUT_CHARS:
++        text = text[:MAX_STAGE1_INPUT_CHARS]
++        truncated = True
++    prompt = STAGE1_PROMPT.format(
++        filename=filename,
++        kind_hint=kind_hint(filename, text),
++        full_text=text,
++    )
++    return prompt, truncated
++
++
++def _strip_code_fence(s):
++    """Pull JSON out of ```json ... ``` or ``` ... ``` blocks if present."""
++    s = s.strip()
++    if s.startswith('```json'):
++        s = s[7:]
++        end = s.rfind('```')
++        if end != -1:
++            s = s[:end]
++    elif s.startswith('```'):
++        s = s[3:]
++        end = s.rfind('```')
++        if end != -1:
++            s = s[:end]
++    return s.strip()
++
++
++def _parse_stage1_response(response_text):
++    """Parse the model's JSON response. Raise on unrecoverable errors."""
++    body = _strip_code_fence(response_text)
++    return json.loads(body)
++
++
++def _fallback_stage1(filename, reason):
++    """Stub Stage 1 output when extraction failed entirely.
++
++    Stage 2 still sees the file by filename — it just has no distinctive
++    content to draw on. The cache row is NOT written so the next run
++    retries cleanly.
++    """
++    return {
++        'filename': filename,
++        'extraction_failed': True,
++        'failure_reason': reason,
++        'distinctive_facts': [],
++        'named_entities': {
++            'people': [], 'organisations': [], 'places': [], 'products': [], 'regulations': [],
++        },
++        'decisions': [],
++        'action_items': [],
++        'quotes': [],
++        'overlap_signals': [],
++        'summary_2_lines': f"Stage 1 extraction failed for {filename}: {reason}",
++    }
++
++
++def _call_stage1(filename, text, model_id, bedrock_invoker):
++    """Invoke Bedrock for one file, parse, and decorate with metadata.
++
++    `bedrock_invoker(model_id, body_json_str) -> response_dict` is supplied
++    by the caller so we mirror whichever auth path the parent Lambda uses
++    (bearer-token urllib or boto3 IAM converse) without re-implementing it.
++    """
++    prompt, truncated = _build_stage1_prompt(filename, text)
++    body = json.dumps({
++        "messages": [{"role": "user", "content": [{"text": prompt}]}],
++        "inferenceConfig": {"maxTokens": 4000, "temperature": 0.2},
++    })
++
++    response = bedrock_invoker(model_id, body)
++    response_text = response['output']['message']['content'][0]['text']
++
++    try:
++        parsed = _parse_stage1_response(response_text)
++    except json.JSONDecodeError as e:
++        return _fallback_stage1(filename, f"JSON parse failed: {e}")
++
++    # Decorate with bookkeeping fields
++    parsed.setdefault('distinctive_facts', [])
++    parsed.setdefault('named_entities', {})
++    parsed.setdefault('decisions', [])
++    parsed.setdefault('action_items', [])
++    parsed.setdefault('quotes', [])
++    parsed.setdefault('overlap_signals', [])
++    parsed.setdefault('summary_2_lines', '')
++    parsed['filename'] = filename
++    parsed['kind_hint'] = kind_hint(filename, text)
++    parsed['chars_in'] = len(text)
++    parsed['chars_used'] = min(len(text), MAX_STAGE1_INPUT_CHARS)
++    parsed['stage1_input_truncated'] = truncated
++    parsed['model'] = model_id
++    parsed['extraction_failed'] = False
++    return parsed
++
++
++# ──────────────────────────────────────────────
++# Parallel dispatch with caching
++# ──────────────────────────────────────────────
++
++def run_stage1_parallel(
++    extracted_text,
++    upload_meta,
++    conn,
++    *,
++    model_id,
++    bedrock_invoker,
++    max_workers=8,
++):
++    """For each file in extracted_text, return a Stage 1 structured summary.
++
++    Args:
++      extracted_text: dict {filename: text}.
++      upload_meta:    dict {filename: {'upload_id': str, 'etag': str}}.
++                      Files without an entry (e.g. transcripts of audio
++                      uploads where the canonical row is the audio file)
++                      are processed but never cached.
++      conn:           psycopg2 connection. DB ops happen on the main
++                      thread only; Bedrock calls run in workers.
++      model_id:       Bedrock model id for Stage 1. Caller supplies the
++                      same model the rest of the enrichment uses — this
++                      module does not pin a specific model.
++      bedrock_invoker: callable matching _invoke_bedrock_bearer's signature.
++      max_workers:    cap on ThreadPoolExecutor concurrency.
++
++    Returns:
++      dict {filename: stage1_output_dict}.
++    """
++    results = {}
++    misses = []
++
++    cur = conn.cursor()
++    try:
++        for filename, text in extracted_text.items():
++            meta = upload_meta.get(filename) or {}
++            upload_id = meta.get('upload_id')
++            etag = meta.get('etag')
++
++            if upload_id and etag:
++                cached = get_cached_stage1(cur, upload_id, etag, STAGE1_PROMPT_VERSION)
++                if cached is not None:
++                    print(
++                        f"Stage 1 cache hit:  upload_id={upload_id} etag={etag} "
++                        f"filename={filename!r}"
++                    )
++                    results[filename] = cached
++                    continue
++                print(
++                    f"Stage 1 cache miss: upload_id={upload_id} etag={etag} "
++                    f"filename={filename!r} (running Claude)"
++                )
++            else:
++                print(
++                    f"Stage 1 cache skip: filename={filename!r} (no upload_id/etag, "
++                    f"running Claude without caching)"
++                )
++
++            misses.append((filename, text, upload_id, etag))
++    finally:
++        cur.close()
++
++    if misses:
++        with ThreadPoolExecutor(max_workers=max(1, min(max_workers, len(misses)))) as ex:
++            future_to_meta = {
++                ex.submit(_call_stage1, filename, text, model_id, bedrock_invoker):
++                    (filename, upload_id, etag)
++                for filename, text, upload_id, etag in misses
++            }
++            for fut in as_completed(future_to_meta):
++                filename, upload_id, etag = future_to_meta[fut]
++                try:
++                    stage1_output = fut.result()
++                except Exception as e:
++                    print(f"Stage 1 failed for {filename!r}: {type(e).__name__}: {e}")
++                    stage1_output = _fallback_stage1(filename, f"{type(e).__name__}: {e}")
++                results[filename] = stage1_output
++
++        cur = conn.cursor()
++        try:
++            for filename, _text, upload_id, etag in misses:
++                if not (upload_id and etag):
++                    continue
++                output = results.get(filename)
++                if not output or output.get('extraction_failed'):
++                    continue
++                write_cached_stage1(cur, upload_id, etag, STAGE1_PROMPT_VERSION, output)
++            conn.commit()
++        finally:
++            cur.close()
++
++    cached_count = len(extracted_text) - len(misses)
++    print(
++        f"Stage 1 dispatch summary: {cached_count}/{len(extracted_text)} cached, "
++        f"{len(misses)} ran fresh, parallel_workers="
++        f"{max(1, min(max_workers, max(1, len(misses))))}"
++    )
++    return results
++
++
++# ──────────────────────────────────────────────
++# Stage 2 input formatter
++# ──────────────────────────────────────────────
++
++def build_stage2_input(stage1_summaries):
++    """Format Stage 1 outputs as one block per file for the synthesis prompt.
++
++    Replaces the old text[:5000] concat. Stage 2 sees structured fields
++    (distinctive facts, entities, decisions, quotes) instead of raw text.
++    """
++    blocks = []
++    for filename, s1 in stage1_summaries.items():
++        ne = s1.get('named_entities') or {}
++        people = ", ".join(ne.get('people', []) or []) or '—'
++        orgs = ", ".join(ne.get('organisations', []) or []) or '—'
++        places = ", ".join(ne.get('places', []) or []) or '—'
++        products = ", ".join(ne.get('products', []) or []) or '—'
++        regs = ", ".join(ne.get('regulations', []) or []) or '—'
++
++        facts = s1.get('distinctive_facts') or []
++        decisions = s1.get('decisions') or []
++        actions = s1.get('action_items') or []
++        quotes = s1.get('quotes') or []
++        overlaps = s1.get('overlap_signals') or []
++
++        block = [f"=== {filename} ==="]
++        block.append(f"KIND: {s1.get('kind_hint', 'unknown')}")
++        block.append(f"2-LINE SUMMARY: {s1.get('summary_2_lines', '').strip()}")
++        block.append("DISTINCTIVE FACTS:")
++        for f in facts:
++            block.append(f"  - {f}")
++        block.append(
++            f"NAMED ENTITIES: people=[{people}]; organisations=[{orgs}]; "
++            f"places=[{places}]; products=[{products}]; regulations=[{regs}]"
++        )
++        if decisions:
++            block.append("DECISIONS:")
++            for d in decisions:
++                block.append(f"  - {d}")
++        if actions:
++            block.append("ACTION ITEMS:")
++            for a in actions:
++                block.append(f"  - {a}")
++        if quotes:
++            block.append("KEY QUOTES:")
++            for q in quotes:
++                block.append(f'  - "{q}"')
++        if overlaps:
++            block.append("OVERLAPS WITH: " + "; ".join(overlaps))
++        else:
++            block.append("OVERLAPS WITH: none flagged")
++        if s1.get('extraction_failed'):
++            block.append(
++                "NOTE: Stage 1 extraction failed for this file — "
++                "no structured signal available. Cite by filename only."
++            )
++        blocks.append("\n".join(block))
++
++    return "\n\n".join(blocks)
+diff --git a/backend/lambdas/tests/test_enrich_lambda.py b/backend/lambdas/tests/test_enrich_lambda.py
+index d435337..f197356 100644
+--- a/backend/lambdas/tests/test_enrich_lambda.py
++++ b/backend/lambdas/tests/test_enrich_lambda.py
+@@ -99,6 +99,44 @@ class TestEnrichPhase1:
+         response = enrich_module.lambda_handler(event, None)
+         assert_status(response, 404)
+ 
++    def test_no_request_model_no_user_row_resolves_to_opus_4_6(self, enrich_module, mock_deps):
++        """Lock against silent-downgrade regression. When the request body
++        carries no `model` and the users-table query returns no row, the
++        async payload's `model` field MUST be 'claude-opus-4-6'. If this
++        ever resolves to Sonnet/Haiku again, the Opus-everywhere production
++        intent has been quietly broken."""
++        started, _, mock_cur, _, mock_lambda = mock_deps
++        started['require_auth'].return_value = (REGULAR_USER, None)
++
++        # First fetchone: preferred_model query — returns None (no user row)
++        # Second fetchone: clients SELECT — returns the 10-column row shape
++        # Third fetchone: INSERT enrichments RETURNING id
++        mock_cur.fetchone.side_effect = [
++            None,
++            ('Acme Co', None, None, None, None, None, None, None,
++             'db-client-uuid', REGULAR_USER['user_id']),
++            ('enrich-uuid',),
++        ]
++        # No active uploads — keeps Phase 1 short
++        mock_cur.fetchall.return_value = []
++
++        event = make_event(method='POST', path='/enrich',
++                           body={'client_id': 'client_test_xyz'})
++        response = enrich_module.lambda_handler(event, None)
++        assert_status(response, 200)
++
++        # Capture the async self-invoke payload
++        assert mock_lambda.invoke.called, "Phase 1 must self-invoke async"
++        kwargs = mock_lambda.invoke.call_args.kwargs
++        payload = json.loads(kwargs['Payload'])
++        assert payload['model'] == 'claude-opus-4-6', (
++            f"Silent downgrade — expected Opus 4.6, got {payload['model']!r}. "
++            f"Check the five fallback sites in lambda_function.py: "
++            f"COALESCE in preferred_model SELECT, the 'else' fallback when "
++            f"user_row is None, the async-event default, the analyze_with_claude "
++            f"kwarg default, and the BEDROCK_MODEL_MAP.get fallback."
++        )
++
+ 
+ class TestExtractText:
+     def test_extract_plain_text(self, enrich_module):
+diff --git a/backend/lambdas/tests/test_enrich_preprocess.py b/backend/lambdas/tests/test_enrich_preprocess.py
+new file mode 100644
+index 0000000..19cfcb2
+--- /dev/null
++++ b/backend/lambdas/tests/test_enrich_preprocess.py
+@@ -0,0 +1,334 @@
++"""
++Tests for the new Stage 1 per-document preprocessing path:
++  - preprocess_per_document.run_stage1_parallel + caching
++  - extract_text(.md)
++  - end-to-end Stage 2 input formatting on FC Dynamics + MFP Trading fixtures
++"""
++import os
++import sys
++import json
++import pytest
++from unittest.mock import MagicMock
++
++# Make enrich-lambda dir importable
++sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'enrich'))
++
++import preprocess_per_document as pp  # noqa: E402
++
++
++def _stage1_response(distinctive_facts, named_entities=None, decisions=None,
++                     action_items=None, quotes=None, overlap_signals=None,
++                     summary='one-line.\nsecond line.'):
++    """Build a Bedrock Converse-shaped response carrying a Stage 1 JSON body."""
++    body = {
++        'distinctive_facts': distinctive_facts,
++        'named_entities': named_entities or {
++            'people': [], 'organisations': [], 'places': [], 'products': [], 'regulations': [],
++        },
++        'decisions': decisions or [],
++        'action_items': action_items or [],
++        'quotes': quotes or [],
++        'overlap_signals': overlap_signals or [],
++        'summary_2_lines': summary,
++    }
++    return {
++        'output': {'message': {'content': [{'text': json.dumps(body)}]}},
++        'stopReason': 'end_turn',
++    }
++
++
++def _make_conn():
++    """psycopg2-shaped MagicMock with a fresh cursor each call."""
++    conn = MagicMock()
++    cur = MagicMock()
++    conn.cursor.return_value = cur
++    return conn, cur
++
++
++# ──────────────────────────────────────────────
++# Test 1: Stage 1 extracts structured output (mocked Claude)
++# ──────────────────────────────────────────────
++
++def test_stage1_extracts_structured_output():
++    conn, cur = _make_conn()
++    cur.fetchone.return_value = None  # cache miss
++    invoker = MagicMock(return_value=_stage1_response(
++        distinctive_facts=['Tringham House Bournemouth, BH7 7DT'],
++        named_entities={'organisations': ['Bennington Green'], 'places': ['Bournemouth'],
++                        'people': [], 'products': [], 'regulations': []},
++        summary='Fire strategy for Tringham House.\nUniversity Hospitals Dorset.',
++    ))
++
++    out = pp.run_stage1_parallel(
++        extracted_text={'Fire Strategy.pdf': 'Bennington Green Ltd ... Tringham House ...'},
++        upload_meta={'Fire Strategy.pdf': {'upload_id': 'u1', 'etag': 'etag1'}},
++        conn=conn,
++        model_id='haiku-test',
++        bedrock_invoker=invoker,
++    )
++
++    assert 'Fire Strategy.pdf' in out
++    s1 = out['Fire Strategy.pdf']
++    assert s1['filename'] == 'Fire Strategy.pdf'
++    assert s1['extraction_failed'] is False
++    assert 'Tringham House Bournemouth, BH7 7DT' in s1['distinctive_facts']
++    assert 'Bennington Green' in s1['named_entities']['organisations']
++    assert s1['model'] == 'haiku-test'
++    assert s1['chars_in'] > 0
++    invoker.assert_called_once()
++
++
++# ──────────────────────────────────────────────
++# Test 2: Stage 1 cache hit skips Claude
++# ──────────────────────────────────────────────
++
++def test_stage1_cache_hit_skips_claude():
++    conn, cur = _make_conn()
++    pre_cached = {
++        'filename': 'Fire Strategy.pdf',
++        'distinctive_facts': ['Tringham House Bournemouth'],
++        'named_entities': {},
++        'extraction_failed': False,
++        'summary_2_lines': 'cached row',
++    }
++    # SELECT returns the cached row — psycopg2 returns dict for jsonb
++    cur.fetchone.return_value = (pre_cached,)
++
++    invoker = MagicMock(side_effect=AssertionError("Bedrock must NOT be called on cache hit"))
++
++    out = pp.run_stage1_parallel(
++        extracted_text={'Fire Strategy.pdf': 'doc text'},
++        upload_meta={'Fire Strategy.pdf': {'upload_id': 'u1', 'etag': 'etag1'}},
++        conn=conn,
++        model_id='haiku-test',
++        bedrock_invoker=invoker,
++    )
++
++    assert out['Fire Strategy.pdf'] == pre_cached
++    invoker.assert_not_called()
++    # No INSERT issued either — only a SELECT
++    insert_calls = [c for c in cur.execute.call_args_list
++                    if 'INSERT INTO document_analyses' in c[0][0]]
++    assert insert_calls == []
++
++
++# ──────────────────────────────────────────────
++# Test 3: Stage 1 cache miss runs Claude AND writes the row
++# ──────────────────────────────────────────────
++
++def test_stage1_cache_miss_runs_and_writes():
++    conn, cur = _make_conn()
++    cur.fetchone.return_value = None  # cache miss
++    invoker = MagicMock(return_value=_stage1_response(
++        distinctive_facts=['$4.5 billion peak'],
++    ))
++
++    out = pp.run_stage1_parallel(
++        extracted_text={'mfp.docx': 'Becket House ... $4.5 billion'},
++        upload_meta={'mfp.docx': {'upload_id': 'u-mfp', 'etag': 'etag-mfp'}},
++        conn=conn,
++        model_id='haiku-test',
++        bedrock_invoker=invoker,
++    )
++
++    assert out['mfp.docx']['distinctive_facts'] == ['$4.5 billion peak']
++    invoker.assert_called_once()
++
++    # Confirm INSERT was executed with the right key tuple
++    insert_calls = [c for c in cur.execute.call_args_list
++                    if 'INSERT INTO document_analyses' in c[0][0]]
++    assert len(insert_calls) == 1
++    args = insert_calls[0][0][1]
++    assert args[0] == 'u-mfp'
++    assert args[1] == 'etag-mfp'
++    assert args[2] == pp.STAGE1_PROMPT_VERSION
++    inserted = json.loads(args[3])
++    assert inserted['distinctive_facts'] == ['$4.5 billion peak']
++    conn.commit.assert_called()
++
++
++# ──────────────────────────────────────────────
++# Test 4: end-to-end FC Dynamics — Stage 2 input has one block per file
++# ──────────────────────────────────────────────
++
++def test_end_to_end_fc_dynamics():
++    fc_files = {
++        'Fire Strategy.pdf': 'Bennington Green ... Tringham House ... University Hospitals Dorset',
++        'Sittingbourne Library Stage 4 Fire Strategy Report REV D ISD.pdf':
++            'Sittingbourne Library, Central Ave, Kent ... FB SURVEYING LIMITED',
++        'Intro Call Edem and Alan Transcript.txt':
++            '0:02 - Edem Brampah\nYeah ... Southern Housing ... Crewe ... AWAB\'s law',
++    }
++    fc_meta = {
++        f: {'upload_id': f'u-{i}', 'etag': f'etag-{i}'}
++        for i, f in enumerate(fc_files)
++    }
++
++    # Per-file Stage 1 stubs — each file gets its distinctive content back.
++    responses = {
++        'Fire Strategy.pdf': _stage1_response(
++            distinctive_facts=['Tringham House at 580 Deansleigh Road, Bournemouth'],
++            named_entities={'organisations': ['Bennington Green', 'University Hospitals Dorset'],
++                            'people': [], 'places': ['Bournemouth'], 'products': [], 'regulations': []},
++        ),
++        'Sittingbourne Library Stage 4 Fire Strategy Report REV D ISD.pdf': _stage1_response(
++            distinctive_facts=['Sittingbourne Library, Central Ave, Kent ME10 4AH'],
++            named_entities={'organisations': ['FB SURVEYING LIMITED'], 'people': [],
++                            'places': ['Sittingbourne'], 'products': [], 'regulations': []},
++        ),
++        'Intro Call Edem and Alan Transcript.txt': _stage1_response(
++            distinctive_facts=["Southern Housing Group meeting in Fulham; AWAB's law mentioned"],
++            named_entities={'organisations': ['Southern Housing'], 'people': ['Edem Brampah', 'Alan Moore'],
++                            'places': ['Crewe', 'Fulham'], 'products': [], 'regulations': []},
++        ),
++    }
++
++    def invoker(model_id, body_str):
++        body = json.loads(body_str)
++        prompt = body['messages'][0]['content'][0]['text']
++        for fname, resp in responses.items():
++            if f'DOCUMENT FILENAME: {fname}' in prompt:
++                return resp
++        raise AssertionError(f"Unrecognised prompt — no fixture matched\n{prompt[:300]}")
++
++    conn, cur = _make_conn()
++    cur.fetchone.return_value = None
++
++    stage1 = pp.run_stage1_parallel(
++        extracted_text=fc_files, upload_meta=fc_meta, conn=conn,
++        model_id='haiku-test', bedrock_invoker=invoker,
++    )
++
++    # All 3 files came back
++    assert set(stage1.keys()) == set(fc_files.keys())
++    assert stage1['Fire Strategy.pdf']['distinctive_facts'] == [
++        'Tringham House at 580 Deansleigh Road, Bournemouth'
++    ]
++    assert "Southern Housing Group" in stage1['Intro Call Edem and Alan Transcript.txt']['distinctive_facts'][0]
++
++    # Stage 2 input formatter produces one block per file with key signal
++    s2 = pp.build_stage2_input(stage1)
++    assert s2.count('===') == 6  # one open + close marker per filename
++    for fname in fc_files:
++        assert f'=== {fname} ===' in s2
++    assert 'Tringham House' in s2
++    assert 'FB SURVEYING' in s2
++    assert "Southern Housing" in s2
++
++
++# ──────────────────────────────────────────────
++# Test 5: end-to-end MFP Trading — overlap_signals surface in Stage 2 input
++# ──────────────────────────────────────────────
++
++def test_end_to_end_mfp_trading_overlaps_surface():
++    mfp_files = {
++        'mfp_briefing.docx': 'Becket House, Old Jewry ... Mabrouka Abuhmida ... $4.5 billion',
++        'mfp_briefing (1).docx': 'Becket House, Old Jewry ... Mabrouka Abuhmida ... $4.5 billion',
++        'IntellagenticXO MFP Deep Dive.pdf': 'Minerva platform ... 5 exception types ... CreditAlertEngine',
++    }
++    mfp_meta = {
++        f: {'upload_id': f'u-{i}', 'etag': f'etag-{i}'}
++        for i, f in enumerate(mfp_files)
++    }
++
++    responses = {
++        'mfp_briefing.docx': _stage1_response(
++            distinctive_facts=['Becket House, 36 Old Jewry, London'],
++            named_entities={'people': ['Mabrouka Abuhmida'], 'organisations': [],
++                            'places': ['Old Jewry'], 'products': [], 'regulations': []},
++            overlap_signals=['Same executive summary as mfp_briefing (1).docx'],
++        ),
++        'mfp_briefing (1).docx': _stage1_response(
++            distinctive_facts=['Becket House, 36 Old Jewry, London'],
++            named_entities={'people': ['Mabrouka Abuhmida'], 'organisations': [],
++                            'places': ['Old Jewry'], 'products': [], 'regulations': []},
++            overlap_signals=['Near-identical to mfp_briefing.docx'],
++        ),
++        'IntellagenticXO MFP Deep Dive.pdf': _stage1_response(
++            distinctive_facts=['Minerva is MFP\'s proprietary FX bridging platform',
++                               '5 exception types — not 6 — per Lisa\'s April 10 email'],
++            named_entities={'products': ['Minerva', 'CreditAlertEngine'], 'people': [], 'organisations': [],
++                            'places': [], 'regulations': []},
++        ),
++    }
++
++    def invoker(model_id, body_str):
++        body = json.loads(body_str)
++        prompt = body['messages'][0]['content'][0]['text']
++        for fname, resp in responses.items():
++            if f'DOCUMENT FILENAME: {fname}' in prompt:
++                return resp
++        raise AssertionError(f"No fixture matched")
++
++    conn, cur = _make_conn()
++    cur.fetchone.return_value = None
++
++    stage1 = pp.run_stage1_parallel(
++        extracted_text=mfp_files, upload_meta=mfp_meta, conn=conn,
++        model_id='haiku-test', bedrock_invoker=invoker,
++    )
++    s2 = pp.build_stage2_input(stage1)
++
++    # Overlap signals show up in the Stage 2 input, so Claude can populate
++    # consolidated_with on the corresponding sources[] entries.
++    assert 'OVERLAPS WITH:' in s2
++    assert 'mfp_briefing (1).docx' in s2  # cited as overlapping in the .docx block
++    assert 'mfp_briefing.docx' in s2
++
++    # Distinctive facts survive: Minerva, exception types
++    assert 'Minerva' in s2
++    assert '5 exception types' in s2 or 'exception types' in s2
++
++
++# ──────────────────────────────────────────────
++# Test 6: .md upload + extract path
++# ──────────────────────────────────────────────
++
++@pytest.fixture
++def enrich_module():
++    """Light reload of the enrich Lambda module for extract_text testing."""
++    enrich_dir = os.path.join(os.path.dirname(__file__), '..', 'enrich')
++    if enrich_dir not in sys.path:
++        sys.path.insert(0, enrich_dir)
++    if 'lambda_function' in sys.modules:
++        del sys.modules['lambda_function']
++    # Stub psycopg2 to avoid real DB on import
++    from unittest.mock import patch
++    with patch.dict(os.environ, {
++        'DATABASE_URL': 'postgresql://fake', 'JWT_SECRET': 'test',
++        'BUCKET_NAME': 'test-bucket', 'ANTHROPIC_API_KEY': 'test-key',
++    }):
++        with patch('psycopg2.connect'):
++            import importlib
++            import lambda_function
++            importlib.reload(lambda_function)
++            yield lambda_function
++            del sys.modules['lambda_function']
++
++
++def test_md_extract_text_returns_full_content(enrich_module):
++    md_bytes = b"# Heading\n\nDistinctive: zphq-marker-9217\n\n- bullet one\n- bullet two\n"
++    out = enrich_module.extract_text("notes.md", md_bytes)
++    assert out is not None
++    assert "zphq-marker-9217" in out
++    assert "# Heading" in out
++    assert "bullet one" in out
++
++
++def test_md_extract_text_handles_invalid_utf8(enrich_module):
++    # `extract_text` for md uses errors='replace' so a stray byte does not raise
++    bad_bytes = b"# Header\n\xff\xfe valid tail\n"
++    out = enrich_module.extract_text("rough.md", bad_bytes)
++    assert out is not None
++    assert "valid tail" in out
++
++
++# ──────────────────────────────────────────────
++# Bonus: Stage 2 input formatter handles extraction failure gracefully
++# ──────────────────────────────────────────────
++
++def test_build_stage2_input_includes_failure_note():
++    failed = pp._fallback_stage1('broken.pdf', 'parse error')
++    s2 = pp.build_stage2_input({'broken.pdf': failed})
++    assert 'broken.pdf' in s2
++    assert 'Stage 1 extraction failed' in s2
+diff --git a/backend/schema.sql b/backend/schema.sql
+index f128674..31eecec 100644
+--- a/backend/schema.sql
++++ b/backend/schema.sql
+@@ -277,3 +277,22 @@ CREATE TABLE IF NOT EXISTS user_client_assignments (
+ );
+ CREATE INDEX IF NOT EXISTS idx_uca_user_id ON user_client_assignments(user_id);
+ CREATE INDEX IF NOT EXISTS idx_uca_client_id ON user_client_assignments(client_id);
++
++-- ============================================================
++-- DOCUMENT_ANALYSES — per-file Stage 1 cache (xo-enrich)
++-- One row per (upload version, prompt version) pair. Re-enriching an
++-- unchanged corpus reuses these rows; changing the file (new ETag) or
++-- bumping STAGE1_PROMPT_VERSION naturally invalidates the cache.
++-- ============================================================
++CREATE TABLE IF NOT EXISTS document_analyses (
++    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
++    upload_id UUID NOT NULL REFERENCES uploads(id) ON DELETE CASCADE,
++    etag TEXT NOT NULL,
++    prompt_version TEXT NOT NULL,
++    stage1_output JSONB NOT NULL,
++    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
++    UNIQUE (upload_id, etag, prompt_version)
++);
++
++CREATE INDEX IF NOT EXISTS idx_document_analyses_upload_id
++    ON document_analyses(upload_id);
+diff --git a/src/App.jsx b/src/App.jsx
+index 192f0ee..40fb856 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -1938,7 +1938,7 @@ export default function App() {
+ 
+   // Model preference state
+   const [preferredModel, setPreferredModel] = useState(
+-    initialAuth.user?.preferred_model || 'claude-sonnet-4-6'
++    initialAuth.user?.preferred_model || 'claude-opus-4-6'
+   )
+ 
+   // Admin / Partner state
+@@ -6802,7 +6802,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel, isAdm
+               id="sources-file-input"
+               type="file"
+               multiple
+-              accept=".csv,.txt,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.json,.xml,.zip,.mp3,.wav,.m4a,.aac,.mp4,.webm,.png,.jpg,.jpeg,.webp"
++              accept=".csv,.txt,.md,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.json,.xml,.zip,.mp3,.wav,.m4a,.aac,.mp4,.webm,.png,.jpg,.jpeg,.webp"
+               onChange={handleFileSelect}
+               style={{ display: 'none' }}
+             />

@@ -42,21 +42,21 @@ def _get_enrichment_results(client_id, user, engagement_id=None):
 
     if account_role == 'super_admin' or is_admin:
         cur.execute(f"""
-            SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
+            SELECT e.status, e.results_s3_key, e.stage, c.encryption_key, e.error_message
             FROM enrichments e JOIN clients c ON e.client_id = c.id
             WHERE c.s3_folder = %s{eng_filter}
             ORDER BY e.started_at DESC LIMIT 1
         """, (client_id, *eng_params))
     elif account_role == 'account_admin':
         cur.execute(f"""
-            SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
+            SELECT e.status, e.results_s3_key, e.stage, c.encryption_key, e.error_message
             FROM enrichments e JOIN clients c ON e.client_id = c.id
             WHERE c.s3_folder = %s AND c.account_id = %s{eng_filter}
             ORDER BY e.started_at DESC LIMIT 1
         """, (client_id, user.get('account_id'), *eng_params))
     elif account_role in ('account_user', 'client_contact', 'contributor'):
         cur.execute(f"""
-            SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
+            SELECT e.status, e.results_s3_key, e.stage, c.encryption_key, e.error_message
             FROM enrichments e JOIN clients c ON e.client_id = c.id
             JOIN user_client_assignments uca ON c.id = uca.client_id
             WHERE c.s3_folder = %s AND uca.user_id = %s{eng_filter}
@@ -64,7 +64,7 @@ def _get_enrichment_results(client_id, user, engagement_id=None):
         """, (client_id, user['user_id'], *eng_params))
     else:
         cur.execute(f"""
-            SELECT e.status, e.results_s3_key, e.stage, c.encryption_key
+            SELECT e.status, e.results_s3_key, e.stage, c.encryption_key, e.error_message
             FROM enrichments e JOIN clients c ON e.client_id = c.id
             WHERE c.s3_folder = %s AND c.user_id = %s{eng_filter}
             ORDER BY e.started_at DESC LIMIT 1
@@ -77,7 +77,10 @@ def _get_enrichment_results(client_id, user, engagement_id=None):
     ck = unwrap_client_key(row[3]) if row and row[3] else None
 
     if row:
-        enrichment_status, results_s3_key, enrichment_stage = row[0], row[1], row[2]
+        enrichment_status = row[0]
+        results_s3_key = row[1]
+        enrichment_stage = row[2]
+        enrichment_error = row[4] if len(row) > 4 else None
 
         if enrichment_status == 'processing':
             return None, {
@@ -90,11 +93,18 @@ def _get_enrichment_results(client_id, user, engagement_id=None):
                 })
             }
 
-        if enrichment_status == 'error':
+        # `failed` is the new halt status (Stage 1 retry exhaustion etc.)
+        # `error` is the legacy status from the prior generation of code.
+        # Treat both identically for the API; surface error_message when set.
+        if enrichment_status in ('failed', 'error'):
             return None, {
                 'statusCode': 200,
                 'headers': CORS_HEADERS,
-                'body': json.dumps({'status': 'error', 'message': 'Enrichment failed'})
+                'body': json.dumps({
+                    'status': 'failed',
+                    'stage': enrichment_stage or '',
+                    'message': enrichment_error or 'Enrichment failed',
+                })
             }
 
         if engagement_id:

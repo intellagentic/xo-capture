@@ -277,3 +277,26 @@ CREATE TABLE IF NOT EXISTS user_client_assignments (
 );
 CREATE INDEX IF NOT EXISTS idx_uca_user_id ON user_client_assignments(user_id);
 CREATE INDEX IF NOT EXISTS idx_uca_client_id ON user_client_assignments(client_id);
+
+-- ============================================================
+-- DOCUMENT_ANALYSES — per-file Stage 1 cache (xo-enrich)
+-- One row per (upload version, prompt version) pair. Re-enriching an
+-- unchanged corpus reuses these rows; changing the file (new ETag) or
+-- bumping STAGE1_PROMPT_VERSION naturally invalidates the cache.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS document_analyses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    upload_id UUID NOT NULL REFERENCES uploads(id) ON DELETE CASCADE,
+    etag TEXT NOT NULL,
+    prompt_version TEXT NOT NULL,
+    stage1_output JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (upload_id, etag, prompt_version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_document_analyses_upload_id
+    ON document_analyses(upload_id);
+
+-- Error reporting for failed enrichment runs (Stage 1 throttle/exhaust, etc.).
+-- Status='failed' rows now also carry a human-readable explanation here.
+ALTER TABLE enrichments ADD COLUMN IF NOT EXISTS error_message TEXT;

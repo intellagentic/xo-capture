@@ -18,6 +18,7 @@ pip3 install -r requirements.txt -t package/ --quiet \
 
 # Copy Lambda function and shared helpers
 cp lambda_function.py package/
+cp preprocess_per_document.py package/
 cp ../shared/auth_helper.py package/
 cp ../shared/crypto_helper.py package/
 
