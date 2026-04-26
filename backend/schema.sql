@@ -300,3 +300,16 @@ CREATE INDEX IF NOT EXISTS idx_document_analyses_upload_id
 -- Error reporting for failed enrichment runs (Stage 1 throttle/exhaust, etc.).
 -- Status='failed' rows now also carry a human-readable explanation here.
 ALTER TABLE enrichments ADD COLUMN IF NOT EXISTS error_message TEXT;
+
+-- ============================================================
+-- GitHub #50 — uploads.status predicate alignment.
+-- Backfill any pre-existing NULLs (production probe confirmed zero rows
+-- as of 2026-04-26, but the UPDATE is idempotent and locks intent in
+-- source for any environment that DOES have NULLs). Then enforce the
+-- column shape so the source_count predicate (status='active') and the
+-- enrich predicate (status='active' OR NULL) can collapse to a single
+-- canonical form.
+-- ============================================================
+UPDATE uploads SET status = 'active' WHERE status IS NULL;
+ALTER TABLE uploads ALTER COLUMN status SET DEFAULT 'active';
+ALTER TABLE uploads ALTER COLUMN status SET NOT NULL;

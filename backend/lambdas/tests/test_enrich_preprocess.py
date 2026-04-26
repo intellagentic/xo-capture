@@ -462,3 +462,148 @@ def test_max_workers_default_is_3():
     import preprocess_per_document as ppm
     assert ppm.DEFAULT_MAX_WORKERS == 3
     assert ppm.MAX_STAGE1_RETRIES == 3
+
+
+# ──────────────────────────────────────────────
+# GitHub #49: list_objects_v2 pagination across > 1000 keys
+# ──────────────────────────────────────────────
+
+@pytest.fixture
+def paginated_s3_client():
+    """boto3 S3 client wired to moto with a pre-populated bucket holding
+    > 1000 keys under {client}/uploads/, forcing the listing API to span
+    multiple pages.
+
+    moto's S3 paginator honours the same 1000-key page boundary as real S3,
+    so a function that drops `IsTruncated` will silently lose anything past
+    page 1 — exactly the bug the production fix targets.
+    """
+    moto = pytest.importorskip("moto")
+    boto3 = pytest.importorskip("boto3")
+    aws_mock = moto.mock_aws() if hasattr(moto, 'mock_aws') else moto.mock_s3()
+    aws_mock.start()
+    try:
+        s3 = boto3.client('s3', region_name='us-east-1')
+        s3.create_bucket(Bucket='xo-test-bucket')
+        # 1500 small objects > one S3 page
+        for i in range(1500):
+            ext = '.txt' if i % 2 == 0 else '.docx'
+            s3.put_object(
+                Bucket='xo-test-bucket',
+                Key=f'client_pagination_test/uploads/file_{i:04d}{ext}',
+                Body=f'content {i}'.encode('utf-8'),
+            )
+        # Plus 5 audio files for find_audio_files coverage
+        for i in range(5):
+            s3.put_object(
+                Bucket='xo-test-bucket',
+                Key=f'client_pagination_test/uploads/track_{i}.mp3',
+                Body=b'\x00' * 32,
+            )
+        yield s3
+    finally:
+        aws_mock.stop()
+
+
+def test_extract_all_files_paginates_past_1000_keys(paginated_s3_client, monkeypatch):
+    """Regression for GitHub #49. extract_all_files MUST consume every
+    page from list_objects_v2 — capping at 1000 keys silently loses
+    anything past page 1 for any client with > 1000 uploads.
+    """
+    enrich_dir = os.path.join(os.path.dirname(__file__), '..', 'enrich')
+    if enrich_dir not in sys.path:
+        sys.path.insert(0, enrich_dir)
+    if 'lambda_function' in sys.modules:
+        del sys.modules['lambda_function']
+    from unittest.mock import patch
+    with patch.dict(os.environ, {
+        'DATABASE_URL': 'postgresql://fake', 'JWT_SECRET': 'test',
+        'BUCKET_NAME': 'xo-test-bucket', 'ANTHROPIC_API_KEY': 'test-key',
+    }):
+        with patch('psycopg2.connect'):
+            import importlib, lambda_function
+            importlib.reload(lambda_function)
+            # Wire the moto-backed client into the module
+            lambda_function.s3_client = paginated_s3_client
+            lambda_function.BUCKET_NAME = 'xo-test-bucket'
+
+            extracted = lambda_function.extract_all_files('client_pagination_test')
+
+    # 1500 .txt/.docx files all extracted (audio files skipped by Transcribe path).
+    # The filenames are unique per-loop so we expect 1500 entries; .docx parsing
+    # falls back to a stub message in extract_docx for non-real bytes, but the
+    # KEY ASSERTION is the count — pre-fix this would be 1000.
+    txt_count = sum(1 for k in extracted if k.endswith('.txt'))
+    docx_count = sum(1 for k in extracted if k.endswith('.docx'))
+    total = len(extracted)
+    assert total >= 1500, (
+        f"extract_all_files lost keys past the 1000 boundary — got {total}, "
+        f"expected >= 1500. txt={txt_count}, docx={docx_count}"
+    )
+    assert 'file_0000.txt' in extracted
+    assert 'file_1499.docx' in extracted
+
+
+def test_find_audio_files_paginates_past_1000_keys(paginated_s3_client, monkeypatch):
+    """Same regression for find_audio_files. The fixture puts 5 .mp3 files
+    AFTER 1500 non-audio files — so a non-paginated listing would skip
+    most of them entirely (depending on lex ordering) or lose them all if
+    they sort past the first page.
+    """
+    enrich_dir = os.path.join(os.path.dirname(__file__), '..', 'enrich')
+    if enrich_dir not in sys.path:
+        sys.path.insert(0, enrich_dir)
+    if 'lambda_function' in sys.modules:
+        del sys.modules['lambda_function']
+    from unittest.mock import patch
+    with patch.dict(os.environ, {
+        'DATABASE_URL': 'postgresql://fake', 'JWT_SECRET': 'test',
+        'BUCKET_NAME': 'xo-test-bucket', 'ANTHROPIC_API_KEY': 'test-key',
+    }):
+        with patch('psycopg2.connect'):
+            import importlib, lambda_function
+            importlib.reload(lambda_function)
+            lambda_function.s3_client = paginated_s3_client
+            lambda_function.BUCKET_NAME = 'xo-test-bucket'
+
+            audio = lambda_function.find_audio_files('client_pagination_test')
+
+    assert len(audio) == 5, f"audio listing lost keys to pagination — got {len(audio)}"
+    for i in range(5):
+        assert any(f'track_{i}.mp3' in k for k in audio)
+
+
+def test_read_skills_from_s3_paginates_past_1000_keys(paginated_s3_client, monkeypatch):
+    """Same regression for read_skills_from_s3. Drop > 1000 .md files
+    under {client}/skills/ and assert all are returned."""
+    enrich_dir = os.path.join(os.path.dirname(__file__), '..', 'enrich')
+    if enrich_dir not in sys.path:
+        sys.path.insert(0, enrich_dir)
+    if 'lambda_function' in sys.modules:
+        del sys.modules['lambda_function']
+    from unittest.mock import patch
+    with patch.dict(os.environ, {
+        'DATABASE_URL': 'postgresql://fake', 'JWT_SECRET': 'test',
+        'BUCKET_NAME': 'xo-test-bucket', 'ANTHROPIC_API_KEY': 'test-key',
+    }):
+        with patch('psycopg2.connect'):
+            import importlib, lambda_function
+            importlib.reload(lambda_function)
+            lambda_function.s3_client = paginated_s3_client
+            lambda_function.BUCKET_NAME = 'xo-test-bucket'
+
+            for i in range(1100):
+                paginated_s3_client.put_object(
+                    Bucket='xo-test-bucket',
+                    Key=f'client_pagination_test/skills/skill_{i:04d}.md',
+                    Body=f'# Skill {i}\nContent body {i}'.encode('utf-8'),
+                )
+
+            skills = lambda_function.read_skills_from_s3('client_pagination_test')
+
+    assert len(skills) == 1100, (
+        f"skills listing lost keys to pagination — got {len(skills)}"
+    )
+    names = {s['name'] for s in skills}
+    assert 'skill_0000' in names
+    assert 'skill_1099' in names

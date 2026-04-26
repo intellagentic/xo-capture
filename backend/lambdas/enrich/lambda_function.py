@@ -235,8 +235,11 @@ def _handle_enrich_request(event, user):
 
         # Query active upload S3 keys + ids (only process active sources).
         # The upload_id is needed by Stage 1 caching downstream.
+        # Predicate is `status = 'active'` only — the column is now NOT NULL
+        # with default 'active' (see schema.sql), and source_count uses the
+        # same predicate. (GitHub #50)
         cur.execute(
-            "SELECT s3_key, id FROM uploads WHERE client_id = %s AND (status IS NULL OR status = 'active')",
+            "SELECT s3_key, id FROM uploads WHERE client_id = %s AND status = 'active'",
             (db_client_id,)
         )
         active_rows = cur.fetchall()
@@ -822,24 +825,24 @@ def _mark_enrichment_failed(conn, enrichment_id, stage, error_message):
 
 
 def find_audio_files(client_id):
-    """List audio files in the client's uploads folder."""
+    """List audio files in the client's uploads folder.
+
+    Paginated — list_objects_v2 returns at most 1000 keys per page; without
+    the loop, any client with > 1000 uploads silently loses audio files
+    sitting past the first page. (GitHub #49)
+    """
     audio_files = []
     try:
-        response = s3_client.list_objects_v2(
-            Bucket=BUCKET_NAME,
-            Prefix=f"{client_id}/uploads/"
-        )
-        if 'Contents' not in response:
-            return audio_files
-
-        for obj in response['Contents']:
-            key = obj['Key']
-            filename = key.split('/')[-1]
-            if not filename:
-                continue
-            ext = filename.lower().rsplit('.', 1)[-1] if '.' in filename else ''
-            if ext in AUDIO_EXTENSIONS:
-                audio_files.append(key)
+        paginator = s3_client.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=f"{client_id}/uploads/"):
+            for obj in page.get('Contents', []):
+                key = obj['Key']
+                filename = key.split('/')[-1]
+                if not filename:
+                    continue
+                ext = filename.lower().rsplit('.', 1)[-1] if '.' in filename else ''
+                if ext in AUDIO_EXTENSIONS:
+                    audio_files.append(key)
     except Exception as e:
         print(f"Error listing audio files: {e}")
     return audio_files
@@ -1051,32 +1054,29 @@ def read_skills_from_db(cur, db_client_id, client_id, client_key=None):
 
 
 def read_skills_from_s3(client_id, client_key=None):
-    """Fallback: Read all skill files from S3 skills folder."""
+    """Fallback: Read all skill files from S3 skills folder.
+
+    Paginated — see find_audio_files note. (GitHub #49)
+    """
     skills = []
 
     try:
-        response = s3_client.list_objects_v2(
-            Bucket=BUCKET_NAME,
-            Prefix=f"{client_id}/skills/"
-        )
+        paginator = s3_client.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=f"{client_id}/skills/"):
+            for obj in page.get('Contents', []):
+                key = obj['Key']
+                filename = key.split('/')[-1]
 
-        if 'Contents' not in response:
-            return skills
+                if not filename or not filename.endswith('.md'):
+                    continue
 
-        for obj in response['Contents']:
-            key = obj['Key']
-            filename = key.split('/')[-1]
-
-            if not filename or not filename.endswith('.md'):
-                continue
-
-            file_obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=key)
-            raw = file_obj['Body'].read()
-            skill_content = maybe_decrypt_s3_body(client_key, raw)
-            skills.append({
-                'name': filename.replace('.md', ''),
-                'content': skill_content
-            })
+                file_obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=key)
+                raw = file_obj['Body'].read()
+                skill_content = maybe_decrypt_s3_body(client_key, raw)
+                skills.append({
+                    'name': filename.replace('.md', ''),
+                    'content': skill_content
+                })
 
     except Exception as e:
         print(f"Error reading skills from S3: {e}")
@@ -1085,52 +1085,51 @@ def read_skills_from_s3(client_id, client_key=None):
 
 
 def extract_all_files(client_id, active_keys=None, client_key=None):
-    """Extract text from all uploaded files. If active_keys provided, only process those."""
+    """Extract text from all uploaded files. If active_keys provided, only process those.
+
+    Paginated — list_objects_v2 returns at most 1000 keys per page; without
+    the loop, any client with > 1000 uploads silently loses files past the
+    first page. (GitHub #49)
+    """
     extracted_text = {}
     active_keys_set = set(active_keys) if active_keys else None
 
     try:
-        response = s3_client.list_objects_v2(
-            Bucket=BUCKET_NAME,
-            Prefix=f"{client_id}/uploads/"
-        )
+        paginator = s3_client.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=f"{client_id}/uploads/"):
+            for obj in page.get('Contents', []):
+                key = obj['Key']
+                filename = key.split('/')[-1]
 
-        if 'Contents' not in response:
-            return extracted_text
+                if not filename or filename == '':
+                    continue
 
-        for obj in response['Contents']:
-            key = obj['Key']
-            filename = key.split('/')[-1]
+                # Skip context metadata files (uploaded alongside audio)
+                if filename.endswith('.context.json'):
+                    continue
 
-            if not filename or filename == '':
-                continue
+                # Filter by active keys if provided
+                if active_keys_set is not None and key not in active_keys_set:
+                    print(f"Skipping inactive/deleted file: {filename}")
+                    continue
 
-            # Skip context metadata files (uploaded alongside audio)
-            if filename.endswith('.context.json'):
-                continue
+                # Skip audio files — handled by Transcribe stage
+                ext = filename.lower().rsplit('.', 1)[-1] if '.' in filename else ''
+                if ext in AUDIO_EXTENSIONS:
+                    print(f"Audio file — will be handled by Transcribe: {filename}")
+                    continue
 
-            # Filter by active keys if provided
-            if active_keys_set is not None and key not in active_keys_set:
-                print(f"Skipping inactive/deleted file: {filename}")
-                continue
+                print(f"Processing file: {filename}")
 
-            # Skip audio files — handled by Transcribe stage
-            ext = filename.lower().rsplit('.', 1)[-1] if '.' in filename else ''
-            if ext in AUDIO_EXTENSIONS:
-                print(f"Audio file — will be handled by Transcribe: {filename}")
-                continue
+                file_obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=key)
+                file_content = file_obj['Body'].read()
 
-            print(f"Processing file: {filename}")
+                # Decrypt if encrypted with client key (handles ENC:/ENCB: prefix detection)
+                file_content = maybe_decrypt_s3_bytes(client_key, file_content)
 
-            file_obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=key)
-            file_content = file_obj['Body'].read()
-
-            # Decrypt if encrypted with client key (handles ENC:/ENCB: prefix detection)
-            file_content = maybe_decrypt_s3_bytes(client_key, file_content)
-
-            text = extract_text(filename, file_content)
-            if text:
-                extracted_text[filename] = text
+                text = extract_text(filename, file_content)
+                if text:
+                    extracted_text[filename] = text
 
     except Exception as e:
         print(f"Error extracting files: {str(e)}")
