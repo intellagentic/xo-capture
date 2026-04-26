@@ -1,0 +1,298 @@
+FILENAME: 1-2 BARRIER ROAD, CHATHAM, KENT FIRE STRATEGY -DRAFT COPY .pdf
+UPLOADED: 2026-03-05 09:37:56.042147+00:00
+TOTAL_EXTRACTED_CHARS: 15121
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 10121
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+PDF Document (32 pages):
+
+--- Page 1 ---
+ 
+  
+FC DYNAMICS LIMITED   1 
+ 
+ 
+ 
+ 
+
+
+--- Page 2 ---
+ 
+  
+FC DYNAMICS LIMITED   2 
+ 
+ 
+ 
+ 
+STAGE 4 FIRE STRATEGY (draft) 
+1-2 BARRIER ROAD, CHATHAM, KENT.  
+MARCH 2023  
+ 
+ 
+VERSION CONTROL 
+FC DYNAMICS LIMITED 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ISSUE  DESCRIPTION  PREPARED BY  DATE SIGN 
+OFF 
+01 STAGE 4 DRAFT EDEM BRAMPAH 18.03.2025 E. B 
+02 STAGE 4 DRAFT  EDEM BRAMPAH 19.03.2025   
+     
+     
+     
+
+--- Page 3 ---
+ 
+  
+FC DYNAMICS LIMITED   3 
+ 
+ 
+ 
+Contents  
+1.0 INTRODUCTION  5 
+2.0 PURPOSE OF REPORT  5 
+3.0 BUILDING SUMMARY  5 
+4.0 STATUTORY CONTROLS AND LEGISLATION  13 
+The Regulatory Reform (Fire Safety) Order 2005  14 
+5.0 PROPERTY PROTECTION  14 
+7.0 MATERIALS AND WORKMANSHIP  15 
+8.0 B1:MEANS OF WARNING AND ESCAPE  15 
+8.1  EVACUATION PRINCIPLE  15 
+8.2 Fire Engineered Solution  17 
+8.3 FIRE DETECTION AND ALARM  17 
+8.4 OCCUPANCY LEVELS  17 
+8.5 HORIZONTAL ESCAPE  18 
+General Provisions and Escape Width  18 
+8.6 DOORS ON ESCAPE ROUTE  18 
+8.7 TRAVEL DISTANCES  18 
+8.8 VERTICAL MEANS OF ESCAPE  19 
+8.9 EVACUATION OF PEOPLE WITH SPECIFIC NEEDS  19 
+Communication in Refuge Areas  20 
+Staff Training & Responsibilities  20 
+Emergency Lighting Requirements (BS 5266)  21 
+Escape Route Signage Requirements (BS 5499 Parts 1, 4, & 5)  21 
+9.0 B2: INTERNAL FIRE SPREAD  21 
+9.1 Internal Linings & Surface Finishes  21 
+9.2 Artwork & Personal Belongings  22 
+10.0 B3: STRUCTURAL FIRE PROTECTION  22 
+10.1 Potential Concerns & Recommendations  22 
+10.2 Compartmentation Provision  23 
+10.3 Compartmentation Requirements  23 
+
+--- Page 4 ---
+ 
+  
+FC DYNAMICS LIMITED   4 
+ 
+10.4 Fire and Smoke Curtains  23 
+10.5 Protection of Openings and Fire -Stopping  23 
+10.6 Fire-Stopping Requirements  23 
+10.7 Testing & Classification:  24 
+10.8 Pipe Openings: Fire -Stopping Methods  24 
+10.9 Concealed Spaces and Cavity Barriers  24 
+11.0 B4: EXTERNAL FIRE SPREAD  26 
+11.1 Management  Requirements 28 
+12.0 B5: FACILITIES FOR FIREFIGHTING 29 
+12.1 Fire Hydrants  29 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+--- Page 5 ---
+ 
+  
+FC DYNAMICS LIMITED   5 
+ 
+ 
+ 
+1.0 INTRODUCTION  
+This document has been prepared exclusively for  Hamways limited and is intended solely for the 
+specific purposes outlined herein. We do not assume any duty of care or liability to third parties 
+concerning its content. Accordingly, unless explicitly agreed upon in a signed written agreement, 
+we disclaim all liability t o third parties, including liability for negligence, except where such 
+exclusion is prohibited by applicable law.  
+ 
+It is essential  to acknowledge that the long -term effects of climate change and potential future 
+climatic variations cannot be predicted with certainty. This report is based solely on the design 
+assumptions and criteria specified within  
+ 
+2.0 PURPOSE OF REPORT  
+The purpose of this report is to set out the fire safety principles for agreement  with the Statutory 
+Authorities. Within this document, the proposed solutions for means of escape, internal and  
+external fire spread issues as well as firefighting access and facilities are outlined. The aspects 
+of design that do  not follow recognised statutory guidance have been highlighted within this fire 
+strategy document and may require  further consideration by the design team , and further 
+discussions with the Approving ADB Volume 2, 2022 requirement  
+ 
+3.0 BUILDING SUMMARY  
+The proposed building will comprise a ground floor and a first-floor storey building, to which will 
+be provided with two escape stairs . The height of the building from the ground level to the 
+uppermost story is approximately 5 meters . 
+ 
+The building will be used as a crisis facility for mental patients and will be operated  by 
+healthcare  workers. 
+ 
+The home will provide 6 Bedrooms in total with 1 bedroom on the ground floor and 5 bedrooms 
+on the 2 nd floor. 
+ 
+A central communal wing will house ancillary accommodation such as kitchen, staff rooms, 
+laundry and offices. 
+ 
+Due to the fact that the building will operate as a crisis home for mental patients, it is more 
+likely that  residents will have a cognitive impairment, emotional stress , behavioural issues and 
+lack of self-care therefore, the recommendations detailed in sections 2.33 to 2.46 of ADB 
+covering residential care homes have been adopted wherever possible.   As well HTM Health 
+Technical Memorandum 05 -02: Fire code Guidance in support of functional provisions (Fire 
+safety in the design of healthcare premises)  2015 2.40 -2.68 
+ 
+ 
+ 
+ 
+
+--- Page 6 ---
+ 
+  
+FC DYNAMICS LIMITED   6 
+ 
+ 
+ 
+ 
+Where the design deviates from prescriptive guidance , an alternative fire-engineered approach 
+has been used.   
+ 
+Measures detailed in this strategy will need to be considered by the Responsible Person in 
+developing the Fire Management  Plan and Risk Assessment for the site to discharge the  
+operator's responsibilities under the Regulatory Reform(Fire Safety)  Ord
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---
+er 2005(RRFSO) 
+ 
+FACILITIES PROVIDING PATIENTS OF MENTA L HEALTH  SERVICES AND IN -PATIENT 
+ACCOMMODATION OFR PEOPLE WITH LEARNING DISABILITIES  
+The strategy will follow the guidance below  from ‘Fire code Guidance in support of functional 
+provisions (Fire safety in the design of healthcare premises) 2015 2.40 -2.68’ where The guidance 
+in HTM 05-02 applies only to in -patient services and not placements.  
+ 
+In this context, an in -patient service is defined as a unit with “hospital beds” th
+
+--- CHARS 5500+ (CLAUDE DID NOT SEE) ---
+at provides 24 -
+hour nursing care. Such a unit may be in a hospital campus or a community setting and  may be 
+provided by the NHS or by independent sector providers.  
+ 
+In-patient beds should be distinguished from placements registered for the provision of care, 
+which are provided by local authorities and independent sector providers and registered by the 
+CQC. These provide accommodation, usually in a room in a multiple o ccupancy facility, and a 
+care/support package funded by health and social services.  
+ 
+Acute in-patient bed – acute in -patient wards for working-age adults (18 –65) providing intensive 
+medical and nursing support for patients in periods of acute psychiatric illness  
+ 
+Psychiatric intensive care unit – a type of psychiatric ward. These wards are secure, meaning they 
+are locked and the entry and exit of patients are controlled. Staffing levels are higher, sometimes 
+with a 1:1 nursing staffing ratio. They usually receive patients who cannot be managed in an acute 
+ward due to the level of risk the patient poses to themselves or others. In some cases, patients 
+may also be referred from prisons or rehabilitation wards. Patients will usually be detained under 
+the Mental Health Act. 
+ 
+Forensic services – this covers high, medium and low secure units, of which HTM 05 -02: only 
+the last two are covered by HTM 05 -02.  
+ 
+Low-secure services – are provided for those patients who have long -standing and complex 
+problems who cannot be safely or successfully cared for in an acute ward. Patients will be 
+detained under the Mental Health Act.  
+ 
+Medium secure services – are specially designed to meet the needs of adults with serious mental 
+illness, who require care and treatment in a secure setting to ensure they are safely managed. In 
+most cases patients in medium security will have committed an offence and present a serious 
+risk to themselves and others, combined with a potential to escape.  
+ 
+ 
+ 
+
+--- Page 7 ---
+ 
+  
+FC DYNAMICS LIMITED   7 
+ 
+ 
+ 
+ 
+Child and Adolescent Mental Health Services (CAMHS) Tier 4 in -patient services  – these are 
+defined as highly specialised provision that may be required for children and young people up to 
+the age of 18, who may or may not be detained under the Mental Health Act.  
+ 
+In-patient facilities for people with learning disabilities  – a learning disability affects the way a 
+person understands information and how they communicate; it is not the same as a learning 
+difficulty or mental illness. In -patient assessment and treatment beds are required for people 
+with learning disabilities co mplex mental health problems and/or challenging behaviours that 
+cannot be managed in the community. The number of units across the NHS is small.  
+ 
+Specific fire safety information relating to the above premises  
+ 
+Although the range of services provided varies considerably, there are common issues that must 
+be considered to enable appropriate levels of fire safety to be achieved. The ultimate aim is to 
+provide a safe and secure environment where patients can receive  care and treatment; however, 
+safety from the effects of fire and maintaining the required levels of security are equally 
+important, and the design of fire precautions and evacuation strategies should not compromise 
+security.  
+ 
+Highly trained specialised nursing and clinical staff are always present when the premises are 
+occupied, and they will be trained to take the lead role in the evacuation of patients.  
+ 
+ 
+Should a fire start, it will be necessary to evacuate the sub -compartment of fire origin and the 
+number of staff available will influence the speed of evacuation. Such evacuation may be 
+progressive horizontal evacuation to other compartments or sub -compartments as described in 
+section 8.9 
+ 
+Patients may exhibit behavioural problems that could impact the fire and security measures 
+installed. Patients with an acute mental illness or learning disabilities have a history of generating 
+u
+
+[... 5621 more chars truncated ...]

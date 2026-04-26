@@ -1,0 +1,135 @@
+FILENAME: Intellagentic Mail - Re_ 🗓 FC Dynamics and XO on March 20, 2026 _ Read Meeting Report.pdf
+UPLOADED: 2026-04-04 14:05:14.742847+00:00
+TOTAL_EXTRACTED_CHARS: 6866
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 1866
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+PDF Document (5 pages):
+
+--- Page 1 ---
+Alan Moore <alan.moore@intellagentic.io>
+Re: 🗓  FC Dynamics and XO on March 20, 2026 | Read Meeting Report
+FC Dynamics <enquiries@fcdynamics.co.uk> Fri, Mar 27, 2026 at 4:08 AM
+To: Alan Moore <alan.moore@intellagentic.io>
+Hi Alan,
+Following our recent meeting, please find below the prioritized list of regulations and standards for ingestion into the trial
+system. This list is structured to reflect how the software compliance engine should be organized, starting with core statutory
+guidance followed by specific engineering and performance-based standards.
+1. Core Statutory Guidance (Building Regulations)
+These should sit at the top level of the software compliance engine.
+  - Building Regulations – England: Building Regulations 2010 (as amended), The Building Safety Act 2022, and Building
+(Higher-Risk Buildings Procedures) Regulations 2023.
+  - Approved Documents (England):
+      - Approved Document B (Fire Safety) – Volume 1: Dwellings & Volume 2: Buildings other than dwellings.
+      - Approved Document 7 – Materials and Workmanship.
+      - Approved Document M – Access to and use of buildings.
+      - Approved Document F – Ventilation.
+      - Approved Document L – Conservation of fuel and power.
+      - Approved Document K – Protection from falling.
+2. Key Approved Document B (ADB) Sections & Tables
+  - Sections: B1 (Means of warning and escape), B2 (Internal fire spread - linings), B3 (Internal fire spread - structure), B4
+(External fire spread), and B5 (Firefighting access and facilities).
+  - Tables/Diagrams for Automation: Tables 2.1, 2.3, 3.1–3.2, and B4; Diagrams 2.1–2.10; and Appendices B, C, and D.
+3. Fire Engineering & Performance-Based Design
+  - BS 7974 and the PD 7974 series (Parts 1 through 7) covering fire development, smoke movement, structural response,
+detection, intervention, human factors, and risk assessment.
+4. Means of Escape & Occupant Movement
+  - BS 9999:2017/2024 (Design and management).
+  - BS 9991:2024 (Residential).
+  - BS ISO 16738 and BS ISO 20414 (Evacuation modelling and validation).
+  - SFPE Handbook of Fire Protection Engineering.
+5. Specialized Systems & Compliance
+  - Detection and Alarms: BS 5839 (Parts 1 & 6) and the BS EN 54 series.
+  - Smoke Control: BS EN 12101 series, BS 7346, and BS 9999 smoke ventilation sections.
+  - Suppression: BS EN 12845, BS 9251 (Sprinklers), BS 8458 (Water mist), and BS EN 15004 (Gas).
+  - Emergency Lighting: BS 5266-1, BS EN 1838, and BS EN 50172.
+  - Resistance & Testing: BS EN 13501, BS EN 1363, BS EN 1634-1 (Doors), and BS EN 1366 (Fire stopping).
+  - External Walls: PAS 9980:2022, BS 8414, and BR 135.
+  - Structural Fire Engineering: Eurocodes EN 1991, 1992, 1993, and 1995 (Part 1-2 for each).
+  - Healthcare: HTM 05-01, 05-02, and 05-03.
+6. Suggested Software Library Structure
+We recommend a module-based structure similar to that used by firms like Arup or Buro Happold:
+01_Regulations | 02_ADB_Compliance | 03_Escape_Calculations | 04_Fire_Alarm_Design | 
+05_Smoke_Control |
+4/4/26, 3:03 PM Intellagentic Mail - Re: 🗓  FC Dynamics and XO on March 20, 2026 | Read Meeting Report
+https://mail.google.com/mail/u/0/?ik=c073577b06&view=pt&search=all&permmsgid=msg-f:1860786719875950580&simpl=msg-f:1860786719875950580 1/5
+
+--- Page 2 ---
+06_Fire_Resistance | 
+07_Façade_Fire | 08_Structural_Fire | 09_Firefighting_Access | 10_Healthcare_HTM | 11_Fire_Risk_Assessment |
+12_Performance_Based_Design.
+Please let me know if you need any further clarification on these documents or the suggested automation calculations.
+Regards,
+Edem Brampah EngTech MIFireE, MCIOB, Assoc RICS.AICWCI
+Fire Safety Engineer
+Email:enquiries@fcdynamics.co.uk  
+Mobile:+447443238369 
+Website: www.fcdynamics.co.uk 
+Privacy policy:https://fcdynamics.co.uk/privacy-policy/
+On Fri, 20 Mar 2026, 16:55 Alan Moore via Read AI, <executiveassistant@e.read.ai> wrote:
+👋  You've been invited to view this report because Alan Moore added Read to
+the meeting and wanted to share the recap with you.
+4/4/26, 3:03 PM Intellagentic Mail - Re: 🗓  FC Dynamics and XO on March 20, 2026 | Read Meeting Report
+https://mail.google.com/mail/u/0/?ik=c073577b06&view=pt&search=all&permmsgid=msg-f:1860786719875950580&simpl=msg-f:1860786719875950580 2/5
+
+--- Page 3 ---
+FC Dynam ics and XO
+March 20, 2026
+The meeting reviewed IntelligentXO's proposal to reduce report-audit
+bottlenecks at FC Dynamics by demonstrating ExoCapture's ability to
+ingest domain materials and produce an explainable compliance
+workflow. Alan Moore presented the briefing given to Edem, framing the
+primary pain point as repetitive citation and reference checking in
+strategy and fire ‑ engineering reports... see more
+Access this meeting report
+Account creation required. This is your personal link, please do not forward this
+em ail to others.
+Recap
+4/4/26, 3:03 PM Intellagentic Mail - Re: 🗓  FC Dynamics and XO on March 20, 2026 | Read Meeting Report
+https://mail.google.com/mail/u/0/?ik=c073577b06&view=pt&
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---
+search=all&permmsgid=msg-f:1860786719875950580&simpl=msg-f:1860786719875950580 3/5
+
+--- Page 4 ---
+Chapters & Topics
+• Data sourcing, licensing, and trial plan with NDA
+• Edem seeks an AI tool to review fire-engineering reports, flag issues,
+tighten regulatory wording, and produce defensible reports with cited
+evidence.
+• Next steps are signing an NDA and providing sample reports and a
+prioritized list of regulations for ingestion into a trial system.
+See all 13 chapters →
+Action Item s
+• Ken Sc
+
+--- CHARS 5500+ (CLAUDE DID NOT SEE) ---
+ott will configure the system to pull authoritative standards from
+their current sources to keep regulations up to date.
+• Edem Brampah will provide additional reports and work-product notes to
+IntelligentXO to improve the domain cartridge.
+See all 9 action items →
+Key Questions
+• Can you explain the technical briefing and what it means for my work?
+• Will you put all standards and regulations into the system and how will that
+work?
+See all 5 key questions →
+Review notes
+Work smarter, not harder
+Read makes meetings more effective and efficient with meeting
+recaps, transcripts, playback, personalized coaching, meeting
+recommendations, and more.
+Get started for free →
+Need help? Visit the Support Center or contact us.
+Unsubscribe • Email Preferences
+4/4/26, 3:03 PM Intellagentic Mail - Re: 🗓  FC Dynamics and XO on March 20, 2026 | Read Meeting Report
+https://mail.google.com/mail/u/0/?ik=c073577b06&view=pt&search=all&permmsgid=msg-f:1860786719875950580&simpl=msg-f:1860786719875950580 4/5
+
+--- Page 5 ---
+Team at Read AI • 999 3rd Ave, Suite 3300, Seattle, WA 98104
+thumbnail_01KM62J3N3PQ5DG8MHV0JJJXXB.png
+315K
+4/4/26, 3:03 PM Intellagentic Mail - Re: 🗓  FC Dynamics and XO on March 20, 2026 | Read Meeting Report
+https://mail.google.com/mail/u/0/?ik=c073577b06&view=pt&search=all&permmsgid=msg-f:1860786719875950580&simpl=msg-f:1860786719875950580 5/5
+

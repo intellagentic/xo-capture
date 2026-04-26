@@ -1,0 +1,207 @@
+FILENAME: IntellagenticXO · MFP Trading — XO Deployment Deep Dive.pdf
+UPLOADED: 2026-04-21 17:04:08.670768+00:00
+TOTAL_EXTRACTED_CHARS: 15835
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 10835
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+PDF Document (13 pages):
+
+--- Page 1 ---
+IntellagenticXO MFP Trading — XO Deployment Deep Dive
+📡  RESEARCH BASIS — DRIVE & GMAIL DEEP DIVE · 21 APRIL 2026
+This brief is grounded in a full scan of IntellagenticXO's Google Drive and Gmail corpus for MFP Trading —
+including the enriched discovery call file note (Feb 24, 2026), both versions of the deployment brief, Lisa Murphy's
+April 10 email with source files, the executed NDA, and all related correspondence. Key corrections and additions
+from that research are flagged throughout.
+01 — Intelligence Updates from Deep Dive
+The following corrections and additions were identified from the Drive and Gmail research and are not reflected
+in the current working brief. These are not minor — several change how we should frame the XO deployment to
+Francois and Lisa.
+CONFIDENTIAL INTELLIGENCE BRIEF
+MFP Trading
+IntellagenticXO
+XO Deployment Deep Dive
+Exception Resolution Architecture
+Prepared by
+Alan Moore, IntellagenticXO
+For
+Ken Scott, CDO, IntellagenticXO
+Date
+21 April 2026
+Status
+Active — Work Started 13 Apr 2026
+Client
+Francois Nembrini, Founder & Director
+COO
+Lisa Murphy, Chief of Operations
+STRICTLY CONFIDENTIAL
+4/21/26, 9:49 AM IntellagenticXO · MFP Trading — XO Deployment Deep Dive
+ﬁle:///Users/ken_macair_2025/Library/Containers/net.whatsapp.WhatsApp/Data/tmp/documents/198D8F7F-DB02-4562-ACCA-6B4B34C63DAF/MFP_Trading_X… 1/13
+
+--- Page 2 ---
+1.1 — Key Corrections
+⚠  CORRECTION — LISA MURPHY'S TITLE
+Lisa Murphy is Chief of Operations — not a generic COO label. Her email signature confirms: "Chief of
+Operations, MFP Trading Ltd." This matters for the brief because she is Tier 3 alongside Francois, not just a
+secondary contact. She is a co-equal decision-maker on this deal and should be addressed as such in all
+communications.
+⚠  CORRECTION — FRANCOIS NEMBRINI'S TITLE & BACKGROUND
+Francois is Founder & Director. His background: former Global Head of Sales and Trading at London Capital
+Group; former Global Sales Head at FXCM Pro / Fastmatch. This pedigree is important context for how we
+position the XO — he has seen every institutional FX platform on the market and chosen none of them for this
+problem.
+⚠  ADDITION — MINERVA PLATFORM (PREVIOUSLY MISSING FROM ALL CHARTS)
+MFP operates a proprietary platform called Minerva — not in any of the current charts or the working brief.
+Minerva is MFP's core commercial differentiator: it acts as a passive bridge between Prime-of-Prime and retail
+broker interest on one side and institutional liquidity on the other, converting hedging from a cost centre into a
+revenue engine. The XO does not touch Minerva's trading logic — but our architecture diagrams need to show
+it correctly positioned alongside TraderTools, otherwise the technical framing is incomplete.
+⚠  CORRECTION — EXCEPTION SCOPE: 5 TYPES, NOT 6
+The working brief lists 6 critical issues. The source material — Lisa's April 10 email, which is the official scope
+document — lists exactly 5 exception types. The 6th item (key-person dependency) is the meta-problem that
+motivates all 5, not a discrete exception. Framing it as a 6th "issue" dilutes the clarity of the deployment scope.
+1.2 — The 5 Exception Types: Lisa's Exact Words
+These are the verbatim questions Lisa Murphy sent on April 10, 2026 — these are the official scope of the XO
+deployment:
+How do you handle credit alerts for a client or LP? CreditAlertEngine1
+How do you handle Time Outs? FXExceptionEngine2
+How do you handle a DSU? FXExceptionEngine3
+What do you do when a voice broker trades with an unapproved counterparty?
+VoiceBrokerMonitor
+4
+What do you do when a trade is not reported? VoiceBrokerMonitor5
+4/21/26, 9:49 AM IntellagenticXO · MFP Trading — XO Deployment Deep Dive
+ﬁle:///Users/ken_macair_2025/Library/Containers/net.whatsapp.WhatsApp/Data/tmp/documents/198D8F7F-DB02-4562-ACCA-6B4B34C63DAF/MFP_Trading_X… 2/13
+
+--- Page 3 ---
+💡  STRATEGIC NOTE FOR KEN
+Lisa's 5 questions are the deployment brief in miniature. Every Streamline workflow, every DX Cartridge
+rule, and every XO engine we build should map back to one of these 5. If we find ourselves building
+something that doesn't answer one of these questions, we are out of scope. This is the "avoid boiling the
+ocean" principle Francois agreed to at the discovery call.
+1.3 — Engagement Timeline (Confirmed from Drive)
+Date Event Significance
+24 Feb 2026 Discovery call — Alan, Ken,
+Thomas Dudbridge, Francois
+$4.5bn volume confirmed. Top 20 exceptions
+requested. Thomas is the introducer — protect that
+relationship.
+16 Mar 2026 Alan sends briefing note to
+Francois
+Deployment brief v1 delivered. Francois confirmed
+interest — one of five major projects for 2026.
+17–26 Mar 2026 NDA exchanged and fully
+executed
+Lisa added as COO signatory. NDA signed 26 Mar.
+Lisa confirms she will prepare 5 help cases.
+10 Apr 2026 Lisa sends source files + 5
+questions
+Official scope defined. AP Chat Bot notes, FX Credit
+Policy 2026, Slack export, training emails — all
+uploaded.
+13 Apr 20
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---
+26 Alan confirms: work begins Lisa replies "Cheers!" — relationship warm. We are in
+build phase.
+20 Apr 2026 Full XO build package sent to
+Richie (Multiversant)
+Ken — Richie has the complete picture. Loop closed.
+1.4 — Key People (Confirmed)
+Francois Nembrini
+Founder & Director, MFP Trading Ltd
+15+ years institutional FX
+Ex-Global Head Sales & Trading, London Capital
+Group
+Ex-Global Sales Head, FXCM Pro / Fastmatch
+📧  fnembrini@mfptrading.com
+📞  +33 647 567 493 (FR) | +44 7957 459818 (UK)
+Lisa M
+
+--- CHARS 5500+ (CLAUDE DID NOT SEE) ---
+urphy
+Chief of Operations, MFP Trading Ltd
+15 years risk management & back-office expertise
+Tier 3 — co-equal safety net with Francois
+Official scope-setter for XO deployment
+📧  lmurphy@mfptrading.com
+📞  +44 203 769 9884 | +1 506 921 0724
+Thomas Dudbridge
+Partner / Facilitator (Introducer)
+Introduced MFP to IntellagenticXO
+Attended Feb 24 discovery call
+MFP Trading Ltd
+Becket House, 36 Old Jewry, London EC2R 8DD
+Reg No: 10754098 (UK)
+60–70 active clients, 10-person sales team expanding
+4/21/26, 9:49 AM IntellagenticXO · MFP Trading — XO Deployment Deep Dive
+ﬁle:///Users/ken_macair_2025/Library/Containers/net.whatsapp.WhatsApp/Data/tmp/documents/198D8F7F-DB02-4562-ACCA-6B4B34C63DAF/MFP_Trading_X… 3/13
+
+--- Page 4 ---
+Active in deal — cc'd on key correspondence
+📧  tdudbridge@poltalach.com
+24/5 trading — Sunday 5pm NY to Friday 5pm NY
+Peak daily volume: $4.5 billion
+02 — Exception Risk Map
+Exception Severity Lisa's Question XO Engine Financial Risk
+Timeout
+resolution
+HIGH Q2 — How do you
+handle Time Outs?
+FXExceptionEngine $50k–$100k in seconds if
+mismanaged
+DSU escalation HIGH Q3 — How do you
+handle a DSU?
+FXExceptionEngine Unhedged position
+compounds until resolved
+VBAN violation HIGH Q4 — Unapproved
+counterparty?
+VoiceBrokerMonitor Stuck trade + $100 NatWest
+cancellation fee
+Credit alert
+triage
+HIGH Q1 — How do you
+handle credit alerts?
+CreditAlertEngine Trade blocking, line breach,
+LP relationship risk
+Unreported
+voice trade
+MEDIUM Q5 — What if a trade is
+not reported?
+VoiceBrokerMonitor NatWest sub-account
+position, reconciliation
+backlog
+03 — XO Deployment Architecture
+Chart A — Full Architecture with Minerva (Corrected)
+This is the first version of the architecture diagram that correctly includes Minerva — MFP's proprietary platform
+and core commercial differentiator. Previous versions showed only TraderTools.
+4/21/26, 9:49 AM IntellagenticXO · MFP Trading — XO Deployment Deep Dive
+ﬁle:///Users/ken_macair_2025/Library/Containers/net.whatsapp.WhatsApp/Data/tmp/documents/198D8F7F-DB02-4562-ACCA-6B4B34C63DAF/MFP_Trading_X… 4/13
+
+--- Page 5 ---
+XO Architecture — MFP Trading Technology Stack + Deployment Layers
+Four layers: MFP's existing tech stack (TraderTools + Minerva + Fujitsu Quantum) → XO Intelligence Layer (DX Cartridge + 3
+engines) → Streamline Workflow Layer → MFP Operations Console
+Operator approves(human in loop)
+MFP Operations Console — NEW
+Unified Operations ViewOpen exceptions · Credit statusVoice broker positions · LP healthShift handover summaryFrancois morning review digest
+Streamline Workflow Layer — NEW
+Exception Triage WorkflowStep-by-step resolution cardPnL pre-calculatedAck email generated
+Credit Alert WorkflowClient + NWM notificationTTWL halt queueRollover reconnect scheduler
+Voice Broker WorkflowVBAN intercept before NWMAllocation chaseCancellation →  fxpb1@natwest.com
+XO Intelligence Layer — NEW
+DX Cartridge — FXSectorCartridgeMFP exception libraryLisa + Francois validated5 exception types encoded
+FXExceptionEngineTimeout: 8-step protocolDSU: deal done/not done branchesPnL auto-calculate
+CreditAlertEngineWARNING / ALERT detectMaker-Taker rebalance20% ECN increment ruleANOP rollover schedule
+VoiceBrokerMonitorVBAN compliance checkAllocation chasePosition recon vs Agile FXPB
+MFP Trading — Existing Technology Stack
+Edge signals
+TraderToolsGlobal execution · 50+ venuesFIX Gateways + HTML5 GUI2000ms GUI / 150ms API timeout ⭐  Minerva — ProprietaryPassive bridge:Prime-of-Prime ↔  Retail interestHedge cost →  Revenue engineCore commercial differentiator
+Prime BrokersNatWest / RBSCredit clearing · T+2 settlementVBAN approval authorityFujitsu Quantum10-person quant teamOxford + BNP ParibasNeural network edges
+Chart B — Timeout Exception Resolution (Primary Use Case)
+The timeout protocol is the highest-priority exception type and the one Lisa and Francois want to validate first.
+This chart maps the complete 8-step resolution flow from alert ingestion through to audit log.
+4/21/26, 9:49 AM IntellagenticXO · MFP 
+
+[... 6335 more chars truncated ...]

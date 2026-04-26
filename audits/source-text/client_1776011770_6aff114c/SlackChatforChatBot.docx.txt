@@ -1,0 +1,96 @@
+FILENAME: SlackChatforChatBot.docx
+UPLOADED: 2026-04-12 16:42:01.200954+00:00
+TOTAL_EXTRACTED_CHARS: 6197
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 1197
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+Word Document (81 paragraphs):
+
+Slack Export for AI ChatBot
+Here are all the messages from #icap-gfi-bgc-fill-support on April 8th, 2026:3:59 AM — @Misha [1]Hi Terry, NWM have come back saying: "We do not see Wells Fargo on the list of approved banks for BGC." This relates to: Trade Notification – BGC – Trade ID #14917027 Buyer: Natwest Markets Plc London (RR3QWICWWIPCS8A4S074) | Seller: Wells Fargo Bank, N.A., London (KB1H1DSPRFMYMCUFXT09) | Amount: USD 25,000,000 | Exchange Amount: SAR 93,860,000. I've asked NWM to provide the list of approved banks.
+4:00 AM — @Terry West [2]does that mean wells fargo is there customer?
+4:00 AM — @Terry West [3]their sorry?
+4:00 AM — @Terry West [4]are we allowed to get involved in this i am happy to call him
+4:02 AM — @Misha [5]As far as I remember, there is a list of approved clients between NWM and BGC, and Wells Fargo is not one of them. I don't currently have visibility of this list. I've asked NWM to provide it, but if possible, could you please also check with BGC?
+4:03 AM — @Bianca [6]so his confos cam with wells fargo as bank name
+4:04 AM — @Misha [7]yep, Seller: Wells Fargo Bank, N.A., London KB1H1DSPRFMYMCUFXT09
+4:05 AM — @Terry West [8]am i allowed to know this and contact BGC about it — previously i was told we are not allowed to know limits for the clients of BGC?
+4:06 AM — @Bianca [9]yes they need to be told
+4:07 AM — @Bianca [10]wells fargo is not approved on the bank list they have with NWM
+4:07 AM — @Bianca [11]so maybe they can change to a counterparty name that is approved
+4:07 AM — @Terry West [12]ok spoke to him he has asked for our help as he has a big prob on at the moment...
+4:07 AM — @Misha [13]cos currently this trade is stuck on the NWM side
+4:08 AM — @Bianca [14]will call Sam
+4:08 AM — @Terry West [15]i know this probably wont work — can we send an email and copy in Marcus Gibson asking if they can get a line?
+4:09 AM — @Bianca [16]no
+4:09 AM — @Bianca [17]spoke with sam
+4:09 AM — @Bianca [18]its not possible
+4:10 AM — @Bianca [19]they have to stick to VBAN list
+4:11 AM — @Bianca [20]as they need to set up the banks and it takes at least 2-3 days for static to be set up
+4:11 AM — @Bianca [21]they have just confirmed Soc Gen Paris which is also not on the approved counterparty list for USD 5 mio ag SAR
+4:12 AM — @Bianca [22]so need another name for the usd 25 mio ag sar - wells fargo and another name for the soc gen paris usd 5 mio ag sar
+4:12 AM — @Bianca [23]sam said broker are well aware that they have to stick to the names on the VBAN list
+4:13 AM — @Bianca [24]sam said they would be happy to look at onboarding these two names if BGC requests this but need to go through the proper credit approval stages
+4:13 AM — @Terry West [25]ok understood..
+4:14 AM — @Bianca [26]please ask BGC to change the name and use one that is approved thank you
+4:14 AM — @Terry West [27]yes i understand
+4:14 AM — @Terry West [28]is it called a VBAN list?
+4:15 AM — @Bianca [29]yes that is what sam said on the phone
+4:15 AM — @Terry West [30]ok
+4:15 AM — @Terry West [31]cheers
+4:15 AM — @Bianca [32]i tried but it was a firm NO from Sam
+4:17 AM — @Terry West [33]that includes not to add USDSAR for Soc Gen?
+4:20 AM — @Terry West [34]is it easier to add a ccy pair? for soc gen?
+4:21 AM — @Misha [35]As I understand it, Soc Gen Paris is not on their VBAN list, right?
+4:21 AM — @Terry West [36]i thought just for USDSAR..
+4:22 AM — @Terry West [37]USDSAR is a bit niche so may not be on every list
+4:22 AM — @Bianca [38]sam is checking Soc Gen Paris
+4:23 AM — @Misha [39]Bianca mentioned that Sam confirmed over the phone that it is not on their approved list
+4:23 AM — @Bianca [40]ok update
+4:23 AM — @Terry West [41]thanks Bianca sorry for all the sht
+4:23 AM — @Bianca [42]sam was wrong - soc gen paris is on the list - just a mapping issue
+4:23 AM — @Bianca [43]apologies
+4:24 AM — @Bianca [44]but wells fargo he is sure about are not on the list
+4:24 AM — @Terry West [45]yeah cool
+4:24 AM — @Bianca [46]is triple checking though but he is 99 percent sure
+4:24 AM — @Terry West [47]ok
+4:25 AM — @Terry West [48]what is the pb email address for Natwest — is it fxbp1@natwestmarkets.com?
+4:26 AM — @Misha [49]yes
+4:26 AM — @Terry West [50]thanks — i will just write the email for them for wells fargo
+4:38 AM — @Terry West [51]he has got the switch done
+4:43 AM — @Bianca [52]but he sent another cancellation for it — was UBS Zurich
+4:44 AM — @Terry West [53]is it matched now?
+4:44 AM — @Bianca [54]Misha please check
+4:44 AM — @Misha [55]checking
+4:46 AM — @Bianca [56]i believe we still need a name for the usd 25 mio
+4:46 AM — @Terry West [57]ok what was UBS Zurich then?
+4:46 AM — @Bianca [58]we got a cancellation for that one as well - he sent confo and then cancellation
+4:47 AM — @Terry West [59]to be honest i had no idea UBS Zurich were in anything
+4:47 AM — @Misha [60]he sent one more for Zurich
+4:50 AM — @Misha [61]looks like BGC is flat now. doublechecking
+4:58 AM — @Terry West [62]t
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---
+hanks for the help...
+4:59 AM — @Bianca [63]no worries
+4:59 AM — @Terry West [64]one day it will be easier and run smoothly i hope haha
+6:37 AM — @Bianca [65]hey terry
+6:37 AM — @Terry West [66]hi
+6:38 AM — @Bianca [67]TT has noticed that the below GUI users are on light version and has asked for us to check with client if they can use the full version
+6:38 AM — @Terry West [68]which GUI users — i know 580 is
+6:38 AM — @Bianca [69]can you check with the following GUI users
+6:39 AM — @Bianca [70]
+
+--- CHARS 5500+ (CLAUDE DID NOT SEE) ---
+MFP556.GUI1
+6:40 AM — @Bianca [71]and MFP580.GUI1
+6:40 AM — @Bianca [72]thanks
+6:41 AM — @Terry West [73]ok — i may get George to come with me for 556 as they want to see him anyway and we can go in and do it for them
+6:41 AM — @Terry West [74]580 i have told him but he will be harder work to change over
+6:41 AM — @Terry West [75]i will get them sorted though
+6:41 AM — @Bianca [76]ok
+6:49 AM — @Bianca [77]we can send you a template you can send to client ok
+6:50 AM — @Terry West [78]its fine these are older guys i will deal with them
+6:53 AM — @Bianca [79]ok
+That's all 79 messages for the day — no more after that. Would you like me to save these to a canvas or do anything else with them?

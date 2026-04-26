@@ -1,0 +1,173 @@
+FILENAME: Intro Call Edem and Alan Transcript.txt
+UPLOADED: 2026-03-05 09:34:49.977112+00:00
+TOTAL_EXTRACTED_CHARS: 40184
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 35184
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+Intro Call Edem and Alan
+Wed, Mar 4, 2026
+
+0:02 - Edem Brampah
+Can you see me?
+
+0:08 - Alan Moore
+I can see a lamp on a shelf.
+
+0:12 - Edem Brampah
+Okay.
+
+0:14 - Alan Moore
+I think you've got your background on or you're not in the foreground.
+
+0:19 - Edem Brampah
+I hardly use Google. Bear with me.
+
+0:23 - Alan Moore
+Yeah, sorry.
+
+0:24 - Alan Moore
+Yeah, we're American. Google. We're not big on Teams.
+
+0:28 - Edem Brampah
+Yeah, bear with me. How can I get this thing done? Screen, turn off camera, bear with me a second. I'll tell you what, I hardly use Teams. Let's have a look. Where am I? Sorry, Google. With me um oh god how can I get this video working hmm oh background it's very strange uh yeah let me see background and effects more options from eden um show full video okay that's very weird i've never seen that actually it looks like it's a background but no Yes, Ali, I don't know why. I can see you, Claire.
+
+1:22 - Alan Moore
+You can just look at me, then. It's all right. I can get over it. I can live with it.
+
+1:27 - Edem Brampah
+Oh, boy. I need to get my video on, isn't it? It's not fair. Minimize, pin, remove this file. Bloody hell. Oh, God. I don't know why. Don't worry about it.
+
+1:40 - Alan Moore
+I've never seen that. I mean, I use it all the time. It's all right, man. Don't worry. Anyway, it's a pleasure to meet you in the lab.
+
+1:46 - Edem Brampah
+How's that?
+
+1:48 - Edem Brampah
+Sorry about that. Yeah, I keep working on it. If a video will come up.
+
+1:54 - Alan Moore
+You're like me. It has to work. It's like this must work.
+
+1:59 - Edem Brampah
+Yeah. Oh boy. I don't know. Oh boy. You crack on and let me see. I can be playing around if it works.
+
+2:14 - Alan Moore
+So hey, so look, I've been through your website. Oh, here we go. Yeah. We win, man. We're winners. Right.
+
+2:25 - Alan Moore
+You've still got the lamp in the background.
+
+2:27 - Edem Brampah
+Yeah, I don't know why. Fascinating. Yeah. So thank you very much, Alan, for that.
+
+2:36 - Alan Moore
+Hey, don't worry. So look, I've been through your website. Yeah. And I've looked you up on LinkedIn. Yeah. And it was all very interesting. Yes. And just to give you a bit of very weird background. Yeah. I was at an event up in Crewe last October, which was a social housing forum. Oh, right. Okay. And interestingly, I ended up talking to Southern Housing. Oh, wow. Okay. So I'm going to share. If you don't mind, I'm just going to weave a bit of a story. Because I think you're going to see more opportunity. So we went there to find out opportunities in social housing because we determined workflow automation, saving money, efficiency, blah, blah, must be a great opportunity. So we went there without any particular ideas. Really, we were sort of focusing on AWAB's law. If I'm honest, we were sort of going down compliance for AWAB's law because That was new and fresh. We were also very focused that we weren't rip and replace, that we weren't trying to replace Civica. I don't remember who Southern Housing used, but they used these huge incumbent tech companies. So we're like, we're not going to change any of that. We're just going to make your life better. And then of course that led me, weirdly, I ended up in a forum in the afternoon run by a lady from Croydon of all places. I can't remember her name. They were talking all about fire inside of housing. And they were telling these incredible stories about... I mean, they told us one story of a property where none of the partition walls went to the roof. They only discovered this when they went to put the fire doors in and the fire separation. Then they told us the property is only 10 years old. I mean, it's just mind boggling.
+
+4:33 - Edem Brampah
+Yeah. It's typical of rubbish construction companies in a country when they don't build well.
+
+4:41 - Alan Moore
+So the reason I share that with you is there's definitely something in social housing as well. So like as a thing, and maybe you know something, we're absolutely on a mission to take one or more products to social housing. And obviously, some of them can be fire. Definitely something in AWAB's law. And then this other one was tenant satisfaction metric.
+
+5:08 - Unidentified Speaker
+Yes.
+
+5:10 - Alan Moore
+So those are the sort of things we could help with. But anyway, back to the subject at hand. It's a pleasure to meet you.
+
+5:15 - Edem Brampah
+It's a pleasure to meet you as well, Alan. Yeah. Great.
+
+5:23 - Alan Moore
+So I'm in the UK. I'm living in Fulham. I lived in Los Angeles for 20 years.
+
+5:28 - Edem Brampah
+Oh, right. OK. In Fulham. OK. All right. OK. I did a job for Southern Housing Group in Fulham, not far from the station.
+
+5:38 - Unidentified Speaker
+Okay.
+
+5:38 - Alan Moore
+Fulham Broadway.
+
+5:40 - Alan Moore
+Okay, I know what you mean. I can imagine, actually, one of those big towers, yeah?
+
+5:44 - Edem Brampah
+No, it's actually, what do you call it, a small little posh flat. It's on Vanston Place.
+
+5:50 - Unidentified Speaker
+Okay.
+
+5
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---
+:51 - Edem Brampah
+Yeah, right into the compound, somewhere there.
+
+5:55 - Alan Moore
+Okay. How long were you with them for?
+
+5:57 - Edem Brampah
+Oh, I was there, I was About four years, six months or so. What were you doing with them? I was a clockwork for them. Oh.
+
+6:07 - Alan Moore
+And then you decided to specialise in fire?
+
+6:10 - Edem Brampah
+Yeah, and then I left them. I went to join Bennington Green and then I specialised in fire engineering, yeah.
+
+6:16 - Alan Moore
+Wow. So how long ha
+
+--- CHARS 5500+ (CLAUDE DID NOT SEE) ---
+s FC Dynamics been around?
+
+6:22 - Edem Brampah
+Dynamics, it's been a year and a half or so.
+
+6:25 - Alan Moore
+How's it going?
+
+6:28 - Edem Brampah
+It's picking up. Yeah.
+
+6:30 - Alan Moore
+So is it mainly, is it consulting, advisory, certification, compliance, or all of those?
+
+6:41 - Edem Brampah
+It's mainly consultancy, but then again, we do a lot of certification and compliance work as well. So we look at what I call it, excuse me, fire strategist issues. I mean, I don't know how much you know more about.
+
+6:59 - Alan Moore
+Many, many years ago I worked at Battersea Power Station turning it into a theme park. Yeah. We had a whole consultant doing exactly what you just described. I spent a year working on how do you, how do you evacuate 30,000 people from a theme park.
+
+7:13 - Edem Brampah
+Exactly, exactly. So that's that, I mean it's about compliance basis, fire strategy design, fire safety systems. Yeah, the whole fabric of fire regulations within the buildings.
+
+7:30 - Alan Moore
+And is that new build or is it mainly new build?
+
+7:33 - Edem Brampah
+All builds. So we've got new builds. What we do with new builds, I don't know if you know something about reverse stages, about we go through the different stages of what the consultancy is, from the clients to the type of contracts that we go through, feasibility studies, and then put in a safety measures into the construction of the new build. And with assistant builds, like something like Grenfell, yeah, we do work on, what do you call it, less than a wall cladding. Consultation goes on how to take the cladding off, how to reinstate it with new fire resistant materials, cavity barriers, horizontal cavity barriers, fire alarm systems. So we are mainly engineers. Which really look into the design of the fire safety of the building and making sure it is compliant. So, I mean, you have an architect who will draw a drawing, then the drawing will come through to us and we analyze the drawing from all angles, both internal areas, means of escape, roof structures, external wall systems, everything, and making sure that the drawings is put in, the travel distance are right, the type of materials is put in will be actually okay, based on the height of the building and based on the occupancy numbers. It can be, I mean, care workers, it can be a care home, it can be a student, children's home, whatever it is. So, based on the type of occupancy that we analyse, then we analyse the type of building, then we analyse the means of escape, the ceiling height, the type of materials, and mainly the fire strategy of the building. So, it really involves a lot, yeah.
+
+9:18 - Alan Moore
+Who appoints you? You're part of the professional team, are you appointed by the client or by the architect?
+
+9:24 - Edem Brampah
+So we get appointed by the client and mainly the client appoints the architects and then the architects will need a fire engineer to help the client to make sure that everything is safe.
+
+9:41 - Alan Moore
+So you answer to the client, you work as part of the professional team.
+
+9:46 - Unidentified Speaker
+Yeah.
+
+9:47 - Alan Moore
+Do you ultimately sign off on the compliance of the property? Or is that your next job? Or do you just advise?
+
+9:55 - Edem Brampah
+No, that's us. We sign off. Yeah, we sign off everything. So I mean, architects just do the drawing. I will need to analyse the architect's drawing and approve that it is absolutely fine. Then the next thing is to that it normally goes to building control. If building control has got any comments, it comes back to me, right? I don't understand this fine engineer. I don't need to analyze it and explain to me why this is this, why the travel decides to load and then hold it. I analyze it and then it got approved and we get built. So I'm kind of, you are the final person who just checked that everything is okay. But before, if it does a drawing, we do have project meetings. To make sure what is being put on the drawing is absolutely o
+
+[... 30684 more chars truncated ...]

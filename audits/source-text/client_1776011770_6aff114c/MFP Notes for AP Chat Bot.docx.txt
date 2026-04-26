@@ -1,0 +1,67 @@
+FILENAME: MFP Notes for AP Chat Bot.docx
+UPLOADED: 2026-04-12 16:42:01.200954+00:00
+TOTAL_EXTRACTED_CHARS: 8044
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 3044
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+Word Document (58 paragraphs):
+
+MFP Notes for AP Chat Bot. April 2026.
+Trading Related Alerts:
+1. Customers will place orders on DPCE- LP will respond within 2000 ms for GUIs and 150 ms for APIs. If the LP responds outside of that window it is called a time out, and the trade is not passed to the client who placed the original order. If the LP side of the trade is good then MFP needs to hedge/offset the resulting position. The Trader Tools system will auto hedge time outs and send an alert over email. 
+MFP Reconciliation Alert: Customer order timed out, resulting in an auto hedge. Alert shows the customer number and shows the trade that created pnl under LP order section. 
+i.	Check DP for Client order ID in Alert= search the number in DP search field to check there is no remaining position. DP should show both a buy and a sell. One from System and one from original client, MFP###
+ii.	Send email to TT/ reply all to the Alert Email stating “Ack No position”
+iii.	Go to the LP section of the email alert and see what the initial execution rate was and the rate on the auto hedge. (Written in red)  
+vi.	Calculate how much money PNL was made or lost on the trade (if partial fills take the average rate) put them into the forex profit calculator to receive the PNL for the trade.
+vii.	In Credit Console under Mapping Record the pnl under the Client Account. Click money button, then the green plus sign.
+viii. If the trade had a loss, then Expense, Expense Client, If the trade was profitable than Income, Income USD, Once, Enter Amount, today date and time and trade detail. Sell GBP/USD 500k at 1.39546 Buy at 1.39554, TO. Make sure TO = YES
+Email the Ops team the same as above and add the name of LP at fault (The one that caused the Time Out).
+Sometimes we do not receive a reply from an LP on an order, or the reply has an issue. If that occurs, we will receive a DSU (deal status unknown) alert.
+2. Liquidity Provider Alert DSU—Order didn’t receive a reply from an (LP) reach out (call) to the LP and find out why. 
+You must establish if the deal was done. Go to DPCE and check the account listed in the alert and search for the order and the related details. Then check in Dealing Pad. You wil never pass a trade to a client on a DSU if the DPCE has not recorded the trade. 
+Email/Call LP: Confirm via email or phone call, whether the deal is done or not, if you do not see the deal as done, and the LP does, ask LP to please send logs of the deal. If the deal is good deal, you must trade out of the deal by trading in the opposite direction of the original client order on the Dealing Pad. Be sure to choose the Prime Broker account that matches the initial order and record the resulting profit or loss in the credit console as indicated in the process for a time out. 
+If the LP had technical fault or does not know what caused the DSU please halt their price feed until they have time to investigate the issue. 
+VOICE BROKERS- DIRECTFX, BGC, ICAP UK, GFI
+Voice Trades are trades done by Brokers who use the GUI DPCE to trade and use the Reuters booking software to record and generate trade allocations. All clients they trade on behalf of are pre-approved by the prime broker and added to a list called a VBAN. MFP is not privy to the VBAN of the voice brokers that use its trading platform as it would violate client confidentiality clauses:
+Flow of a Voice Deal
+ Voice Brokers place a trade on the GUI DPCE, because they receive a phone request from bank, their client (ie. ING) to do a trade.  The Voice Broker (ie. Simon) places the trade on DPCE (LOLD ticket) then he gives the price verbally to his client (ING). Then Simon enters into the Reuters system what he did for the client. This generates an email with the trade allocation details that is received by MFP and Natwest PB. The MFP Credit Console and the Natwest Back office tool, agile will process the email and record the trade.
+Email confirmation must show the allocation of the trade, broker, and dealt by.  IF the email is not received at all, this will create a backlog in the pre trade blotter and create a position on the voice brokers sub-account at Natwest. It is vitally important the team ensure that all trades done by a Voice Broker are allocated to one of their clients in a timely manner.
+Voice PNL in the credit console should match the AGILE FXPB position ladder from all Voice brokers sub accounts (Direct FX, ICAP UK, BGC, GFI) in column T+2 (CAD, RBL, and TRY will show under T+1)
+Emails that state: Voice Amendment. Check the body of the email if it states “No amendment this side of the transaction” No action is required.
+Emails that are: Voice Cancellation
+Email must be forwarded to fxpb1@natwest.com  “Please see below cancellation, please process”. (NatWest charges us $100 per cancellation) 
+Check that this trade is not seen in post trade blotter.
+Once RBS cancels the ticket, GO TO the Reconciliation tab in CC to clear the RBS type ensure volume and rates are correct- place a not
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---
+e in the reference text box: “Cancelled as per ICAP Ref#” And click clear.
+Voice Brokers may email us saying they did not get a good price- George/François will have to approve any rate changes, if approved go to trade in Credit console weblog and edit price email NatWest so they can change the rate for on the trades in our account before they settle. Call it a good faith adjustment.
+When Voice Deals in Weblog VS Email come in with different volume:
+Login to DPCE filter by Account ID- Check amou
+
+--- CHARS 5500+ (CLAUDE DID NOT SEE) ---
+nt (Executed Amount)
+Download Weblog voice deals – check email amount with weblog spreadsheet Email amount (column G)
+Check voice rate (column y) with email rate for any large discrepancy  
+Check Post Trade Blotter Rate VS LOLD Rate on spreadsheet
+Check Post Trade Blotter Amount VS LOLD Amount on spreadsheet
+Check PNL 
+Tell ICAP they sent incorrect amount in email
+IF rates/amounts are massively different then contact  the VB immediately on Reuters.
+Amending Voice Trades or a GUI Client Trade
+IF the LOLD rate or LALO needs to be changed – We can edit the rate by going into the Weblog🡪 Trades and finding the trade and click on the green button to edit the client rate. Then email NatWest and ask them to approve the amend as well. Forward the confirmation, and tell NatWest:
+“MFP are changing the rate on the trade MFP did with ICAP and the subsequent back-to-back ticket.”
+If it’s the voice rate then we need to ask MFP Tech team to Fix it in the backend.
+If the trade was done on a previous date, then we need to delete the trade date and archive that. 
+For mistakes on rates or cancellation of ICAP ticket from a previous day:
+Go to CC Weblog 🡪 Day PNL, take day from b4 the cancelled trades (i.e., 10pm starts the new day) and delete the day.
+Then go to CC Reports, PNL report ROOT put in the date that you deleted and run PNL report, for all clients (This will add it back into the DAY PNL)
+Credit Console VoiceDeals: Sometimes VB’s will trade the same CCY pair, and the same side numerous times in a short period of time. When this happens, the CC will not be able to match the trades automatically. In order for us to match it manually look at the rates and use FIFO method, by using rates that look closest to the trade that has the UID. When finished matching, look at the position ladder filter by VB’s only and see if the total amount matches the total VPNL amount on the CC. (Wait a couple of minutes as Agile has a 3 minute lag.)
+When VoiceBrokers Sell and Buy back a position or vice versa (instead of allocating to a client) we need to match the existing voice deal to have a netted trade.(IE trader sold  5 mio, and then bought 1 mio) 
+In CC match the amount of the netted trade even though you are not matching the correct amount (ie will have additional amount)
+Calculate the additional profit or loss of the added/matched  amount (ie 4 MIO only) 
+On the 2 nd trade (1 MIO) Calculate the profit/loss
+Email  MFP tech team to match the 2nd trade manually. 
+Add to Credit Console mapping of the trader the profit and loss.

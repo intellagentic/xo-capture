@@ -1,0 +1,99 @@
+FILENAME: no. 2 Intellagentic Mail - Re_ 🗓 FC Dynamics and XO on March 20, 2026 _ Read Meeting Report.pdf
+UPLOADED: 2026-04-04 14:05:14.742847+00:00
+TOTAL_EXTRACTED_CHARS: 4000
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 0
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+PDF Document (3 pages):
+
+--- Page 1 ---
+Alan Moore <alan.moore@intellagentic.io>
+Re: 🗓  FC Dynamics and XO on March 20, 2026 | Read Meeting Report
+FC Dynamics <enquiries@fcdynamics.co.uk> Fri, Mar 27, 2026 at 4:13 AM
+To: Alan Moore <alan.moore@intellagentic.io>
+Hi Alan,
+Below is a comprehensive UK Fire Engineering Standards Library to serve as the backend reference database for the
+software. I have structured this to mirror the internal knowledge bases used by Tier-1 consultancies, ensuring it can be
+effectively indexed, queried, and linked to calculations or report outputs.
+This list covers approximately 120 key UK standards, regulations, and technical guidance documents:
+1. Statutory Legislation & Regulatory Framework
+These should be treated as primary authority documents:
+  - Building Act 1984
+  - Building Regulations 2010 (as amended)
+  - Building Safety Act 2022
+  - Higher-Risk Buildings (Key Building Information etc.) Regulations 2023
+  - Building (Higher-Risk Buildings Procedures) Regulations 2023
+  - Regulatory Reform (Fire Safety) Order 2005
+  - Fire Safety Act 2021
+  - Fire Safety (England) Regulations 2022
+  - Health and Safety at Work Act 1974
+  - Construction (Design and Management) Regulations 2015
+2. Approved Documents (England)
+Core prescriptive compliance guidance:
+  - Approved Document B (Volumes 1 & 2)
+  - Approved Documents F, K, M, 7, and L
+3. Fire Engineering Methodology
+  - BS 7974 and the PD 7974 series (Parts 0 through 7)
+4. Fire Safety Design of Buildings
+  - BS 9999 (Design and management)
+  - BS 9991 (Residential)
+5. Fire Detection & Alarm Systems
+  - BS 5839 series (Parts 1, 6, 8, and 9)
+  - EN 54 series (Alarm Equipment)
+6. Smoke Control & Ventilation
+  - EN 12101 series (Parts 1–10)
+  - BS 7346-4 and 7346-8
+7. Fire Suppression Systems
+  - BS EN 12845 and BS 9251 (Sprinklers)
+  - BS 8458 (Water Mist)
+  - BS EN 15004 series (Gas)
+8. Emergency Lighting
+4/4/26, 3:03 PM Intellagentic Mail - Re: 🗓  FC Dynamics and XO on March 20, 2026 | Read Meeting Report
+https://mail.google.com/mail/u/0/?ik=c073577b06&view=pt&search=all&permmsgid=msg-f:1860787033106067691&simpl=msg-f:1860787033106067691 1/3
+
+--- Page 2 ---
+  - BS 5266-1, BS EN 1838, and BS EN 50172
+9. Fire Resistance & Testing
+  - BS EN 1363, 1364, 1365, and 1366 series
+  - BS EN 13501 (Classification)
+10. Fire Doors & Stopping
+  - BS EN 1634-1 and 1634-3; BS 8214
+  - BS EN 1366-3 and 1366-4
+11. External Wall Fire Safety
+  - PAS 9980, BS 8414-1, BS 8414-2, and BR 135
+12. Structural Fire Engineering
+  - Eurocodes EN 1991, 1992, 1993, 1994, and 1995 (Part 1-2 for each)
+13. Healthcare & Specialized Guidance
+  - HTM 05-01, 05-02, and 05-03 (NHS)
+  - PAS 79 series (Fire Risk Assessment)
+  - BRE Guidance (BR 187, 368, 497)
+14. Modelling & International Standards
+  - ISO 16738, 23932, and 13571
+  - References for FDS, CFAST, and Pathfinder
+Calculation Modules for Automation
+The software could automate core algorithms for:
+  - Means of Escape: Occupant load, exit width, and travel distances.
+  - Fire Spread: Boundary distances (BR 187) and external wall risk.
+  - Smoke Control: AOV sizing and extract rates.
+  - Firefighting Facilities: Shaft requirements and appliance access.
+Regards,
+Edem Brampah EngTech MIFireE, MCIOB, Assoc RICS.AICWCI
+Fire Safety Engineer
+Email:enquiries@fcdynamics.co.uk  
+Mobile:+447443238369 
+Website: www.fcdynamics.co.uk 
+Privacy policy:https://fcdynamics.co.uk/privacy-policy/
+[Quoted text hidden]
+4/4/26, 3:03 PM Intellagentic Mail - Re: 🗓  FC Dynamics and XO on March 20, 2026 | Read Meeting Report
+https://mail.google.com/mail/u/0/?ik=c073577b06&view=pt&search=all&permmsgid=msg-f:1860787033106067691&simpl=msg-f:1860787033106067691 2/3
+
+--- Page 3 ---
+thumbnail_01KM62J3N3PQ5DG8MHV0JJJXXB.png
+315K
+4/4/26, 3:03 PM Intellagentic Mail - Re: 🗓  FC Dynamics and XO on March 20, 2026 | Read Meeting Report
+https://mail.google.com/mail/u/0/?ik=c073577b06&view=pt&search=all&permmsgid=msg-f:1860787033106067691&simpl=msg-f:1860787033106067691 3/3
+
+
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---

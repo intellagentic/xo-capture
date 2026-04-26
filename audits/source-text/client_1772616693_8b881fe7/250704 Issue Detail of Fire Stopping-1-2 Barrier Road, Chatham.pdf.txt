@@ -1,0 +1,255 @@
+FILENAME: 250704 Issue Detail of Fire Stopping-1-2 Barrier Road, Chatham.pdf
+UPLOADED: 2026-03-05 09:37:56.042147+00:00
+TOTAL_EXTRACTED_CHARS: 8624
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 3624
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+PDF Document (36 pages):
+
+--- Page 1 ---
+Fire Engineering Solutions
+250704 Issue Detail of Fire Stopping-1-2 Barrier road, Chatham, Kent. 
+ME4 4SG
+Issue detail
+250704 Issue Detail of Fire Stopping-1-2 Barrier road, 
+Chatham, Kent. ME4 4SG
+Created on 5 Jul 2025, 17:44 BST
+Created by Edem Brampah (Bennington Green Ltd)
+Total items 18
+Sorted by ID (Ascending)
+Created by Edem Brampah with Autodesk® Construction Cloud™ on 5 Jul 2025 at 17:44 BST Page 1 of 36
+
+--- Page 2 ---
+Fire Engineering Solutions
+250704 Issue Detail of Fire Stopping-1-2 Barrier road, Chatham, Kent. 
+ME4 4SG
+Contents
+#3: Fire Stopping Inspection ............................................................................................................................................... 3
+#4: Fire Stopping Inspection ............................................................................................................................................... 5
+#5: Fire Stopping Inspection ............................................................................................................................................... 7
+#6: Fire Stopping Inspection ............................................................................................................................................... 9
+#7: Fire Stopping Inspection ............................................................................................................................................. 11
+#8: Fire Stopping Inspection ............................................................................................................................................. 13
+#9: Fire Stopping Inspection ............................................................................................................................................. 15
+#10: Fire Stopping Inspection ........................................................................................................................................... 17
+#11: Fire Stopping Inspection ........................................................................................................................................... 20
+#12: Fire Stopping Inspection ........................................................................................................................................... 22
+#14: Fire Stopping Inspection ........................................................................................................................................... 24
+#15: Fire Stopping Inspection ........................................................................................................................................... 26
+#16: Fire Stopping Inspection ........................................................................................................................................... 28
+#17: Fire Stopping Inspection ........................................................................................................................................... 29
+#18: Fire Stopping Inspection ........................................................................................................................................... 31
+#19: Fire Stopping Inspection ........................................................................................................................................... 33
+#20: Fire Stopping Inspection ........................................................................................................................................... 35
+#21: Fire Stopping Inspection ........................................................................................................................................... 36
+Created by Edem Brampah with Autodesk® Construction Cloud™ on 5 Jul 2025 at 17:44 BST Page 2 of 36
+
+--- Page 3 ---
+Fire Engineering Solutions
+250704 Issue Detail of Fire Stopping-1-2 Barrier road, Chatham, Kent. 
+ME4 4SG
+Issue detail
+#3: Fire Stopping Inspection
+Status Open
+Type
+ Observation > Observation
+Standard fields
+Description 1. Hallway gap above office in ceiling requires ceiling
+Assigned to —
+Created by Edem Brampah (Bennington Green Ltd)
+Created on 5 Jul 2025
+Location Ground floor
+Location details Hallway
+Due date —
+Start date 4 Jul 2025
+Placement 1575-A.12 RevC Proposed Fire Strategy Plans.pdf
+Root cause Design > Code Compliance
+Created by Edem Brampah with Autodesk® Construction Cloud™ on 5 Jul 2025 at 17:44 BST Page 3 of 36
+
+--- Page 4 ---
+Fire Engineering Solutions
+250704 Issue Detail of Fire Stopping-1-2 Barrier road, Chatham, Kent. 
+ME4 4SG
+References and attachments
+Photos (1)
+Gap ceiling
+Added as Reference
+Taken on 4 Jul 2025, 
+12:58 BST
+Added on 5 Jul 2025, 
+11:40 BST
+Added by Edem 
+Brampah
+Created by Edem Brampah with Autodesk® Construction Cloud™ on 5 Jul 2025 at 17:44 BST Page 4 of 36
+
+--- Page 5 ---
+Fire Engineering Solutions
+250704 Issue Detail of Fire Stopping-1-2 Barrier road, Chatham, Kent. 
+ME4 4SG
+Issue detail
+#4: Fire Stopping Inspectio
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---
+n
+Status Open
+Type
+ Observation > Observation
+Standard fields
+Description No issues noted
+Assigned to —
+Created by Edem Brampah (Bennington Green Ltd)
+Created on 5 Jul 2025
+Location Ground floor
+Location details Under stairs cupboard
+Due date —
+Start date 4 Jul 2025
+Placement 1575-A.12 RevC Proposed Fire Strategy Plans.pdf
+Root cause Design > Code Compliance
+Created by Edem Brampah with Autodesk® Construction Cloud™ on 5 Jul 2025 at 17:44 BST Page 5 of 36
+
+--- Page 6 ---
+Fire Engineering Solutio
+
+--- CHARS 5500+ (CLAUDE DID NOT SEE) ---
+ns
+250704 Issue Detail of Fire Stopping-1-2 Barrier road, Chatham, Kent. 
+ME4 4SG
+References and attachments
+Photos (5)
+Understairs Cupboard
+Added as Reference
+Taken on 4 Jul 2025, 
+12:56 BST
+Added on 5 Jul 2025, 
+11:40 BST
+Added by Edem 
+Brampah
+Understairs Cupboard
+Added as Reference
+Taken on 4 Jul 2025, 
+12:56 BST
+Added on 5 Jul 2025, 
+11:40 BST
+Added by Edem 
+Brampah
+Cloak room
+Added as Reference
+Taken on 4 Jul 2025, 
+12:57 BST
+Added on 5 Jul 2025, 
+11:40 BST
+Added by Edem 
+Brampah
+Cloak room
+Added as Reference
+Taken on 4 Jul 2025, 
+12:57 BST
+Added on 5 Jul 2025, 
+11:40 BST
+Added by Edem 
+Brampah
+Cloak room
+Added as Reference
+Taken on 4 Jul 2025, 
+12:57 BST
+Added on 5 Jul 2025, 
+11:40 BST
+Added by Edem 
+Brampah
+Created by Edem Brampah with Autodesk® Construction Cloud™ on 5 Jul 2025 at 17:44 BST Page 6 of 36
+
+--- Page 7 ---
+Fire Engineering Solutions
+250704 Issue Detail of Fire Stopping-1-2 Barrier road, Chatham, Kent. 
+ME4 4SG
+Issue detail
+#5: Fire Stopping Inspection
+Status Closed
+Type
+ Observation > Observation
+Standard fields
+Description No issues noted
+Assigned to —
+Created by Edem Brampah (Bennington Green Ltd)
+Created on 5 Jul 2025
+Location Ground floor
+Location details Office
+Due date —
+Start date 4 Jul 2025
+Placement 1575-A.12 RevC Proposed Fire Strategy Plans.pdf
+Root cause Design > Code Compliance
+Created by Edem Brampah with Autodesk® Construction Cloud™ on 5 Jul 2025 at 17:44 BST Page 7 of 36
+
+--- Page 8 ---
+Fire Engineering Solutions
+250704 Issue Detail of Fire Stopping-1-2 Barrier road, Chatham, Kent. 
+ME4 4SG
+References and attachments
+Photos (2)
+20250704_125903_photo
+Added as Reference
+Taken on 4 Jul 2025, 
+12:59 BST
+Added on 5 Jul 2025, 
+11:40 BST
+Added by Edem 
+Brampah
+20250704_125903_photo
+Added as Reference
+Taken on 4 Jul 2025, 
+12:59 BST
+Added on 5 Jul 2025, 
+11:40 BST
+Added by Edem 
+Brampah
+Created by Edem Brampah with Autodesk® Construction Cloud™ on 5 Jul 2025 at 17:44 BST Page 8 of 36
+
+--- Page 9 ---
+Fire Engineering Solutions
+250704 Issue Detail of Fire Stopping-1-2 Barrier road, Chatham, Kent. 
+ME4 4SG
+Issue detail
+#6: Fire Stopping Inspection
+Status Open
+Type
+ Observation > Observation
+Standard fields
+Description Hole in ceiling level cornice work above door
+Assigned to —
+Created by Edem Brampah (Bennington Green Ltd)
+Created on 5 Jul 2025
+Location Ground floor
+Location details Living room
+Due date —
+Start date 4 Jul 2025
+Placement 1575-A.12 RevC Proposed Fire Strategy Plans.pdf
+Root cause Design > Code Compliance
+Created by Edem Brampah with Autodesk® Construction Cloud™ on 5 Jul 2025 at 17:44 BST Page 9 of 36
+
+--- Page 10 ---
+Fire Engineering Solutions
+250704 Issue Detail of Fire Stopping-1-2 Barrier road, Chatham, Kent. 
+ME4 4SG
+References and attachments
+Photos (2)
+make good to ceiling 
+cornice
+Added as Reference
+Taken on 4 Jul 2025, 
+13:00 BST
+Added on 5 Jul 2025, 
+11:40 BST
+Added by Edem 
+Brampah
+make good to ceiling 
+cornice
+Added as Reference
+Taken on 4 Jul 2025, 
+13:00 BST
+Added on 5 Jul 2025, 
+11:40 BST
+Added by Edem 
+Brampah
+Created by Edem Brampah with Autodesk® Construction Cloud™ on 5 Jul 2025 at 17:44 BST Page 10 of 36
+

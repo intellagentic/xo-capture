@@ -1,0 +1,254 @@
+FILENAME: Fire Strategy.pdf
+UPLOADED: 2026-04-04 14:05:14.742847+00:00
+TOTAL_EXTRACTED_CHARS: 13463
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 8463
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+PDF Document (93 pages):
+
+--- Page 1 ---
+Bennington Green Ltd
+County Gates House, 300 Poole Road, Poole, BH12 1AZ
+Fire Strategy
+at
+Tringham House
+580 Deansleigh Road
+Bournemouth
+Dorset
+BH7 7DT
+Job Ref: 15240
+ID: 630722
+03 March 2026
+for:
+University Hospitals Dorset
+
+--- Page 2 ---
+Fire Strategy
+Introduction
+Purpose of Report
+Page 1
+Job No. 15240 03/03/2026
+CONTENTS
+1.0 INTRODUCTION 6
+1.1. Purpose of Report 6
+1.2. Scope of this Fire Strategy 7
+1.3. Purpose Group Classification 7
+2.0 EXECUTIVE SUMMARY 9
+3.0 BUILDING DESCRIPTION 11
+3.1. General 11
+3.2. Construction 11
+3.3. Internal Layout and Circulation 12
+3.4. Means of Escape Strategy Overview 12
+3.5. Services and Fire Protection Systems 13
+3.6. Management Context 13
+3.7. Fire Strategy Assumptions 13
+3.8. Basis of Report 13
+3.9. Limitations of Report 15
+4.0 LEGISLATION AND REGULATORY FRAMEWORK 16
+4.2. The Building Regulations 2010 (as amended) 16
+4.3. The Regulatory Reform (Fire Safety) Order 2005 16
+4.4. Relationship between Building Regulations and the Fire Safety Order 17
+4.5. Regulation 38 – Fire Safety Information 18
+5.0 B1 - MEANS OF WARNING AND ESCAPE 19
+5.1. General 19
+5.2. Stair Ventilation 19
+5.3. Fire Detection and Alarm 20
+5.4. Fire Alarm Interfaces 22
+5.5. Evacuation Strategy - Simultaneous Evacuation 22
+
+--- Page 3 ---
+Fire Strategy
+Introduction
+Purpose of Report
+Page 2
+Job No. 15240 03/03/2026
+5.6. Activation of Evacuation 23
+5.7. Means of Escape Routes (Travel Distances) 23
+5.8. Capacity and Shared Final Exit Considerations 24
+5.9. Management and Coordination 24
+5.10. Disabled Refuge Provision 25
+5.11. Dead End Conditions 25
+5.12. Corridors and Escape Routes 26
+5.13. Expected Occupancies 26
+5.14. Cumulative Building Occupancy 30
+5.15. Occupant Load 30
+5.16. Means of Escape Strategy 31
+5.17. Final Exit Provision 31
+5.18. Exit Capacity and Discounting 31
+5.19. Exit Distribution 31
+5.20. Exits to zones 32
+5.21. Stair Discharge Arrangement 32
+5.22. Adequacy of Escape Provision 32
+5.23. Merging of Escape Routes 33
+5.24. Vertical Means of Escape 33
+5.25. Lift 35
+5.26. Final Exit Capacity – Management and Occupancy Considerations 35
+5.27. Stair Discounting Assessment (ADB Paras 2.21–2.22) 36
+5.28. Merging Flow at Final Exits 37
+5.29. Exits 38
+5.30. Automatic Doors 39
+5.31. Escape from Roof-Level Plant Areas 39
+5.32. Escape Signage 40
+6.0 B2 - INTERNAL FIRE SPREAD 41
+
+--- Page 4 ---
+Fire Strategy
+Introduction
+Purpose of Report
+Page 3
+Job No. 15240 03/03/2026
+6.1. Internal Fire Spread (Linings) 41
+7.0 B3 - INTERNAL FIRE SPREAD (STRUCTURE) 43
+7.1. Element of Structure 43
+7.2. Roof Structure 43
+7.3. Compartmentation 44
+7.4. Existing Compartmentation and Service Penetrations 45
+7.5. Junctions of Compartmentation 46
+7.6. Limitations of Non-Insulated Glazing 47
+7.7. External Protection to Escape Routes 47
+7.8. Places of Special Fire Hazard 47
+7.9. Fire Door 48
+7.10. Ductwork 53
+7.11. Fire Stopping and Penetrations Through Fire-Resisting Construction 55
+7.12. Cavity Barriers 57
+8.0 B4 - EXTERNAL FIRE SPREAD 59
+8.1. Functional Requirements 59
+8.2. Roof Coverings 59
+1.2. EXTERNAL LAYOUT, SEPARATION DISTANCES AND ANCILLARY STRUCTURES 61
+8.3. Electric Substation 62
+8.4. Open-Air Bin Store 62
+8.5. Unprotected Areas 63
+9.0 B5 - FACILITIES FOR FIREFIGHTING 65
+9.1. Functional Requirements 65
+9.2. Fire Appliance Access 65
+9.3. Firefighting Shafts, Lifts and Fire Mains 66
+9.4. Fire Hydrant Provision 66
+9.5. Access Into and Around the Building 67
+9.6. Fire Appliance Positioning 67
+
+--- Page 5 ---
+Fire Strategy
+Introduction
+Purpose of Report
+Page 4
+Job No. 15240 03/03/2026
+9.7. Compliance with Building Regulations 67
+9.8. Conclusion 67
+10.0 MULTI-TENANTED BUILDING MANAGEMENT 69
+10.2. Scope and Limitations 69
+11.0 CONCLUSION 71
+12.0 FIRE SAFETY MANAGEMENT 72
+12.1. Management Framework 72
+12.2. Personal Emergency Evacuation Plans (PEEPs) 72
+12.3. Fire Safety Manual 72
+12.4. Responsible Person 73
+12.5. Appointed Person 74
+12.6. Management of Fire Safety 74
+12.7. Fire Safety Management Responsibilities Table 75
+12.8. Conclusion 75
+APPENDICES
+A. Schedule of provided documentation
+B. Fire Strategy Drawings
+C. Photographic Schedule
+
+--- Page 6 ---
+Fire Strategy
+Introduction
+Purpose of Report
+Page 5
+Job No. 15240 03/03/2026
+VERSION CONTROL
+Author name Edem Brampah Qualifications EngTech MIFireE, MCIOB, Assoc
+RICS
+Signed Date 03/03/2026
+Technical Review Bennington Green Limited 25.03.2026
+Issue Rev. Date Reason for issue
+A 26.03.2026 Stage 3 For Comments
+
+
+--- Page 7 ---
+Fire Strategy
+Introduction
+Purpose of Report
+Page 6
+Job No. 15240 03/03/2026
+1.0 INTRODUCTION
+1.1. PURPOSE OF REPORT
+1.1.1. Bennington Green Limited has been instructed to prepare this Fire Strategy Report for
+Tringham House, 580 Deansleigh Road, Bournemouth, Dorset, BH7 7DT. The report sets out
+the fire safety strategy for the proposed development and demonstrates how the design is
+intended to satisfy the functional requirements of Schedule 1, Part B (Fire Safety) of the
+Building Regulations 2010 (as amended).
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---
+
+1.1.2. The purpose of this report is to define the overarching fire safety design principles applicable
+to the building and to confirm the basis upon which compliance with the Building
+Regulations has been assessed. The strategy provides a coordinated framework for fire
+safety provisions including means of escape, compartmentation, structural fire protection,
+fire detection and alarm systems, fire-fighting facilities, and fire safety management
+arrangements.
+1.1.3. The Fire Strategy considers t
+
+--- CHARS 5500+ (CLAUDE DID NOT SEE) ---
+he building in its current configuration as a multi-let office
+premises, with separate organisations occupying the third floor and the lower floors
+(ground, first and second floors). These occupancies share common escape stairs and a
+main entrance which also serves as the primary final exit from the building.
+1.1.4. In developing this strategy, consideration has been given to the statutory guidance and
+recognised industry standards applicable to buildings of this type. In particular, the
+assessment has been undertaken with reference to:
+a. Approved Document B, Volume 2 – Buildings other than Dwellings (2019 edition
+incorporating amendments);
+b. The Regulatory Reform (Fire Safety) Order 2005 (as amended);
+c. Relevant British Standards where applicable;
+d. The as-built drawings and O&M information provided; and
+e. Observations of the existing layout and escape arrangements.
+1.1.5. This document defines the intended fire strategy for the building and should be read in
+conjunction with the relevant architectural, structural and building services information
+forming part of the design and operational documentation. The strategy sets out the basis
+of compliance with the Building Regulations but does not replace the requirement for a Fire
+Risk Assessment under the Regulatory Reform (Fire Safety) Order 2005, which remains the
+responsibility of the Responsible Person once the building is occupied.
+1.1.6. The objective of this Fire Strategy is to demonstrate that the building incorporates
+appropriate fire safety provisions such that the functional requirements of Schedule 1 of the
+Building Regulations 2010 (as amended) are satisfied, ensuring that reasonable provisions
+
+--- Page 8 ---
+Fire Strategy
+Introduction
+Scope of this Fire Strategy
+Page 7
+Job No. 15240 03/03/2026
+are made for the safety of occupants, the protection of escape routes, and the limitation of
+fire and smoke spread within the building.
+1.1.7. This Fire Strategy has been prepared based on the information available at the time of
+writing and reflects the design intent of the building at the current stage of development.
+The strategy is therefore intended to support the coordination of the architectural, structural
+and building services design and to inform the preparation of fire strategy drawings and
+specifications. Should material alterations be made to the building layout, occupancy
+arrangements, or fire protection systems during the detailed design or construction stages,
+the fire strategy should be reviewed and updated accordingly to ensure continued
+compliance with the relevant fire safety requirements.
+1.2. SCOPE OF THIS FIRE STRATEGY
+1.2.1. This Fire Strategy Report addresses the proposed internal alteration works only, which
+comprise fit-out and refurbishment primarily to the Ground, First and Second Floors. The
+Third Floor and all existing vertical circulation (including the three protected stairs), final
+exits, and external elements remain unchanged.
+1.2.2. The report demonstrates that the proposed internal works will not make the building more
+unsatisfactory in relation to the functional requirements of Part B of Schedule 1 to the Building
+Regulations 2010 (as amended) than it was before the works. It does not constitute a full
+retrospective fire strategy for the entire existing building. Where existing elements are
+described, this is solely to provide context for the impact (or lack of impact) of the proposed
+internal alterations. Ongoing compliance with the Regulatory Reform (Fire Safety) Order
+2005, including any remedial fire-stopping works and the preparation of a full Fire Risk
+Assessment once the building is occupied, remains the responsibility of the Responsible
+Person.
+1.3. PURPOSE GROUP CLASSIFICATION
+1.3.1. In accordance with Approved Document B, Volume 2 – Buildings Other Than Dwellings (2019
+edition incorporating subsequent amendments), Tringham House is classified as Purpose
+Group 3 -Office.
+1.3.2. The building is used for general office accommo
+
+[... 3963 more chars truncated ...]

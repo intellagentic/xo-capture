@@ -1,0 +1,38 @@
+FILENAME: MFP Trading FX Credit Policy 2026.docx
+UPLOADED: 2026-04-12 16:42:01.200954+00:00
+TOTAL_EXTRACTED_CHARS: 3697
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 0
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+Word Document (48 paragraphs):
+
+MFP FX Credit Policy – April 2026
+Limits are determined by the credit department at the Prime Broker.
+Limits are applied, modified, removed by the Prime Broker’s account via the credit console interface: https://console.mfptrading.com/login 
+*MFP admin login perspective:
+*RBS PB login perspective:
+Limits are monitored by the MFP Trading Ltd team on the Credit Console
+If a WARNING or an ALERT is triggered (STATUS), the credit line should be reviewed and situation assessed. 
+Credit Console View:
+RBS/PB credit line in Agile system:
+*For RBS PB ECN/platform providers, we can increase the lines as needed, in increments of 20%, without prior consultation with NWM. The list of platforms is available in Basecamp under the RBS PB project.
+
+If the client has both Maker and Taker lines, and the affected side is the Taker (for example), and there is available credit on the Maker side, part of the limit can be manually transferred to the affected side via the credit console using the NWM login. This works both ways.
+For example, a total limit of 200m can be manually allocated between the LP and the API client — e.g. 155/45 or 100/100 — depending on which line is more actively used at the time.
+If the overall limit has been almost fully utilised, contact the client. Confirm how much they need to trade and whether they would like to increase the line. 
+Contact the RBS team to check if a one-time exception can be made to allow any trades that would take the client above their limit to go through, and request a line increase as required.
+If a limit increase is needed, even if it has been confirmed verbally, a formal request must be sent via email and confirmed by all parties.
+Please note that changes to limits on the Agile side are not always applied immediately and may only take effect the following day. Keep this in mind when confirming and double-checking all information. If the client or PB is not willing or able to increase the limit – Halt the related price feed in TTWL
+If this is a client with only one CLIENTS/ACCOUNTS line (GUI or API), please reach out to them, inform them that they are approaching their limit, and check whether they would like us to request a credit line increase from the PB or if they prefer to reduce their utilisation by trading in the opposite direction.
+If the client chooses to trade in the opposite direction, the Daily limit should be switched to YES on their account in the Credit Console allowing them to trade.
+For an API or LP, notify the client and ask if they want to request a line increase. If not – Halt their price feed in TTWL
+If the client was halted, notify the on-call team to reconnect at rollover if and when additional line becomes available based on the calculated ANOP (screenshot below). Use the ops@mfptrading.com email address for all notifications.
+Disconnect: DCN=YES at Credit Console means CC has sent a 0 credit limit to the trading platform. This is a useful tool when someone is very close to their limit. Chage DCN to Yes on all connectors in CC to stop them from overtrading.
+ANOP = Applied NOP in the Trading Platform:
+In all cases be sure to keep the customer and the team notified of steps taken and follow up actions using the email address ops@mfptrading.com . If you are unclear of the steps to be taken or how to proceed, please discuss a course of action with a team member on how to move forward. 
+The current credit limits can be checked in the Utilisation tab in Agile with the exception of client to client relationships.
+All limits will appear in the latest version of the MFP Trading Limited – PB Schedule (PBA Agreement) in  Basecamp under the Natwest Projects.
+
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---

@@ -1,0 +1,63 @@
+FILENAME: FW_ Starting Out - Focusing your Attention - alan.moore@intellagentic.io.pdf
+UPLOADED: 2026-04-12 16:42:01.200954+00:00
+TOTAL_EXTRACTED_CHARS: 3353
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 0
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+PDF Document (1 pages):
+
+--- Page 1 ---
+S ubject: FW : S tarting O ut - Focusing your Attention
+Fri, Apr 10, 9:29 PM (2 da
+to lmurphy
+lm urphy@m fptrading.com
+ 
+ 
+From: Lisa Murphy <lmurphy@mfptrading.com>
+Sent: Monday, June 13, 2022 3:21 PM
+To: jkonomi@mfptrading.com; mpavlov@mfptrading.com; 'Dmitry Petelin' <dpetelin@mfptrading.com>
+Cc: 'George Davison' <gdavison@mfptrading.com>
+Subject: Starting Out - Focusing your Attention
+ 
+Hi team,
+ 
+I was asked the other day what issues re-occur most often and have the highest priority.
+ 
+There is so much to learn when you start out in this industry that it can feel like a tornado of new terminology and
+situations happening around you. To put it bluntly, it can be a bit overwhelming. It helps to know where to focus yo
+attention and your time. So, to that end please use the following as a guide you can use to streamline your studies
+ 
+1. Learn the basics of a trade.  When the client trades what are they buying/selling, what is their price, which L
+were involved, what is the LP price, what is the mark up captured by MFP, what is the value date, the client
+order ID and the order type. Study the components in the Dealing Pad
+2. Learn the basic workflow of a trade. Follow the lifecycle of a trade, its starts as an order in the trading
+environment, then it travels to the credit console via a post-trade message, then it moves onto the Natwest
+account where it is ultimately matched and booked. How does the trade appear in each environment? How
+you tell if there has been a breakdown in communication between any of those components?
+3. Learn where to find contact information for clients and LPs and the details that create their trading profile. W
+PB do they use to obtain credit? How does that PB receive copies of trades done in our trading environmen
+How do they access our environment? GUI. API? If via API who is their technology provider? Hint: MFPs pr
+is Trader Tools.
+ 
+Task: I want the three of you each to profile 3 different IDs in the trading environment this week and send me a se
+describing that client according to number 3 above, plus anything else you feel is important. Include with your
+assessment a trade you have followed from the dealing pad through to Natwest. If you do not have Natwest acces
+follow through to the credit console please.
+ 
+Here are the most common support questions/issues we see that need to be managed to a good end. Please note
+this list is not exhaustive.
+ 
+1. Someone is unable to connect to the environment. Every API is allowed to access our environment only fro
+single IP address that is whitelisted (like adding it to a phone book) before trading can begin. It is a static
+(unchanging) value. Sometimes we received the incorrect IP address for the connection, other times the va
+are not saved correctly by our network provider, both can result in someone being unable to connect. Our jo
+communicate between the parties involved until connection is established. GUI users have logins and pass
+If you need to reset a password, you contact trader tools support team for assistance. This can be quite an 
+request if it is someone needing to trade right away. You may want to ask the person if they have open orde
+4/12/26, 5:41 PM FW: Starting Out - Focusing your Attention - alan.moore@intellagentic.io
+https://mail.google.com/mail/u/2/popout 1/1
+
+
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---

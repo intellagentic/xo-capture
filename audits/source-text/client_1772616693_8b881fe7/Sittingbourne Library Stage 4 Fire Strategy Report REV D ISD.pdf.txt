@@ -1,0 +1,264 @@
+FILENAME: Sittingbourne Library Stage 4 Fire Strategy Report REV D ISD.pdf
+UPLOADED: 2026-03-05 09:37:56.042147+00:00
+TOTAL_EXTRACTED_CHARS: 15790
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 10790
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+PDF Document (65 pages):
+
+--- Page 1 ---
+  
+ 
+FC DYNAMICS LIMITED 
+                                                      www.fcdynamics.co.uk.                                                                                            
+                                                                                                                                                                                                                                                                                                     
+ 
+ 
+ 
+ 
+ 
+
+
+--- Page 2 ---
+                                                                                                        
+ 
+ 
+Job Ref. 2507    ID 2431  09.11.2025 
+Stage 4 Fire Strategy Report 
+ 
+At  
+ 
+Sittingbourne Library, 
+Central Ave, Kent. 
+ME10 4AH 
+ 
+November 2025 
+ 
+       
+             Job Ref: 8905/2511 
+ 
+ 
+             ID: 2434 
+           
+             For:  
+ 
+        FB SURVEYING LIMITED 
+             
+   
+ 
+
+--- Page 3 ---
+        
+ 
+Page 2 of 59 
+ 
+ 
+ 
+ 
+CONTENTS                                                                                                                                            PAGE 
+1.0 INTRODUCTION 6 
+1.2. Purpose of Report 6 
+1.3. Inspection 6 
+1.4. The Property Summary 6 
+1.5. Description of Proposed Works – Sittingbourne Library 6 
+1.6. Statutory Controls and Legislation 8 
+1.7. The Regulatory Reform (Fire Safety) Order 2005 8 
+1.8. Property Protection 9 
+1.9. Construction, Design and Management Regulations 10 
+1.10. Materials and Workmanship 10 
+1.11. Fire Risk Assessment Review 10 
+1.12. Fire Safety Systems 11 
+2.0 B1: MEANS OF WARNING AND ESCAPE 13 
+2.2. Automatic Detection & Alarm Systems 13 
+2.3. Evacuation Strategy 13 
+2.4. Means of Escape Assessment 14 
+2.5. Escape Route Design Strategy 14 
+2.6. High-Risk Areas In The Sittingbourne Library 15 
+2.7. Travel Distances 15 
+2.8. Open-Plan Arrangements 17 
+2.9. Inner Rooms 18 
+2.10. Fire-Resisting Room Enclosures 18 
+2.11. Emergency Lighting 19 
+2.12. Provisions For Disabled Occupants 19 
+
+--- Page 4 ---
+        
+ 
+Page 3 of 59 
+ 
+2.13. Number of Escape Routes and Exits 20 
+2.14. Single escape Routes And Exits 20 
+2.15. Access Control Measures 21 
+2.16. Number of Occupants And Exits 22 
+2.17. Width of Escape Routes And Exits 22 
+2.18. Final Exit Capacity Assessment 24 
+2.19. Occupancy Capacity Estimate 24 
+2.20. Smoke Ventilation Control 28 
+3.0 B2: INTERNAL FIRE SPREAD 29 
+3.1. Internal Linings 29 
+4.0 B3: INTERNAL FIRE SPREAD 31 
+4.1. Element of Structure/ Periods of Fire Resistance 31 
+4.2. Roof Structure 31 
+4.3. Compartmentation Strategy 31 
+4.4. Service Penetrations and Fire-Stopping 32 
+4.5. Junction of Compartmentation 32 
+4.6. Limitations of Non-Insulated Glazing 32 
+4.7. External Protection to Escape Routes 32 
+4.8. Places of Special Fire Hazards 32 
+4.9. Fire Doors 33 
+Table 8: Specific provisions of the test for fire resistance of elements of structure 40 
+4.10. Ductwork 40 
+4.11. Fire Stopping 41 
+4.12. Cavity Barriers 42 
+5.0 B4: EXTERNAL FIRE SPREAD 45 
+5.2. External Wall Construction 45 
+5.3. Refuse Storage 45 
+
+--- Page 5 ---
+        
+ 
+Page 4 of 59 
+ 
+5.4. Definition Of External Wall And Specified Attachments 45 
+5.5. Fire Spread To Neighbouring Buildings (SPACE SEPARATION) 46 
+5.6. Existing Arrangements 46 
+5.7. Space Separation And Unprotected Facade Areas 47 
+5.8. Unprotected Areas 48 
+5.9. External Roof Construction And Covering 48 
+5.10. Roof Covering 49 
+6.0 B5: ACCESS AND FACILITIES FOR THE FIRE SERVICE 51 
+6.2. Vehicle Access To And Around The Site 51 
+6.3. Access  Into And Through The Building 52 
+6.4. Fire  Hydrant 52 
+7.0 MANAGEMENT RESPONSIBILITIES IN SUPPORT OF THE FIRE STRATEGY
+ 54 
+7.1. Fire Safety Management 54 
+7.2. Fire Safety Information and Records 55 
+7.3. Summary and Recommendations 55 
+7.4. Conclusion 55 
+APPENDIX A 57 
+FIRE STRATEGY DRAWING 57 
+APPENDIX B 58 
+Pictures of existing Sittingbourne Library 58 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+--- Page 6 ---
+        
+ 
+Page 5 of 59 
+ 
+ 
+VERSION CONTROL  
+Author name Edem Brampah  Qualifications EngTech MIFireE, MCIOB, 
+Assoc RICS, AICWCI 
+Signed E.B 
+ 
+ 
+Date 09.11.2025 
+ 
+Issue Rev. Date Reason for issue 
+A 09.11.2025 Draft For Review 
+B 04.02.2026 Amendment to client’s comments  
+C 10.02.2026 Amendment to client’s comments 
+D 20.02.2026 Updates on exit width calculations  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+--- Page 7 ---
+        
+ 
+Page 6 of 59 
+ 
+1.0 INTRODUCTION  
+1.1.1. This document has been prepared exclusively for FB Surveying Limited on behalf of Skanska 
+PLC and is intended solely for the specific purposes outlined herein. We do not assume any 
+duty of care or liability to third parties concerning its content. Accordingly, unless explicitly 
+agreed upon in a signed written agreement, we disclaim all liability to third parties, including 
+liability for negligence, except where such exclusion is prohibited by applicable law. 
+1.2. PURPOSE OF REPORT   
+1.2.1. The purpose of this Stage 4 Fire Strategy Report is to set o
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---
+ut the fire safety principles for the 
+proposed refurbishment at Sittingbourne Library and to support agreement with the Building 
+Control Body and, where required, the Fire and Rescue Service. The strategy addresses 
+means of warning and escape (B1), internal fire spread (B2/B3), external fire spread (B4) and 
+access and facilities for the fire service (B5), in accordance with the functional requirements 
+of the Building Regulations 2010. Where the des ign departs from the guidance in Approved 
+
+--- CHARS 5500+ (CLAUDE DID NOT SEE) ---
+
+Document B (Volume 2), this is identified and the basis for acceptance is stated. 
+1.3. INSPECTION 
+1.3.1. In accordance with your instructions, we arranged and visited the Property on 10th of 
+October 2025, and we provide our findings in this report. 
+1.3.2. A non-intrusive (visual-only) site visit was carried out for this development. No materials or 
+substances were removed for external testing or certification, and this report does not verify 
+whether any fire-resistant constructions or fixed fire protection systems have been installed 
+in accordance with manufacturer specifications or relevant codes of practice. 
+1.4. THE PROPERTY SUMMARY  
+1.4.1. Sittingbourne Library, Central Avenue, Sittingbourne, Kent, ME10 4AH is a single-storey public 
+library building. The accommodation comprises a main public library area with associated 
+ancillary rooms including offices, staff areas, WCs, stores, consultatio n/group rooms and a 
+bin store, as shown on the proposed drawing set (A.04). 
+1.4.2. The building is single-storey, non-residential and under 2,000m². It is accessed by members 
+of the public and staff. The fire risk profile is considered low to moderate, reflecting typical 
+combustible load associated with library materials and variable public occupancy. 
+1.5. DESCRIPTION OF PROPOSED WORKS – SITTINGBOURNE LIBRARY 
+1.5.1. From a fire engineering perspective, the proposed refurbishment of Sittingbourne Library 
+has been developed to achieve compliance with the Building Regulations 2010, with 
+particular regard to Approved Document B (Fire Safety), Approved Document F (Ventilation) 
+and Approved Document M (Access to and Use of Buildings), together with relevant British 
+
+--- Page 8 ---
+        
+ 
+Page 7 of 59 
+ 
+Standards. The works relate to a single -storey, non-residential public building comprising 
+library accommodation with associated offices, consultation rooms, staff areas and 
+sanitary facilities. The key fire safety provisions incorporated within the design  are 
+summarised below. 
+a. Fire Detection and Alarm System:  A Category L2 automatic fire detection and alarm 
+system is proposed in accordance with BS 5839 -1, providing automatic detection to 
+escape routes, rooms opening onto escape routes, and identified higher -risk areas, to 
+ensure early warning and support a simultaneous evacuation strategy. 
+b. Means of Escape: Means of escape are provided directly to open air via multiple final 
+exits distributed around the building perimeter. Primary escape routes discharge 
+towards the principal entrance, with secondary exits provided to alternative elevations. 
+Final exit doors are fitted with simple fastenings and panic hardware where required. 
+Travel distances and exit capacities have been assessed against Approved Document 
+B (Volume 2) and are demonstrated on the accompanying fire strategy drawings. 
+c. Structural Fire Protection and Compartmentation:  New internal partitions are formed 
+using fire-resisting metal stud constructions (e.g. Type A206015) achieving a minimum 
+of 60 minutes fire resistance in integrity and insulation. Fire -resisting construction is 
+provided where necessary to enclose higher -risk rooms and to limit fire and smoke 
+spread, while the principal open-plan library areas are treated as a single compartment 
+in accordance with ADB guidance for buildings of this scale. 
+d. Doors and Glazing:  Fire-resisting doors are provided where required to protect fire -
+resisting enclosures, incorporating vision panels and simple fastenings to support safe 
+egress. Final exit doors are arranged to avoid trip hazards and to maintain accessibility. 
+Glazing within doors and critical locations is safety glazing compliant with BS 6206, with 
+manifestation and guarding provided as necessary in accordance with Approved 
+Document K. 
+e. Ventilation: Mechanical extract ventilation is provided to sanitary accommodation in 
+accordance with Approved Document F. Ventilation systems are not relied upon for 
+smo
+
+[... 6290 more chars truncated ...]

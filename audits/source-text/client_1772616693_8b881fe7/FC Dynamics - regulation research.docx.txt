@@ -1,0 +1,50 @@
+FILENAME: FC Dynamics - regulation research.docx
+UPLOADED: 2026-03-05 17:53:11.914830+00:00
+TOTAL_EXTRACTED_CHARS: 4518
+CLAUDE_SAW: first 5000 chars (Lambda truncates with text[:5000])
+BEYOND_CAP_CHARS: 0
+
+--- FIRST 5000 CHARS (CLAUDE SAW THIS) ---
+Word Document (32 paragraphs):
+
+Here are the official web links for the regulations, approved documents, and standards mentioned.
+Note: UK Legislation and Approved Documents are free to access via government websites. British Standards (BS) and European Standards (EN) are copyrighted documents managed by the British Standards Institution (BSI) and typically require purchase or an institutional subscription to read in full, though you can view their summaries via the links provided.
+Statutory Legislation (Free Access)
+The Regulatory Reform (Fire Safety) Order 2005:
+https://www.legislation.gov.uk/uksi/2005/1541/contents
+Construction (Design and Management) Regulations 2015 (CDM 2015): https://www.legislation.gov.uk/uksi/2015/51/contents/made (See also the Health and Safety Executive guide: https://www.hse.gov.uk/construction/cdm/2015/index.htm)
+Equality Act 2010:
+https://www.legislation.gov.uk/ukpga/2010/15/contents
+Building Regulations & Approved Documents (Free Access)
+Building Regulations 2010:
+https://www.legislation.gov.uk/uksi/2010/2214/contents/made
+Approved Document B (Fire Safety) - Volume 2:
+https://www.gov.uk/government/publications/fire-safety-approved-document-b
+Approved Document F (Ventilation):
+https://www.gov.uk/government/publications/ventilation-approved-document-f
+Approved Document M (Access to and Use of Buildings):
+https://www.gov.uk/government/publications/access-to-and-use-of-buildings-approved-document-m
+Approved Document K (Protection from falling, collision and impact):
+https://www.gov.uk/government/publications/protection-from-falling-collision-and-impact-approved-document-k
+British Standards (BS) and European Standards (EN)
+The links below direct to the official BSI Knowledge platform where these standards can be reviewed and acquired.
+Fire Detection, Alarm, and Lighting:
+BS 5839-1 (Fire detection and fire alarm systems for buildings): https://knowledge.bsigroup.com/products/fire-detection-and-fire-alarm-systems-for-buildings
+BS 5266-1 (Emergency lighting): https://knowledge.bsigroup.com/products/emergency-lighting-code-of-practice-for-the-emergency-lighting-of-premises-3
+Fire Doors and Compartmentation:
+BS EN 1155 (Electrically powered hold-open devices for doors): https://knowledge.bsigroup.com/products/building-hardware-electrically-powered-hold-open-devices-for-swing-doors-requirements-and-test-methods
+BS 8214 (Timber-based fire door assemblies): https://knowledge.bsigroup.com/products/timber-based-fire-door-assemblies-code-of-practice
+Fire Performance and Testing Standard Classifications:
+BS 476 Series (Fire tests on building materials and structures): https://knowledge.bsigroup.com/search?query=BS+476 (This links to the entire series, including Parts 3, 6, 7, 20-24).
+BS EN 13501 Series (Fire classification of construction products and building elements): https://knowledge.bsigroup.com/search?query=BS+EN+13501 (This links to the entire series covering reaction to fire and fire resistance).
+General Construction and Systems:
+BS 7671 (Requirements for Electrical Installations / IET Wiring Regulations): https://knowledge.bsigroup.com/products/requirements-for-electrical-installations-iet-wiring-regulations-1 (Also available via the IET: https://electrical.theiet.org/bs-7671/)
+BS 6206 (Impact performance requirements for flat safety glass): Note: This standard is mostly withdrawn and replaced by BS EN 12600, but the historical standard can be found here: https://knowledge.bsigroup.com/products/specification-for-impact-performance-requirements-for-flat-safety-glass-and-safety-plastics-for-use-in-buildings
+BS EN 15102 (Decorative wallcoverings): https://knowledge.bsigroup.com/products/decorative-wallcoverings-roll-and-panel-form
+BS 7412 (Plastics windows made from PVC-U profiles): https://knowledge.bsigroup.com/products/plastics-windows-made-from-unplasticized-polyvinyl-chloride-pvc-u-extruded-hollow-profiles-specification-2
+BS 7950 (Security of windows): Note: Withdrawn and largely replaced by PAS 24. https://knowledge.bsigroup.com/products/specification-for-enhanced-security-performance-of-windows-for-domestic-applications
+BS EN ISO 9002:1987 / BS 5750-2 (Quality systems): Note: Withdrawn and replaced by the ISO 9001 series. https://knowledge.bsigroup.com/products/quality-systems-specification-for-production-and-installation
+BS EN 12056-2:2000 (Gravity drainage systems inside buildings): https://knowledge.bsigroup.com/products/gravity-drainage-systems-inside-buildings-sanitary-pipework-layout-and-calculation
+
+
+--- CHARS 5000-5500 (BUFFER, JUST PAST CAP) ---
