@@ -1938,7 +1938,7 @@ export default function App() {
 
   // Model preference state
   const [preferredModel, setPreferredModel] = useState(
-    initialAuth.user?.preferred_model || 'claude-sonnet-4-6'
+    initialAuth.user?.preferred_model || 'claude-opus-4-6'
   )
 
   // Admin / Partner state
@@ -6802,7 +6802,7 @@ function SourcesScreen({ clientId, companyData, onNavigate,preferredModel, isAdm
               id="sources-file-input"
               type="file"
               multiple
-              accept=".csv,.txt,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.json,.xml,.zip,.mp3,.wav,.m4a,.aac,.mp4,.webm,.png,.jpg,.jpeg,.webp"
+              accept=".csv,.txt,.md,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.json,.xml,.zip,.mp3,.wav,.m4a,.aac,.mp4,.webm,.png,.jpg,.jpeg,.webp"
               onChange={handleFileSelect}
               style={{ display: 'none' }}
             />

@@ -21,6 +21,11 @@ import io
 import csv
 from datetime import datetime, timezone
 from auth_helper import require_auth, get_db_connection, CORS_HEADERS, log_activity
+from preprocess_per_document import (
+    STAGE1_PROMPT_VERSION,
+    run_stage1_parallel,
+    build_stage2_input,
+)
 try:
     from crypto_helper import (
         decrypt, decrypt_json, unwrap_client_key,
@@ -180,13 +185,15 @@ def _handle_enrich_request(event, user):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Also read user's preferred_model as fallback
+        # Also read user's preferred_model as fallback. Default is Opus 4.6 —
+        # the tier-1 model — to avoid silent downgrades when preferred_model is
+        # NULL or the user row is missing.
         cur.execute(
-            "SELECT COALESCE(preferred_model, 'claude-sonnet-4-5-20250929') FROM users WHERE id = %s",
+            "SELECT COALESCE(preferred_model, 'claude-opus-4-6') FROM users WHERE id = %s",
             (user['user_id'],)
         )
         user_row = cur.fetchone()
-        db_model = user_row[0] if user_row else 'claude-sonnet-4-5-20250929'
+        db_model = user_row[0] if user_row else 'claude-opus-4-6'
 
         # Priority: request body > user preference > default
         allowed_models = ['claude-opus-4-6', 'claude-sonnet-4-5-20250929', 'claude-haiku-4-5-20251001']
@@ -225,12 +232,16 @@ def _handle_enrich_request(event, user):
 
         db_client_id = str(row[8])
 
-        # Query active upload S3 keys (only process active sources)
+        # Query active upload S3 keys + ids (only process active sources).
+        # The upload_id is needed by Stage 1 caching downstream.
         cur.execute(
-            "SELECT s3_key FROM uploads WHERE client_id = %s AND (status IS NULL OR status = 'active')",
+            "SELECT s3_key, id FROM uploads WHERE client_id = %s AND (status IS NULL OR status = 'active')",
             (db_client_id,)
         )
-        active_keys = [r[0] for r in cur.fetchall()]
+        active_rows = cur.fetchall()
+        active_keys = [r[0] for r in active_rows]
+        # {s3_key: upload_id (string)} — JSON-serialisable for the async payload
+        active_uploads = {r[0]: str(r[1]) for r in active_rows}
         print(f"Active upload keys for enrichment: {len(active_keys)}")
 
         # Create enrichment tracking record with stage
@@ -270,6 +281,7 @@ def _handle_enrich_request(event, user):
             'user_id': user['user_id'],
             'model': model_to_use,
             'active_keys': active_keys,
+            'active_uploads': active_uploads,
             'engagement_id': engagement_id,
             'engagement_focus_area': engagement_focus_area,
             'engagement_contacts': engagement_contacts,
@@ -322,8 +334,9 @@ def _run_enrichment_pipeline(event):
     db_client_id = event['db_client_id']
     enrichment_id = event['enrichment_id']
     user_id = event['user_id']
-    model = event.get('model', 'claude-sonnet-4-5-20250929')
+    model = event.get('model', 'claude-opus-4-6')
     active_keys = event.get('active_keys', None)
+    active_uploads = event.get('active_uploads', None) or {}
     engagement_id = event.get('engagement_id')
     engagement_focus_area = event.get('engagement_focus_area')
     engagement_contacts_raw = event.get('engagement_contacts')
@@ -466,6 +479,24 @@ def _run_enrichment_pipeline(event):
                 "_profile_only": "No client documents uploaded — analysis based on organization profile and contact information only."
             }
 
+        # Stage: stage1_per_doc (Stage 1 per-document structured extraction).
+        # Each file gets its own Claude call (Haiku, parallel), cached on
+        # (upload_id, etag, prompt_version). Stage 2 consumes the structured
+        # output instead of raw concatenated text.
+        update_enrichment_stage(conn, enrichment_id, 'preprocessing')
+        upload_meta = _build_upload_meta(client_id, active_uploads)
+        # Stage 1 and Stage 2 both use the same resolved model — the value
+        # `model_to_use` set in Phase 1 (which honours request body →
+        # users.preferred_model → fallback) and threaded through the async
+        # payload as `model`. No hardcoded model identifier here.
+        stage1_summaries = run_stage1_parallel(
+            extracted_text,
+            upload_meta,
+            conn,
+            model_id=BEDROCK_MODEL_MAP[model],
+            bedrock_invoker=_bedrock_invoke_for_stage1,
+        )
+
         # Stage: researching (placeholder for future web research)
         update_enrichment_stage(conn, enrichment_id, 'researching')
         print("Research stage: placeholder (no web research yet)")
@@ -477,8 +508,13 @@ def _run_enrichment_pipeline(event):
             company_name, website, contact_name, contact_title,
             contact_linkedin, industry, description, pain_point, extracted_text, skills,
             model=model, client_config=client_config, system_skills=system_skills,
-            contacts=contacts, focus_area=engagement_focus_area
+            contacts=contacts, focus_area=engagement_focus_area,
+            stage1_summaries=stage1_summaries, client_id=client_id,
         )
+
+        # Back-compat + integrity: ensure sources[] covers every input filename
+        # and that the legacy reference field is populated.
+        analysis = _normalise_sources(analysis, stage1_summaries)
 
         # Write results to S3 (optionally encrypted with client key)
         if engagement_id:
@@ -1075,8 +1111,8 @@ def extract_text(filename, file_content):
     try:
         if ext == 'csv':
             return extract_csv(file_content)
-        elif ext == 'txt':
-            return file_content.decode('utf-8')
+        elif ext in ('txt', 'md'):
+            return file_content.decode('utf-8', errors='replace')
         elif ext in ['xlsx', 'xls']:
             return extract_excel(file_content)
         elif ext == 'pdf':
@@ -1287,19 +1323,131 @@ def _send_streamline_webhook(company_name, contacts, model, analysis, source_fil
         print(f"Streamline webhook failed (non-fatal): {str(e)}")
 
 
+def _build_upload_meta(client_id, active_uploads):
+    """Build {filename: {upload_id, etag}} by listing the client's uploads
+    folder and matching S3 keys against the active_uploads map from Phase 1.
+
+    Reuses the existing list_objects_v2 path (single S3 call, paginated).
+    """
+    upload_meta = {}
+    paginator = s3_client.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=f"{client_id}/uploads/"):
+        for obj in page.get('Contents', []):
+            s3_key = obj['Key']
+            upload_id = active_uploads.get(s3_key)
+            if not upload_id:
+                continue
+            filename = s3_key.split('/')[-1]
+            if not filename:
+                continue
+            etag = (obj.get('ETag') or '').strip('"')
+            if not etag:
+                continue
+            upload_meta[filename] = {'upload_id': upload_id, 'etag': etag}
+    return upload_meta
+
+
+def _bedrock_invoke_for_stage1(model_id, body_str):
+    """Bedrock Converse invocation matching whichever auth path the parent
+    Lambda is configured for (bearer-token urllib or boto3 IAM converse)."""
+    if AWS_BEARER_TOKEN_BEDROCK:
+        return _invoke_bedrock_bearer(model_id, body_str)
+    body = json.loads(body_str)
+    response = bedrock_client.converse(
+        modelId=model_id,
+        messages=body['messages'],
+        inferenceConfig=body.get('inferenceConfig', {}),
+    )
+    return response
+
+
+def _normalise_sources(analysis, stage1_summaries):
+    """Enforce the source-coverage contract and populate the back-compat
+    `reference` field that legacy consumers (Streamline, frontend) expect.
+
+    Contract: sources[] must contain exactly one entry per filename in
+    stage1_summaries. Missing filenames are auto-filled with a marker
+    indicating Claude omitted them; nothing is silently dropped. The
+    legacy `reference` string is composed server-side as
+    f"{filename} — {distinctive_fact}" for unchanged consumers.
+    """
+    if not isinstance(analysis, dict):
+        return analysis
+
+    sources = analysis.get('sources') or []
+    if not isinstance(sources, list):
+        sources = []
+
+    # Index existing entries by filename; tolerate lowercase / whitespace drift.
+    by_name = {}
+    for s in sources:
+        if not isinstance(s, dict):
+            continue
+        fname = (s.get('filename') or '').strip()
+        if fname:
+            by_name[fname] = s
+
+    expected = [
+        f for f in stage1_summaries.keys()
+        if f != '_profile_only'
+    ]
+    missing = [f for f in expected if f not in by_name]
+    if missing:
+        print(f"sources[] coverage gap — auto-filling {len(missing)} omitted filename(s): {missing}")
+        for f in missing:
+            s1 = stage1_summaries.get(f) or {}
+            facts = s1.get('distinctive_facts') or []
+            entry = {
+                'filename': f,
+                'type': 'client_data',
+                'distinctive_fact': facts[0] if facts else '',
+                'consolidated_with': [],
+                'unique_angle': '',
+                'note': 'Auto-filled — Claude omitted this filename from sources[]',
+            }
+            sources.append(entry)
+            by_name[f] = entry
+
+    # Back-compat: populate legacy `reference` field for any entry missing it.
+    for s in sources:
+        if not isinstance(s, dict):
+            continue
+        if 'reference' not in s:
+            fname = (s.get('filename') or '').strip()
+            fact = (s.get('distinctive_fact') or '').strip()
+            s['reference'] = f"{fname} — {fact}" if fname and fact else (fname or '')
+        if 'type' not in s:
+            s['type'] = 'client_data'
+        s.setdefault('consolidated_with', [])
+        s.setdefault('unique_angle', '')
+
+    analysis['sources'] = sources
+    return analysis
+
+
 def analyze_with_claude(company_name, website, contact_name, contact_title,
                         contact_linkedin, industry, description, pain_point, extracted_text, skills=None,
-                        model='claude-sonnet-4-5-20250929', client_config=None, system_skills=None,
-                        contacts=None, focus_area=None):
+                        model='claude-opus-4-6', client_config=None, system_skills=None,
+                        contacts=None, focus_area=None, stage1_summaries=None, client_id=None):
     """
     Call Claude API with XO Capture Analysis prompt.
     Returns structured analysis JSON.
+
+    Inputs are formatted from `stage1_summaries` (per-document structured
+    output produced by Stage 1). For backward-compat — if no Stage 1 output
+    is supplied, falls back to the legacy text[:5000] concat over
+    extracted_text. New code paths always supply stage1_summaries.
     """
 
-    files_summary = "\n\n".join([
-        f"=== {filename} ===\n{text[:5000]}"
-        for filename, text in extracted_text.items()
-    ])
+    if stage1_summaries:
+        files_summary = build_stage2_input(stage1_summaries)
+    else:
+        # Legacy fallback path — kept for safety during deploy and for
+        # tests that exercise analyze_with_claude in isolation.
+        files_summary = "\n\n".join([
+            f"=== {filename} ===\n{text[:5000]}"
+            for filename, text in extracted_text.items()
+        ])
 
     enrichment_info = []
 
@@ -1377,7 +1525,9 @@ COMPANY INFORMATION:
 Company Name: {company_name}
 {enrichment_section}
 {config_section}
-CLIENT DATA (Uploaded Documents):
+CLIENT DATA (Per-document structured summaries from Stage 1):
+Each block below corresponds to ONE uploaded file and was produced by a per-document extraction pass. Treat each block as the canonical view of that file. Use the DISTINCTIVE FACTS, NAMED ENTITIES, DECISIONS, ACTION ITEMS, and KEY QUOTES verbatim where possible — they are the highest-signal content from each document.
+
 {files_summary}
 {skills_section}
 TASK:
@@ -1403,6 +1553,15 @@ Never use the word "dashboard" — always "console".
 Data flow: Data Sources feed XO. XO drives Streamline. Console displays XO's analysis and Streamline's workflow actions to operators.
 Every named component box MUST carry [EXISTING], [EXTEND], or [NEW]. Do NOT include a summary caption — it is appended programmatically from component_mapping.summary_line.
 {system_skills_section}
+SOURCE COVERAGE REQUIREMENT (NON-NEGOTIABLE):
+Each DOCUMENT BLOCK above represents ONE uploaded file (the filename appears in its `===` header). Your sources[] array MUST contain exactly one entry per filename — never aggregate multiple filenames into one entry, never silently drop a filename.
+
+For each entry:
+  - Set "filename" to the exact filename from the block's `===` header.
+  - Set "distinctive_fact" to a verbatim or near-verbatim fact pulled from THAT file's DISTINCTIVE FACTS section. Do not invent. Do not paraphrase to genericness.
+  - If a file genuinely overlaps with another (its OVERLAPS WITH section flags this), populate "consolidated_with" with the other filenames AND give an explicit "unique_angle" — what THIS file adds that the others don't (e.g. "anonymised version with Forex Ventures naming", "earlier version pre-correction"). Empty unique_angle is NOT allowed when consolidated_with is non-empty.
+  - Otherwise leave consolidated_with as [] and unique_angle as "".
+
 OUTPUT FORMAT:
 Return valid JSON. The structure below is the base schema — additional fields instructed by SYSTEM INSTRUCTIONS above are permitted. All text fields can include newline characters (\\n) for formatting. Follow the SYSTEM INSTRUCTIONS above for formatting rules:
 {{
@@ -1470,14 +1629,20 @@ Return valid JSON. The structure below is the base schema — additional fields 
     }}
   ],
   "sources": [
-    {{"type": "client_data", "reference": "filename or data source"}}
+    {{
+      "filename": "<exact filename from a DOCUMENT BLOCK header>",
+      "type": "client_data",
+      "distinctive_fact": "<one verbatim or near-verbatim fact pulled from this file's DISTINCTIVE FACTS>",
+      "consolidated_with": [],
+      "unique_angle": ""
+    }}
   ]
 }}
 
 Be specific. Use actual data from the documents. Think like a management consultant presenting to the CEO."""
 
     try:
-        bedrock_model_id = BEDROCK_MODEL_MAP.get(model, BEDROCK_MODEL_MAP['claude-sonnet-4-6'])
+        bedrock_model_id = BEDROCK_MODEL_MAP.get(model, BEDROCK_MODEL_MAP['claude-opus-4-6'])
         print(f"Invoking Bedrock model: {bedrock_model_id} (requested: {model})")
 
         converse_body = json.dumps({
@@ -1485,7 +1650,7 @@ Be specific. Use actual data from the documents. Think like a management consult
                 {"role": "user", "content": [{"text": prompt}]}
             ],
             "inferenceConfig": {
-                "maxTokens": 16000,
+                "maxTokens": 32000,
                 "temperature": 0.7
             }
         })
@@ -1500,7 +1665,7 @@ Be specific. Use actual data from the documents. Think like a management consult
                 messages=[
                     {"role": "user", "content": [{"text": prompt}]}
                 ],
-                inferenceConfig={"maxTokens": 16000, "temperature": 0.7}
+                inferenceConfig={"maxTokens": 32000, "temperature": 0.7}
             )
             response_body = bedrock_response
 
@@ -1522,7 +1687,7 @@ Be specific. Use actual data from the documents. Think like a management consult
             analysis = json.loads(response_text)
         except json.JSONDecodeError as je:
             print(f"JSON parse failed at char {je.pos}, attempting repair...")
-            analysis = _repair_truncated_json(response_text)
+            analysis = _repair_truncated_json(response_text, client_id=client_id)
 
         analysis['analyzed_at'] = datetime.now(timezone.utc).isoformat()
         analysis['analyzed_files'] = list(extracted_text.keys())
@@ -1544,11 +1709,12 @@ Be specific. Use actual data from the documents. Think like a management consult
         }
 
 
-def _repair_truncated_json(text):
+def _repair_truncated_json(text, client_id=None):
     """
     Attempt to repair truncated JSON from Claude (e.g. when max_tokens was hit).
     Closes unclosed strings, arrays, and objects to produce valid JSON.
     """
+    print(f"Stage 2 output truncation detected, repair invoked: client_id={client_id}")
     # Strip trailing whitespace/incomplete tokens
     text = text.rstrip()
 
