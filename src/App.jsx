@@ -2221,8 +2221,9 @@ export default function App() {
         ? `${API_BASE}/clients?client_id=${clientId}`
         : `${API_BASE}/clients`
       const response = await fetch(url, { headers: getAuthHeaders() })
+      let data = null
       if (response.ok) {
-        const data = await response.json()
+        data = await response.json()
         // Build contacts array: prefer API contacts, fallback to legacy flat fields
         let contacts = (data.contacts || []).map(migrateContact)
         if (!contacts.length && (data.contactName || data.contactEmail)) {
