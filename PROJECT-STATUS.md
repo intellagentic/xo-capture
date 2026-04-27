@@ -3,7 +3,7 @@
 **Date:** April 26, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.47)
+**Status:** Deployed & Operational (v2.48)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -3955,10 +3955,11 @@ Files changed (commits 857e446 + 70610a9 + f55acb8 + frontend redeploy):
 - backend/lambdas/tests/test_enrich_lambda.py (+37: lock test for Opus fallback)
 - backend/lambdas/tests/test_enrich_preprocess.py (NEW, +334: 12 unit tests)
 
-Cost expectation:
-- First enrichment, all-fresh, Opus 4.6 both stages, 8-10 file client: ~$0.70-$0.80.
-- Cached re-run (Stage 1 cache hits, Stage 2 fresh): ~$0.30 regardless of file count.
-- ~$910/year baseline at 53 active clients × ~7 enrichments/year.
+Cost (measured from CloudWatch Bedrock metrics, post-deploy):
+- First enrichment (Stage 1 fresh + Stage 2 fresh, 8-10 file client): ~$0.90 (extrapolated; cold-cache run not captured post-deploy — recommend capturing next time a cold-cache client runs through to confirm).
+- Cached re-run (Stage 1 cache hits, Stage 2 fresh): ~$0.42-$0.56 measured (FC Dynamics $0.42, MFP Trading $0.56).
+- Annualised platform spend at 53 clients × ~7 enrichments/year (1 cold + 6 warm mix per client): ~$204/year ($224 with the regional inference profile premium).
+- Earlier $0.30 / $910 figures were based on incorrect pricing assumptions (used Opus 3-era $15/$75 per Mtok rather than Opus 4.6's $5/$25 per Mtok). Corrected in v2.48.
 
 Known issues filed separately (not addressed in this branch):
 - GitHub #49 — list_objects_v2 missing pagination, P2 (silent 1000-key cap on enrich/lambda_function.py extract_all_files / find_audio_files / read_skills_from_s3).
