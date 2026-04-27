@@ -2872,7 +2872,7 @@ export default function App() {
         {currentScreen === 'skills' && <SkillsScreen clientId={clientId} isAdmin={isAdmin} preferredModel={preferredModel} activeEngagement={activeEngagement} onNavigate={navigateTo} />}
         {currentScreen === 'configuration' && <ConfigurationScreen theme={theme} toggleTheme={toggleTheme} buttons={configButtons} setButtons={saveButtons} systemButtons={systemButtons} setSystemButtons={saveSystemButtons} preferredModel={preferredModel} setPreferredModel={saveModelPreference} clientId={clientId} inWorkspace={inWorkspace} isAdmin={isAdmin} companyName={companyData.name} />}
         {currentScreen === 'branding' && <BrandingScreen clientId={clientId} companyData={companyData} setCompanyData={setCompanyData} />}
-        {currentScreen === 'accounts' && isAdmin && <AccountsScreen accounts={accounts} setAccounts={setAccounts} />}
+        {currentScreen === 'accounts' && isAdmin && <AccountsScreen accounts={accounts} setAccounts={setAccounts} teamUsers={teamUsers} />}
         {currentScreen === 'team' && (isAdmin || user?.account_role === 'account_admin') && <TeamScreen isAdmin={isAdmin} user={user} accounts={accounts} teamUsers={teamUsers} setTeamUsers={setTeamUsers} />}
 
       </main>
@@ -2910,7 +2910,7 @@ export default function App() {
 // ============================================================
 // PARTNERS SCREEN — CRUD management for channel partners (admin only)
 // ============================================================
-function AccountsScreen({ accounts, setAccounts }) {
+function AccountsScreen({ accounts, setAccounts, teamUsers }) {
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editPartner, setEditPartner] = useState(null)
