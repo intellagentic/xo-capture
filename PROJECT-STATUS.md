@@ -1,9 +1,9 @@
 # XO CAPTURE - PROJECT STATUS
 
-**Date:** April 26, 2026
+**Date:** April 27, 2026
 **Project:** XO Capture - Rapid Deployment
 **Author:** Ken Scott, Co-Founder & President, Intellagentic
-**Status:** Deployed & Operational (v2.48)
+**Status:** Deployed & Operational (v2.49)
 **CloudFront URL:** https://d36la414u58rw5.cloudfront.net
 **Repository:** https://github.com/intellagentic/xo-capture
 
@@ -4019,6 +4019,39 @@ Files changed (squash commit f2a5cf9):
 - backend/lambdas/tests/test_enrich_lambda.py     (+59 / -11)
 - backend/lambdas/tests/test_enrich_preprocess.py (+145)
 Total: +302 / -97
+
+---
+
+**April 27, 2026 — v2.49:**
+
+Two production frontend fixes shipped in response to a "Partners page renders blank" report. Both bugs were latent in main; the v2.46 redeploy on 2026-04-26 produced the fresh bundle that surfaced them on first navigation.
+
+Fix 1 — Partners page blank render (commit 1b58cf2):
+AccountsScreen at src/App.jsx:2913 referenced `teamUsers` inside the contact-photo cross-reference block (lines 3105-3106) but the prop was never passed in at the mount site (src/App.jsx:2875 — `<AccountsScreen accounts={accounts} setAccounts={setAccounts} />`). On render of any partner row whose first contact had `firstName` or `lastName` set, `teamUsers.find(...)` threw `ReferenceError: teamUsers is not defined`, React unmounted the subtree, the page rendered blank. Live data tripped on Intellistack (Aled Miles) and Tom Dudbridge.
+
+Bug introduced 2026-04-14 in commit ba107c7 ("feat: team member photos — popover, sidebar avatar, contact cross-reference"). Latent for 13 days because either Partners wasn't visited or the buggy branch wasn't hit; the fresh bundle from PR #51 (frontend redeploy 2026-04-26 15:07 UTC) made today's navigation the first that exercised the path with current data.
+
+Two-line fix: add `teamUsers={teamUsers}` to the mount site, add `teamUsers` to the AccountsScreen function signature. The existing state hook in App (src/App.jsx:2052) already manages teamUsers correctly. Verified via headless puppeteer against https://xo.intellagentic.io: Partners click renders all 4 accounts (Intellagentic, Intellistack, Simon Berrill, Tom Dudbridge); zero pageerror events; ReferenceError gone.
+
+Fix 2 — fetchExistingClient ReferenceError (commit 1ee83fb):
+While diagnosing fix 1, headless verification surfaced a second console error: `Failed to fetch existing client: ReferenceError: data is not defined`. Traced to src/App.jsx:2257 in `fetchExistingClient` — `const cid = clientId || data?.client_id` references `data`, but `data` was declared with `const` inside the `if (response.ok)` block. Any non-2xx response from /clients (new user with no client row, auth blip, transient API error) skipped the if-body, leaving `data` undeclared, and the post-block reference threw.
+
+Not currently exercised in production because Ken's /clients returns 200, but would fire for any first-time user without a client row, or any /clients failure. The outer try/catch swallowed it as `Failed to fetch existing client`, masking the real cause from logs.
+
+One-line fix: hoist `let data = null` outside the if-block; change the inner declaration from `const data = ...` to `data = ...`. The post-block `data?.client_id` short-circuits cleanly when null. Verified via headless puppeteer with request interception forcing /clients to fail: ReferenceError gone, page still loads cleanly, the catch block now logs the real network error (TypeError: Failed to fetch) instead of a misleading ReferenceError.
+
+Companion finding (no fix needed): a /buttons 500 also appeared in CloudWatch during verification (`invalid input syntax for type uuid: "1"`). Traced to my own puppeteer scripts using a synthetic JWT with `user_id: 1`. All real Ken-authored GET /buttons calls in the last hour returned 200. Not a production bug, no fix shipped. Optional backend hardening (UUID validation in xo-buttons handle_get) noted but skipped per scope.
+
+Production state at deploy completion:
+- Bundle v2.49: dist/assets/index-ChetDeZE.js (542.16 kB), deployed 2026-04-27T19:08:50Z.
+- CloudFront invalidation IBC5LVIAZIOAWWCAMT0YP7SXUN.
+- Intermediate bundle index-DXthaf9D.js (fix 1 only) deployed 2026-04-27T19:01:58Z, invalidation I1SPHC3CU6IA890XRNEQ08V8VZ — superseded by v2.49.
+- No backend changes. No schema changes. No Lambda redeploys.
+
+Files changed:
+- src/App.jsx (+3 / -2 across two commits)
+
+Verification artefacts (puppeteer scripts) cleaned up after each run; not retained in audits/.
 
 ---
 
