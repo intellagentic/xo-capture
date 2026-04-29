@@ -14,7 +14,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'clients'))
 
 from test_helpers import (
     make_event, make_authed_event, assert_status, parse_body,
-    ADMIN_USER, PARTNER_USER, CLIENT_USER, REGULAR_USER
+    ADMIN_USER, PARTNER_USER, CLIENT_USER, REGULAR_USER,
+    SUPER_ADMIN_USER, ACCOUNT_ADMIN_USER, ACCOUNT_USER, CLIENT_CONTACT_USER,
 )
 
 
@@ -102,6 +103,67 @@ class TestCreateClient:
         response = clients_module.lambda_handler(event, None)
         assert_status(response, 403)
 
+    def test_client_contact_cannot_create_client(self, clients_module, mock_deps):
+        started, _, _, _ = mock_deps
+        started['require_auth'].return_value = (CLIENT_CONTACT_USER, None)
+
+        event = make_event(method='POST', path='/clients', body={
+            'company_name': 'Test Corp'
+        })
+        response = clients_module.lambda_handler(event, None)
+        assert_status(response, 403)
+
+    def test_account_user_can_create_client_jwt_realistic(self, clients_module, mock_deps):
+        """REGRESSION GUARD: real account_user JWTs carry is_client=True (because
+        users.role='client'). They distinguish from legacy token-scoped users by
+        the absence of a client_id claim. The route gate must NOT block this user.
+        """
+        started, _, mock_cur, _ = mock_deps
+        # Build a JWT-realistic user dict, asserting our assumption explicitly.
+        user = ACCOUNT_USER.copy()
+        assert user['is_client'] is True, \
+            "ACCOUNT_USER fixture must carry is_client=True to match real JWT shape"
+        assert user['client_id'] is None, \
+            "ACCOUNT_USER fixture must NOT have client_id (only legacy tokens do)"
+        assert user['account_role'] == 'account_user'
+        started['require_auth'].return_value = (user, None)
+        mock_cur.fetchone.side_effect = [(None,), ('new-db-id',)]
+
+        event = make_event(method='POST', path='/clients', body={
+            'company_name': 'Test Corp'
+        })
+        response = clients_module.lambda_handler(event, None)
+        assert response['statusCode'] != 403, \
+            f"account_user POST must not 403; got {response['statusCode']}: {parse_body(response)}"
+
+    def test_account_admin_can_create_client(self, clients_module, mock_deps):
+        started, _, mock_cur, _ = mock_deps
+        started['require_auth'].return_value = (ACCOUNT_ADMIN_USER, None)
+        mock_cur.fetchone.side_effect = [(None,), ('new-db-id',)]
+
+        event = make_event(method='POST', path='/clients', body={
+            'company_name': 'Test Corp'
+        })
+        response = clients_module.lambda_handler(event, None)
+        assert response['statusCode'] != 403, parse_body(response)
+
+    def test_create_inserts_uca_for_creator(self, clients_module, mock_deps):
+        started, _, mock_cur, _ = mock_deps
+        started['require_auth'].return_value = (ACCOUNT_USER, None)
+        mock_cur.fetchone.side_effect = [(None,), ('new-db-id',)]
+
+        event = make_event(method='POST', path='/clients', body={
+            'company_name': 'Test Corp'
+        })
+        clients_module.lambda_handler(event, None)
+        executed_sql = [c.args[0] for c in mock_cur.execute.call_args_list]
+        uca_inserts = [s for s in executed_sql if 'INSERT INTO user_client_assignments' in s]
+        assert uca_inserts, f"expected a UCA INSERT, got: {executed_sql}"
+        uca_call = next(c for c in mock_cur.execute.call_args_list
+                        if 'INSERT INTO user_client_assignments' in c.args[0])
+        assert uca_call.args[1][0] == ACCOUNT_USER['user_id']
+        assert uca_call.args[1][1] == 'new-db-id'
+
 
 class TestGetClient:
     def test_get_client_not_found(self, clients_module, mock_deps):
@@ -126,6 +188,37 @@ class TestGetClient:
         # Should force client_id to user's own client
         assert_status(response, 404)
 
+    def test_account_user_get_client_uses_uca_predicate(self, clients_module, mock_deps):
+        """account_user fetching by client_id must hit a query that joins UCA."""
+        started, _, mock_cur, _ = mock_deps
+        started['require_auth'].return_value = (ACCOUNT_USER, None)
+        mock_cur.fetchone.return_value = None
+
+        event = make_event(method='GET', path='/clients',
+                           query_params={'client_id': 'client_xyz'})
+        clients_module.lambda_handler(event, None)
+        executed_sql = [c.args[0] for c in mock_cur.execute.call_args_list]
+        select_sql = [s for s in executed_sql if 'SELECT' in s and 'FROM clients' in s]
+        assert select_sql, f"expected a clients SELECT, got: {executed_sql}"
+        assert any('user_client_assignments' in s for s in select_sql), \
+            f"account_user GET should hit UCA predicate; got: {select_sql}"
+
+    def test_account_admin_get_client_uses_account_id_predicate(self, clients_module, mock_deps):
+        """account_admin fetching by client_id must filter by account_id, not user_id."""
+        started, _, mock_cur, _ = mock_deps
+        started['require_auth'].return_value = (ACCOUNT_ADMIN_USER, None)
+        mock_cur.fetchone.return_value = None
+
+        event = make_event(method='GET', path='/clients',
+                           query_params={'client_id': 'client_xyz'})
+        clients_module.lambda_handler(event, None)
+        executed_sql = [c.args[0] for c in mock_cur.execute.call_args_list]
+        select_sql = [s for s in executed_sql if 'SELECT' in s and 'FROM clients' in s]
+        assert select_sql
+        chosen = select_sql[-1]
+        assert 'account_id = %s' in chosen and 'user_id = %s' not in chosen, \
+            f"account_admin GET should filter by account_id, got: {chosen}"
+
 
 class TestUpdateClient:
     def test_missing_client_id_returns_400(self, clients_module, mock_deps):
@@ -147,6 +240,39 @@ class TestUpdateClient:
         })
         response = clients_module.lambda_handler(event, None)
         assert_status(response, 400)
+
+    def test_account_user_update_uses_uca_predicate(self, clients_module, mock_deps):
+        started, _, mock_cur, _ = mock_deps
+        started['require_auth'].return_value = (ACCOUNT_USER, None)
+        mock_cur.fetchone.return_value = ('row-id',)
+
+        event = make_event(method='PUT', path='/clients', body={
+            'client_id': 'c123',
+            'company_name': 'Test Corp'
+        })
+        clients_module.lambda_handler(event, None)
+        executed_sql = [c.args[0] for c in mock_cur.execute.call_args_list]
+        update_sql = [s for s in executed_sql if s.lstrip().startswith('UPDATE clients')]
+        assert update_sql, f"expected UPDATE clients, got: {executed_sql}"
+        assert any('user_client_assignments' in s for s in update_sql), \
+            f"account_user UPDATE should reference UCA; got: {update_sql}"
+
+    def test_account_admin_update_uses_account_id_predicate(self, clients_module, mock_deps):
+        started, _, mock_cur, _ = mock_deps
+        started['require_auth'].return_value = (ACCOUNT_ADMIN_USER, None)
+        mock_cur.fetchone.return_value = ('row-id',)
+
+        event = make_event(method='PUT', path='/clients', body={
+            'client_id': 'c123',
+            'company_name': 'Test Corp'
+        })
+        clients_module.lambda_handler(event, None)
+        executed_sql = [c.args[0] for c in mock_cur.execute.call_args_list]
+        update_sql = [s for s in executed_sql if s.lstrip().startswith('UPDATE clients')]
+        assert update_sql
+        chosen = update_sql[-1]
+        assert 'account_id = %s' in chosen and 'user_client_assignments' not in chosen, \
+            f"account_admin UPDATE should filter by account_id only; got: {chosen}"
 
 
 class TestDeleteClient:
@@ -188,6 +314,46 @@ class TestListClients:
         assert_status(response, 200)
         body = parse_body(response)
         assert body['clients'] == []
+
+    def test_super_admin_list_query_unfiltered(self, clients_module, mock_deps):
+        started, _, mock_cur, _ = mock_deps
+        started['require_auth'].return_value = (SUPER_ADMIN_USER, None)
+        mock_cur.fetchall.return_value = []
+
+        event = make_event(method='GET', path='/clients/list')
+        clients_module.lambda_handler(event, None)
+        executed_sql = [c.args[0] for c in mock_cur.execute.call_args_list]
+        list_sql = [s for s in executed_sql if 'FROM clients c' in s]
+        assert list_sql, f"expected list query, got: {executed_sql}"
+        chosen = list_sql[-1]
+        assert 'WHERE c.account_id' not in chosen
+        assert 'user_client_assignments' not in chosen
+        assert 'WHERE c.user_id' not in chosen
+
+    def test_account_user_list_query_uses_uca_join(self, clients_module, mock_deps):
+        started, _, mock_cur, _ = mock_deps
+        started['require_auth'].return_value = (ACCOUNT_USER, None)
+        mock_cur.fetchone.return_value = (0,)
+        mock_cur.fetchall.return_value = []
+
+        event = make_event(method='GET', path='/clients/list')
+        clients_module.lambda_handler(event, None)
+        executed_sql = [c.args[0] for c in mock_cur.execute.call_args_list]
+        joined = [s for s in executed_sql if 'JOIN user_client_assignments' in s]
+        assert joined, f"expected UCA join in account_user list, got: {executed_sql}"
+
+    def test_account_admin_list_query_filters_by_account(self, clients_module, mock_deps):
+        started, _, mock_cur, _ = mock_deps
+        started['require_auth'].return_value = (ACCOUNT_ADMIN_USER, None)
+        mock_cur.fetchall.return_value = []
+
+        event = make_event(method='GET', path='/clients/list')
+        clients_module.lambda_handler(event, None)
+        executed_sql = [c.args[0] for c in mock_cur.execute.call_args_list]
+        list_sql = [s for s in executed_sql if 'FROM clients c' in s]
+        assert list_sql
+        chosen = list_sql[-1]
+        assert 'WHERE c.account_id = %s' in chosen, f"got: {chosen}"
 
 
 class TestPartners:
