@@ -837,7 +837,9 @@ function DashboardScreen({ onSelectClient, onCreateClient, isAdmin, isAccount, a
     if (filterIndustry) {
       result = result.filter(c => c.industry === filterIndustry)
     }
-    return result
+    return [...result].sort((a, b) =>
+      (a.company_name || '').localeCompare(b.company_name || '', undefined, { sensitivity: 'base' })
+    )
   }, [clients, searchQuery, filterPartner, filterIndustry])
 
   useEffect(() => {
@@ -3391,11 +3393,13 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
   const [assignSelected, setAssignSelected] = useState(new Set()) // selected client DB ids
   const [assignLoading, setAssignLoading] = useState(false)
   const [assignSaving, setAssignSaving] = useState(false)
+  const [assignClientSearch, setAssignClientSearch] = useState('')
 
   useEffect(() => { fetchUsers() }, [])
 
   const openAssignModal = async (u) => {
     setAssignUser(u)
+    setAssignClientSearch('')
     setAssignLoading(true)
     try {
       // Fetch all clients
@@ -3797,19 +3801,37 @@ function TeamScreen({ isAdmin, user, accounts, teamUsers, setTeamUsers }) {
               <>
                 <div style={{ flex: 1, overflow: 'auto', marginBottom: '0.75rem' }}>
                   <p style={{ fontSize: '0.7rem', color: '#9ca3af', marginBottom: '0.5rem' }}>{assignSelected.size} of {assignClients.length} clients assigned</p>
-                  {assignClients.map(c => {
-                    const checked = assignSelected.has(String(c.db_id || c.id))
-                    return (
-                      <label key={c.db_id || c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.5rem', cursor: 'pointer', borderRadius: 6, background: checked ? 'rgba(220,38,38,0.05)' : 'transparent' }}>
-                        <input type="checkbox" checked={checked} onChange={() => {
-                          const id = String(c.db_id || c.id)
-                          setAssignSelected(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
-                        }} style={{ accentColor: '#dc2626' }} />
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{c.company_name || c.name || c.client_id}</span>
-                        {c.account_name && <span style={{ fontSize: '0.6rem', color: '#9ca3af', marginLeft: 'auto' }}>{c.account_name}</span>}
-                      </label>
-                    )
-                  })}
+                  <input
+                    type="text"
+                    placeholder="Search clients..."
+                    value={assignClientSearch}
+                    onChange={e => setAssignClientSearch(e.target.value)}
+                    style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 6, background: 'var(--bg-input, #fff)', color: 'var(--text-primary)', outline: 'none', marginBottom: '0.5rem', boxSizing: 'border-box' }}
+                  />
+                  {(() => {
+                    const q = assignClientSearch.trim().toLowerCase()
+                    const filtered = q
+                      ? assignClients.filter(c =>
+                          (c.company_name || c.name || '').toLowerCase().includes(q) ||
+                          (c.industry || '').toLowerCase().includes(q))
+                      : assignClients
+                    const sorted = [...filtered].sort((a, b) =>
+                      (a.company_name || a.name || '').localeCompare(
+                        (b.company_name || b.name || ''), undefined, { sensitivity: 'base' }))
+                    return sorted.map(c => {
+                      const checked = assignSelected.has(String(c.db_id || c.id))
+                      return (
+                        <label key={c.db_id || c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.5rem', cursor: 'pointer', borderRadius: 6, background: checked ? 'rgba(220,38,38,0.05)' : 'transparent' }}>
+                          <input type="checkbox" checked={checked} onChange={() => {
+                            const id = String(c.db_id || c.id)
+                            setAssignSelected(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
+                          }} style={{ accentColor: '#dc2626' }} />
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{c.company_name || c.name || c.client_id}</span>
+                          {c.account_name && <span style={{ fontSize: '0.6rem', color: '#9ca3af', marginLeft: 'auto' }}>{c.account_name}</span>}
+                        </label>
+                      )
+                    })
+                  })()}
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                   <button onClick={() => setAssignUser(null)} style={{ padding: '0.5rem 0.75rem', background: 'none', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-muted)' }}>Cancel</button>
