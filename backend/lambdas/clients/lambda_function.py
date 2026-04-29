@@ -409,7 +409,9 @@ def _route_clients(event, user, path, method):
             return handle_update_scope(event, user)
         return handle_update_client(event, user)
     elif method == 'POST':
-        if is_client_user:
+        # Block legacy token-scoped client users and read-only client_contacts.
+        # Allow super_admin, account_admin, account_user, contributor, and legacy is_account.
+        if user.get('is_client') or user.get('account_role') == 'client_contact':
             return {'statusCode': 403, 'headers': CORS_HEADERS, 'body': json.dumps({'error': 'Access denied'})}
         return handle_create_client(event, user)
     elif method == 'DELETE':
@@ -980,49 +982,37 @@ def handle_get_client(event, user):
             client_id = user['client_id']
 
         if client_id:
-            # Admins, client users (own client), and accounts (own clients) get unscoped query
+            base_select = """
+                SELECT id, company_name, website_url, contact_name, contact_title,
+                       contact_linkedin, industry, description, pain_point,
+                       s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
+                       COALESCE(streamline_webhook_enabled, FALSE),
+                       contact_email, contact_phone, contacts_json, addresses_json,
+                       streamline_webhook_url, account_id, COALESCE(intellagentic_lead, FALSE),
+                       future_plans, pain_points_json, invite_webhook_url,
+                       encryption_key, updated_by,
+                       COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
+                       approved_at, company_linkedin, poc_scope
+                FROM clients
+            """
+            account_role = user.get('account_role')
             if user.get('is_admin') or (user.get('is_client') and user.get('client_id') == client_id):
-                cur.execute("""
-                    SELECT id, company_name, website_url, contact_name, contact_title,
-                           contact_linkedin, industry, description, pain_point,
-                           s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
-                           COALESCE(streamline_webhook_enabled, FALSE),
-                           contact_email, contact_phone, contacts_json, addresses_json,
-                           streamline_webhook_url, account_id, COALESCE(intellagentic_lead, FALSE),
-                           future_plans, pain_points_json, invite_webhook_url,
-                           encryption_key, updated_by,
-                           COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
-                           approved_at, company_linkedin, poc_scope
-                    FROM clients WHERE s3_folder = %s
-                """, (client_id,))
+                cur.execute(base_select + " WHERE s3_folder = %s", (client_id,))
+            elif account_role == 'account_admin' and user.get('account_id') is not None:
+                cur.execute(base_select + " WHERE s3_folder = %s AND account_id = %s",
+                            (client_id, user['account_id']))
+            elif account_role in ('account_user', 'contributor', 'client_contact'):
+                cur.execute(base_select + """
+                    WHERE s3_folder = %s
+                      AND (user_id = %s
+                           OR id IN (SELECT client_id FROM user_client_assignments WHERE user_id = %s))
+                """, (client_id, user['user_id'], user['user_id']))
             elif user.get('is_account') and user.get('account_id'):
-                cur.execute("""
-                    SELECT id, company_name, website_url, contact_name, contact_title,
-                           contact_linkedin, industry, description, pain_point,
-                           s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
-                           COALESCE(streamline_webhook_enabled, FALSE),
-                           contact_email, contact_phone, contacts_json, addresses_json,
-                           streamline_webhook_url, account_id, COALESCE(intellagentic_lead, FALSE),
-                           future_plans, pain_points_json, invite_webhook_url,
-                           encryption_key, updated_by,
-                           COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
-                           approved_at, company_linkedin, poc_scope
-                    FROM clients WHERE s3_folder = %s AND account_id = %s
-                """, (client_id, user['account_id']))
+                cur.execute(base_select + " WHERE s3_folder = %s AND account_id = %s",
+                            (client_id, user['account_id']))
             else:
-                cur.execute("""
-                    SELECT id, company_name, website_url, contact_name, contact_title,
-                           contact_linkedin, industry, description, pain_point,
-                           s3_folder, created_at, updated_at, logo_s3_key, icon_s3_key,
-                           COALESCE(streamline_webhook_enabled, FALSE),
-                           contact_email, contact_phone, contacts_json, addresses_json,
-                           streamline_webhook_url, account_id, COALESCE(intellagentic_lead, FALSE),
-                           future_plans, pain_points_json, invite_webhook_url,
-                           encryption_key, updated_by,
-                           COALESCE(nda_signed, FALSE), existing_apps, nda_signed_at,
-                           approved_at, company_linkedin, poc_scope
-                    FROM clients WHERE s3_folder = %s AND user_id = %s
-                """, (client_id, user['user_id']))
+                cur.execute(base_select + " WHERE s3_folder = %s AND user_id = %s",
+                            (client_id, user['user_id']))
         else:
             # Fetch most recent client for this user
             cur.execute("""
@@ -1304,11 +1294,28 @@ def handle_update_client(event, user):
             set_fields.append("company_linkedin = %s")
             params.append(body['company_linkedin'].strip())
 
+        account_role = user.get('account_role')
         if user.get('is_admin') or (user.get('is_client') and user.get('client_id') == client_id):
             params.append(client_id)
             cur.execute(f"""
                 UPDATE clients SET {', '.join(set_fields)}
                 WHERE s3_folder = %s
+                RETURNING id
+            """, params)
+        elif account_role == 'account_admin' and user.get('account_id') is not None:
+            params.extend([client_id, user['account_id']])
+            cur.execute(f"""
+                UPDATE clients SET {', '.join(set_fields)}
+                WHERE s3_folder = %s AND account_id = %s
+                RETURNING id
+            """, params)
+        elif account_role in ('account_user', 'contributor', 'client_contact'):
+            params.extend([client_id, user['user_id'], user['user_id']])
+            cur.execute(f"""
+                UPDATE clients SET {', '.join(set_fields)}
+                WHERE s3_folder = %s
+                  AND (user_id = %s
+                       OR id IN (SELECT client_id FROM user_client_assignments WHERE user_id = %s))
                 RETURNING id
             """, params)
         elif user.get('is_account') and user.get('account_id'):
@@ -2079,6 +2086,14 @@ def handle_create_client(event, user):
         ))
 
         db_id = str(cur.fetchone()[0])
+
+        # Auto-grant UCA so creator can immediately open + edit the client they made.
+        # Idempotent on (user_id, client_id) unique constraint.
+        cur.execute("""
+            INSERT INTO user_client_assignments (user_id, client_id, assigned_by)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, client_id) DO NOTHING
+        """, (user['user_id'], db_id, user['user_id']))
 
         # Insert default skill into DB so it shows in Skills screen
         cur2 = conn.cursor()
